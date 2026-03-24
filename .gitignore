@@ -1,2 +1,3 @@
 *.o
-api/bin/
+api/bin/*
+!api/bin/.gitkeep
