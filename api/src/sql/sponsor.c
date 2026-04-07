@@ -5,35 +5,35 @@
 #include <string.h>
 #include <lib/sqlite3.h>
 #include <structs.h>
-#include <sql/tag.h>
+#include <sql/sponsor.h>
 #include <enums.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
 
-#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM Tag"
+#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM Sponsor"
 #define QUERY_EXISTS_TMP QUERY_COUNT_TMP " WHERE name = ?"
 #define QUERY_SELECT_TMP "SELECT " \
-	"name, color " \
-	"FROM Tag"
+	"name, link " \
+	"FROM Sponsor"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE name = ?"
-#define QUERY_Q_TMP " WHERE name LIKE ?100 OR color LIKE ?100"
+#define QUERY_Q_TMP " WHERE name LIKE ?100 OR link LIKE ?100"
 #define QUERY_SORT_TMP " ORDER BY name COLLATE NOCASE %s"
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
-#define QUERY_POST_TMP "INSERT INTO Tag (name, color) "\
+#define QUERY_POST_TMP "INSERT INTO Sponsor (name, link) "\
 	"VALUES (?, ?);"
-#define QUERY_PUT_TMP "UPDATE Tag " \
-	"SET name = ?, color = ? " \
+#define QUERY_PUT_TMP "UPDATE Sponsor " \
+	"SET name = ?, link = ? " \
 	"WHERE name = ?;"
-#define QUERY_DELETE_TMP "DELETE FROM Tag WHERE name = ?;"
+#define QUERY_DELETE_TMP "DELETE FROM Sponsor WHERE name = ?;"
 
 extern sqlite3 *db;
 
-int tag_exists(char *name) {
-	printf(TERMINAL_SQL_MESSAGE("=== TAG EXISTS SQL ==="));
+int sponsor_exists(char *name) {
+	printf(TERMINAL_SQL_MESSAGE("=== SPONSOR EXISTS SQL ==="));
 
 	int query_rc = SQLITE_ROW;
-	int tags_count = 0;
+	int sponsors_count = 0;
 
 	char *query_tmp = QUERY_EXISTS_TMP ";";
 
@@ -61,8 +61,8 @@ int tag_exists(char *name) {
 
 	while(query_rc != SQLITE_DONE) {
 		if(sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-			tags_count = sqlite3_column_int(stmt, 0);
-			printf("COUNT:\t%d\n", tags_count);
+			sponsors_count = sqlite3_column_int(stmt, 0);
+			printf("COUNT:\t%d\n", sponsors_count);
 		}
 
 		query_rc = sqlite3_step(stmt);
@@ -70,11 +70,11 @@ int tag_exists(char *name) {
 
 	sqlite3_finalize(stmt);
 
-	return tags_count > 0;
+	return sponsors_count > 0;
 }
 
-int get_tags_len(const struct mg_str *q) {
-	printf(TERMINAL_SQL_MESSAGE("=== GET TAGS COUNT SQL ==="));
+int get_sponsors_len(const struct mg_str *q) {
+	printf(TERMINAL_SQL_MESSAGE("=== GET SPONSORS COUNT SQL ==="));
 
 	int query_rc = SQLITE_ROW;
 
@@ -97,7 +97,7 @@ int get_tags_len(const struct mg_str *q) {
 	}
 	strcat(query, ";");
 
-	int tags_count = 0;
+	int sponsors_count = 0;
 
 	sqlite3_stmt *stmt;
 	query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
@@ -127,7 +127,7 @@ int get_tags_len(const struct mg_str *q) {
 
 	while(query_rc != SQLITE_DONE) {
 		if(sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-			tags_count = sqlite3_column_int(stmt, 0);
+			sponsors_count = sqlite3_column_int(stmt, 0);
 		}
 
 		query_rc = sqlite3_step(stmt);
@@ -137,11 +137,11 @@ int get_tags_len(const struct mg_str *q) {
 	free(q_str);
 	free(query);
 
-	return tags_count;
+	return sponsors_count;
 }
 
-int get_tags(size_t len, struct tag **arr, const struct mg_str *q, const struct mg_str *sort, int page, int page_size) {
-	printf(TERMINAL_SQL_MESSAGE("=== GET TAGS SQL ==="));
+int get_sponsors(size_t len, struct sponsor **arr, const struct mg_str *q, const struct mg_str *sort, int page, int page_size) {
+	printf(TERMINAL_SQL_MESSAGE("=== GET SPONSORS SQL ==="));
 
 	int query_rc = SQLITE_ROW;
 
@@ -236,12 +236,12 @@ int get_tags(size_t len, struct tag **arr, const struct mg_str *q, const struct 
 
 	size_t count = 0;
 	while(query_rc == SQLITE_ROW && count < len) {
-		struct tag *u = NULL;
-		u = malloc(sizeof(struct tag));
+		struct sponsor *u = NULL;
+		u = malloc(sizeof(struct sponsor));
 
-		int tag_init_rc = tag_init(u);
-		if(tag_init_rc != 0) {
-			fprintf(stderr, TERMINAL_ERROR_MESSAGE("The tag is NULL"));
+		int sponsor_init_rc = sponsor_init(u);
+		if(sponsor_init_rc != 0) {
+			fprintf(stderr, TERMINAL_ERROR_MESSAGE("The sponsor is NULL"));
 			free(q_str);
 			return HTTP_INTERNAL_ERROR;
 		}
@@ -249,8 +249,8 @@ int get_tags(size_t len, struct tag **arr, const struct mg_str *q, const struct 
 		struct media *m = NULL;
 		m = malloc(sizeof(struct media));
 
-		int tag_rc = tag_map(u, stmt, 0, 1);
-		if(tag_rc != 0) {
+		int sponsor_rc = sponsor_map(u, stmt, 0, 1);
+		if(sponsor_rc != 0) {
 			free(u);
 
 			count += 1;
@@ -274,12 +274,12 @@ int get_tags(size_t len, struct tag **arr, const struct mg_str *q, const struct 
 	return 0;
 }
 
-int get_tag(struct tag *tag, char *name) {
+int get_sponsor(struct sponsor *sponsor, char *name) {
 	if(name < 0) {
 		return HTTP_BAD_REQUEST;
 	}
 
-	printf(TERMINAL_SQL_MESSAGE("=== GET TAG SQL ==="));
+	printf(TERMINAL_SQL_MESSAGE("=== GET SPONSOR SQL ==="));
 
 	int query_rc = SQLITE_ROW;
 
@@ -318,18 +318,18 @@ int get_tag(struct tag *tag, char *name) {
 	}
 
 	while(query_rc == SQLITE_ROW) {
-		int tag_init_rc = tag_init(tag);
-		if(tag_init_rc != 0) {
-			fprintf(stderr, "The tag is NULL\n");
+		int sponsor_init_rc = sponsor_init(sponsor);
+		if(sponsor_init_rc != 0) {
+			fprintf(stderr, "The sponsor is NULL\n");
 			return HTTP_INTERNAL_ERROR;
 		}
 
 		struct media *m = NULL;
 		m = malloc(sizeof(struct media));
 
-		int tag_rc = tag_map(tag, stmt, 0, 1);
-		if(tag_rc != 0) {
-			free(tag);
+		int sponsor_rc = sponsor_map(sponsor, stmt, 0, 1);
+		if(sponsor_rc != 0) {
+			free(sponsor);
 
 			query_rc = sqlite3_step(stmt);
 			continue;
@@ -344,8 +344,8 @@ int get_tag(struct tag *tag, char *name) {
 	return 0;
 }
 
-int add_tag(struct tag *tag) {
-	printf(TERMINAL_SQL_MESSAGE("=== ADD TAG SQL ==="));
+int add_sponsor(struct sponsor *sponsor) {
+	printf(TERMINAL_SQL_MESSAGE("=== ADD SPONSOR SQL ==="));
 
 	int query_rc = SQLITE_ROW;
 
@@ -361,8 +361,8 @@ int add_tag(struct tag *tag) {
 	}
 
 	// Binding
-	sqlite3_bind_text(stmt, 1, tag->name, -1, SQLITE_STATIC);
-	sqlite3_bind_text(stmt, 2, tag->color, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 1, sponsor->name, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 2, sponsor->link, -1, SQLITE_STATIC);
 
 	GET_EXPANDED_QUERY(stmt);
 
@@ -379,8 +379,8 @@ int add_tag(struct tag *tag) {
 	return 0;
 }
 
-int edit_tag(struct tag *tag, char *name) {
-	printf(TERMINAL_SQL_MESSAGE("=== EDIT TAG SQL ==="));
+int edit_sponsor(struct sponsor *sponsor, char *name) {
+	printf(TERMINAL_SQL_MESSAGE("=== EDIT SPONSOR SQL ==="));
 
 	int query_rc = SQLITE_ROW;
 
@@ -396,8 +396,8 @@ int edit_tag(struct tag *tag, char *name) {
 	}
 
 	// Binding
-	sqlite3_bind_text(stmt, 1, tag->name, -1, SQLITE_STATIC);
-	sqlite3_bind_text(stmt, 2, tag->color, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 1, sponsor->name, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 2, sponsor->link, -1, SQLITE_STATIC);
 	sqlite3_bind_text(stmt, 3, name, -1, SQLITE_STATIC);
 
 	GET_EXPANDED_QUERY(stmt);
@@ -415,8 +415,8 @@ int edit_tag(struct tag *tag, char *name) {
 	return 0;
 }
 
-int delete_tag(char *name) {
-	printf(TERMINAL_SQL_MESSAGE("=== DELETE TAG SQL ==="));
+int delete_sponsor(char *name) {
+	printf(TERMINAL_SQL_MESSAGE("=== DELETE SPONSOR SQL ==="));
 
 	int query_rc = SQLITE_ROW;
 
@@ -448,3 +448,4 @@ int delete_tag(char *name) {
 
 	return 0;
 }
+

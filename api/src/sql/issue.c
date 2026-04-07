@@ -2,48 +2,58 @@
 #include <lib/sqlite3.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
-#include <sql/user.h>
+#include <sql/issue.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <structs.h>
+#include <time.h>
 #include <utils.h>
 
 extern sqlite3 *db;
 
-#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM User"
+#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM Issue"
 #define QUERY_EXISTS_TMP QUERY_COUNT_TMP " WHERE id = ?"
 #define QUERY_IDENTITY_EXISTS_TMP                                              \
-  QUERY_COUNT_TEMP " WHERE username = ? OR email = ?"
+  QUERY_COUNT_TMP " WHERE title = ? OR slug = ? OR issueNumber = ?"
 #define QUERY_SELECT_TMP                                                       \
   "SELECT "                                                                    \
-  "u.id, u.username, u.email, u.role, u.link, UNIXEPOCH(u.subscribedAt), "     \
-  "u.isSupporter, UNIXEPOCH(u.createdAt), m.id, m.textAlternatif, m.url, "     \
-  "m.width, m.height "                                                         \
-  "FROM User u LEFT JOIN Media m ON m.id = u.picture";
-#define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE id = ?"
+  "i.id, i.slug, i.title, i.subtitle, UNIXEPOCH(i.createdAt), "                \
+  "COALESCE(UNIXEPOCH(i.publishedAt), i.publishedAt), "                        \
+  "COALESCE(UNIXEPOCH(i.updatedAt), i.updatedAt), i.issueNumber, i.excerpt, "  \
+  "i.content, "                                                                \
+  "i.isSponsored, "                                                            \
+  "i.status, i.openedMailCount, "                                              \
+  "m.id, m.textAlternatif, m.url, m.width, m.height "                          \
+  "FROM Issue i LEFT JOIN Media m ON m.id = i.cover"
+#define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE i.id = ?"
 #define QUERY_Q_TMP                                                            \
-  " WHERE username LIKE ?100 OR email LIKE ?100 OR link LIKE ?100"
-#define QUERY_SORT_TMP " ORDER BY email COLLATE NOCASE %s"
+  " WHERE i.title LIKE ?100 OR CAST(i.issueNumber, Text) LIKE ?100 OR "        \
+  "i.content LIKE ?100"
+#define QUERY_SORT_TMP " ORDER BY i.title COLLATE NOCASE %s"
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
 #define QUERY_POST_TMP                                                         \
-  "INSERT INTO User (username, email, role, link)"                             \
-  "VALUES (?, ?, COALESCE(?, 'USER'), ?);";
+  "INSERT INTO Issue (title, slug, subtitle, publishedAt, issueNumber, "       \
+  "excerpt, content, isSponsored, status) "                                    \
+  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'DRAFT'));"
 #define QUERY_PUT_TMP                                                          \
-  "UPDATE User "                                                               \
-  "SET username = ?, email = ?, role = COALESCE(?, 'USER'), "                  \
-  "link = ?, isSupporter = ? "                                                 \
+  "UPDATE Issue "                                                              \
+  "SET title = ?, slug = ?, subtitle = ?, publishedAt = COALESCE(?, CASE "     \
+  "WHEN status = 'PUBLISHED' THEN CURRENT_TIMESTAMP ELSE NULL END), "          \
+  "issueNumber = ?, "                                                          \
+  "excerpt = ?, content = ?, isSponsored = ?, status = COALESCE(?, 'DRAFT'), " \
+  "updatedAt = CURRENT_TIMESTAMP "                                             \
   "WHERE id = ?;";
 
-#define QUERY_DELETE_TMP "DELETE FROM User WHERE id = ?;"
+#define QUERY_DELETE_TMP "DELETE FROM Issue WHERE id = ?;"
 
-int user_exists(int id) {
-  printf(TERMINAL_SQL_MESSAGE("=== USER EXISTS SQL ==="));
+int issue_exists(int id) {
+  printf(TERMINAL_SQL_MESSAGE("=== ISSUE EXISTS SQL ==="));
 
   int query_rc = SQLITE_ROW;
-  int users_count = 0;
+  int issues_count = 0;
 
   char *query_tmp = QUERY_EXISTS_TMP ";";
 
@@ -73,8 +83,8 @@ int user_exists(int id) {
 
   while (query_rc != SQLITE_DONE) {
     if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      users_count = sqlite3_column_int(stmt, 0);
-      printf("COUNT:\t%d\n", users_count);
+      issues_count = sqlite3_column_int(stmt, 0);
+      printf("COUNT:\t%d\n", issues_count);
     }
 
     query_rc = sqlite3_step(stmt);
@@ -82,27 +92,27 @@ int user_exists(int id) {
 
   sqlite3_finalize(stmt);
 
-  return users_count > 0;
+  return issues_count > 0;
 }
 
-int user_identity_exists(char *username, char *email) {
-  if (email == NULL) {
+int issue_identity_exists(char *title, int issue_number, char *slug) {
+  if (title == NULL && issue_number <= 0 && slug == NULL) {
     return -1;
   }
 
-  printf(TERMINAL_SQL_MESSAGE("=== USER EMAIL EXISTS SQL ==="));
+  printf(TERMINAL_SQL_MESSAGE("=== ISSUE IDENTITY EXISTS SQL ==="));
 
-  int users_count = 0;
+  int issues_count = 0;
 
-  char *query_tmp =
-      "SELECT COUNT(*) FROM User WHERE username = ? OR email = ?;";
+  char *query_tmp = QUERY_IDENTITY_EXISTS_TMP;
 
   sqlite3_stmt *stmt = NULL;
   sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
 
   // Binding
-  sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 2, email, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 1, title, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 2, slug, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 3, issue_number);
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -115,7 +125,7 @@ int user_identity_exists(char *username, char *email) {
 
   while (query_rc != SQLITE_DONE) {
     if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      users_count = sqlite3_column_int(stmt, 0);
+      issues_count = sqlite3_column_int(stmt, 0);
     }
 
     query_rc = sqlite3_step(stmt);
@@ -123,11 +133,11 @@ int user_identity_exists(char *username, char *email) {
 
   sqlite3_finalize(stmt);
 
-  return users_count > 0;
+  return issues_count > 0;
 }
 
-int get_users_len(const struct mg_str *q) {
-  printf(TERMINAL_SQL_MESSAGE("=== GET USERS COUNT SQL ==="));
+int get_issues_len(const struct mg_str *q) {
+  printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES COUNT SQL ==="));
 
   int query_rc = SQLITE_ROW;
 
@@ -150,7 +160,7 @@ int get_users_len(const struct mg_str *q) {
   }
   strcat(query, ";");
 
-  int users_count = 0;
+  int issues_count = 0;
 
   sqlite3_stmt *stmt;
   query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
@@ -182,7 +192,7 @@ int get_users_len(const struct mg_str *q) {
 
   while (query_rc != SQLITE_DONE) {
     if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      users_count = sqlite3_column_int(stmt, 0);
+      issues_count = sqlite3_column_int(stmt, 0);
     }
 
     query_rc = sqlite3_step(stmt);
@@ -192,12 +202,12 @@ int get_users_len(const struct mg_str *q) {
   free(q_str);
   free(query);
 
-  return users_count;
+  return issues_count;
 }
 
-int get_users(size_t len, struct user **arr, const struct mg_str *q,
-              const struct mg_str *sort, int page, int page_size) {
-  printf(TERMINAL_SQL_MESSAGE("=== GET USERS SQL ==="));
+int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
+               const struct mg_str *sort, int page, int page_size) {
+  printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES SQL ==="));
 
   int query_rc = SQLITE_ROW;
 
@@ -288,12 +298,12 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
 
   size_t count = 0;
   while (query_rc == SQLITE_ROW && count < len) {
-    struct user *u = NULL;
-    u = malloc(sizeof(struct user));
+    struct issue *u = NULL;
+    u = malloc(sizeof(struct issue));
 
-    int user_init_rc = user_init(u);
-    if (user_init_rc != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("The user is NULL"));
+    int issue_init_rc = issue_init(u);
+    if (issue_init_rc != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("The issue is NULL"));
       free(q_str);
       return HTTP_INTERNAL_ERROR;
     }
@@ -301,8 +311,8 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int user_rc = user_map(u, stmt, 0, 7);
-    if (user_rc != 0) {
+    int issue_rc = issue_map(u, stmt, 0, 7);
+    if (issue_rc != 0) {
       free(u);
 
       count += 1;
@@ -314,11 +324,11 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
     }
 
     // Picture
-    int picture_rc = media_map(m, stmt, 8, 12);
-    if (picture_rc != 0) {
+    int cover_rc = media_map(m, stmt, 8, 12);
+    if (cover_rc != 0) {
       free(m);
     } else {
-      u->picture = m;
+      u->cover = m;
     }
 
     printf("\n");
@@ -336,12 +346,12 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
   return 0;
 }
 
-int get_user(struct user *user, int id) {
+int get_issue(struct issue *issue, int id) {
   if (id <= 0) {
     return HTTP_BAD_REQUEST;
   }
 
-  printf(TERMINAL_SQL_MESSAGE("=== GET USER SQL ==="));
+  printf(TERMINAL_SQL_MESSAGE("=== GET ISSUE SQL ==="));
 
   int query_rc = SQLITE_ROW;
 
@@ -375,29 +385,29 @@ int get_user(struct user *user, int id) {
   }
 
   while (query_rc == SQLITE_ROW) {
-    int user_init_rc = user_init(user);
-    if (user_init_rc != 0) {
-      fprintf(stderr, "The user is NULL\n");
+    int issue_init_rc = issue_init(issue);
+    if (issue_init_rc != 0) {
+      fprintf(stderr, "The issue is NULL\n");
       return HTTP_INTERNAL_ERROR;
     }
 
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int user_rc = user_map(user, stmt, 0, 7);
-    if (user_rc != 0) {
-      free(user);
+    int issue_rc = issue_map(issue, stmt, 0, 13);
+    if (issue_rc != 0) {
+      free(issue);
 
       query_rc = sqlite3_step(stmt);
       continue;
     }
 
     // Picture
-    int picture_rc = media_map(m, stmt, 8, 12);
-    if (picture_rc != 0) {
+    int cover_rc = media_map(m, stmt, 14, 18);
+    if (cover_rc != 0) {
       free(m);
     } else {
-      user->picture = m;
+      issue->cover = m;
     }
 
     printf("\n");
@@ -409,8 +419,8 @@ int get_user(struct user *user, int id) {
   return 0;
 }
 
-int add_user(struct user *user) {
-  printf(TERMINAL_SQL_MESSAGE("=== ADD USER SQL ==="));
+int add_issue(struct issue *issue) {
+  printf(TERMINAL_SQL_MESSAGE("=== ADD ISSUE SQL ==="));
 
   int query_rc = SQLITE_ROW;
 
@@ -426,11 +436,22 @@ int add_user(struct user *user) {
     return query_rc;
   }
 
+  if (issue->status != NULL && strcmp(issue->status, "PUBLISHED") == 0) {
+    issue->published_at = time(NULL);
+  }
+
   // Binding
-  sqlite3_bind_text(stmt, 1, user->username, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 2, user->email, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 3, user->role, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 1, issue->title, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 2, issue->slug, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 3, issue->subtitle, -1, SQLITE_STATIC);
+  if (issue->published_at > 0) {
+    sqlite3_bind_int(stmt, 4, issue->published_at);
+  }
+  sqlite3_bind_int(stmt, 5, issue->issue_number);
+  sqlite3_bind_text(stmt, 6, issue->excerpt, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 7, issue->content, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 8, issue->is_sponsored);
+  sqlite3_bind_text(stmt, 9, issue->status, -1, SQLITE_STATIC);
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -446,8 +467,8 @@ int add_user(struct user *user) {
   return 0;
 }
 
-int edit_user(struct user *user) {
-  printf(TERMINAL_SQL_MESSAGE("=== EDIT USER SQL ==="));
+int edit_issue(struct issue *issue) {
+  printf(TERMINAL_SQL_MESSAGE("=== EDIT ISSUE SQL ==="));
 
   int query_rc = SQLITE_ROW;
 
@@ -462,13 +483,24 @@ int edit_user(struct user *user) {
 
     return query_rc;
   }
+
+  if (issue->status != NULL && strcmp(issue->status, "PUBLISHED") == 0) {
+    issue->published_at = time(NULL);
+  }
+
   // Binding
-  sqlite3_bind_text(stmt, 1, user->username, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 2, user->email, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 3, user->role, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 5, user->is_supporter);
-  sqlite3_bind_int(stmt, 6, user->id);
+  sqlite3_bind_text(stmt, 1, issue->title, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 2, issue->slug, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 3, issue->subtitle, -1, SQLITE_STATIC);
+  if (issue->published_at > 0) {
+    sqlite3_bind_int(stmt, 4, issue->published_at);
+  }
+  sqlite3_bind_int(stmt, 5, issue->issue_number);
+  sqlite3_bind_text(stmt, 6, issue->excerpt, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 7, issue->content, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 8, issue->is_sponsored);
+  sqlite3_bind_text(stmt, 9, issue->status, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 10, issue->id);
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -484,8 +516,8 @@ int edit_user(struct user *user) {
   return 0;
 }
 
-int delete_user(int id) {
-  printf(TERMINAL_SQL_MESSAGE("=== DELETE USER SQL ==="));
+int delete_issue(int id) {
+  printf(TERMINAL_SQL_MESSAGE("=== DELETE ISSUE SQL ==="));
 
   int query_rc = SQLITE_ROW;
 

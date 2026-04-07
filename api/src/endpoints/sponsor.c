@@ -4,24 +4,24 @@
 #include <macros/colors.h>
 #include <macros/endpoints.h>
 #include <math.h>
-#include <sql/tag.h>
+#include <sql/sponsor.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <structs.h>
 #include <utils.h>
 
-#define TAG_EXISTS_MESSAGE "The tag already exists."
+#define SPONSOR_EXISTS_MESSAGE "The sponsor already exists."
 #define NAME_REQUIRED_MESSAGE "The name is required."
-#define COLOR_REQUIRED_MESSAGE "The color is required."
+#define LINK_REQUIRED_MESSAGE "The link is required."
 
-void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
-                   struct error_reply *error_reply) {
+void send_sponsors_res(struct mg_connection *c, struct mg_http_message *msg,
+                       struct error_reply *error_reply) {
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
-    printf(TERMINAL_ENDPOINT_MESSAGE("=== GET TAG LIST ==="));
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== GET SPONSOR LIST ==="));
 
     // Query params
     char q_buf[1024] = "";
@@ -54,7 +54,7 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
-    reply->total = reply->count = get_tags_len(&q);
+    reply->total = reply->count = get_sponsors_len(&q);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
            reply->total, reply->count, reply->total_pages);
@@ -85,15 +85,15 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
            reply->total, reply->count, reply->total_pages);
 
-    struct tag **tags = NULL;
+    struct sponsor **sponsors = NULL;
 
     if (reply->count > 0) {
-      tags = malloc(reply->count * sizeof(struct tag *));
-      query_code = get_tags(reply->count, tags, &q, &sort, reply->page,
-                            reply->page_size);
+      sponsors = malloc(reply->count * sizeof(struct sponsor *));
+      query_code = get_sponsors(reply->count, sponsors, &q, &sort, reply->page,
+                                reply->page_size);
 
       if (query_code != 0) {
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING TAGS"));
+        fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING SPONSORS"));
         HANDLE_QUERY_CODE;
 
         free(reply->data);
@@ -102,14 +102,14 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
       }
     }
 
-    reply->data = tags_to_json(tags, reply->count);
+    reply->data = sponsors_to_json(sponsors, reply->count);
     list_reply_to_json(reply);
 
     mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
-    printf(TERMINAL_SUCCESS_MESSAGE("=== TAGS SUCCESSFULLY SENT ==="));
+    printf(TERMINAL_SUCCESS_MESSAGE("=== SPONSORS SUCCESSFULLY SENT ==="));
 
     if (reply->count > 0) {
-      free_tags(tags, reply->count);
+      free_sponsors(sponsors, reply->count);
       free(reply->data);
       free(reply->json);
     }
@@ -124,7 +124,6 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
-
     // Body validation
     int offset, length = 0;
 
@@ -134,33 +133,33 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     strncpy(name, msg->body.buf + offset + 1, length - 2);
     name[length - 2] = '\0';
 
-    REQUIRED_BODY_PROPERTY("color", COLOR_REQUIRED_MESSAGE);
+    REQUIRED_BODY_PROPERTY("link", LINK_REQUIRED_MESSAGE);
 
-    int exists = tag_exists(name);
+    int exists = sponsor_exists(name);
     if (exists != 0) {
-      ERROR_REPLY_400(TAG_EXISTS_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("TAG ALREADY EXISTS"));
+      ERROR_REPLY_400(SPONSOR_EXISTS_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("SPONSOR ALREADY EXISTS"));
       free(name);
       return;
     };
 
     // Hydrate
-    struct tag *tag = malloc(sizeof(struct tag));
-    int tag_init_rc = tag_init(tag);
-    if (tag_init_rc != 0) {
+    struct sponsor *sponsor = malloc(sizeof(struct sponsor));
+    int sponsor_init_rc = sponsor_init(sponsor);
+    if (sponsor_init_rc != 0) {
       ERROR_REPLY_500;
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("TAG IS NULL"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("SPONSOR IS NULL"));
       free(name);
 
       return;
     }
 
-    tag_hydrate(msg, tag);
+    sponsor_hydrate(msg, sponsor);
 
     // Store in DB
-    query_code = add_tag(tag);
+    query_code = add_sponsor(sponsor);
     if (query_code != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING TAGS"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING SPONSORS"));
       HANDLE_QUERY_CODE;
       free(name);
 
@@ -168,50 +167,50 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     } else {
       mg_http_reply(c, 201, JSON_HEADER,
                     "{ \"message\": \"Tag successfully created\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY ADDED ==="));
+      printf(TERMINAL_SUCCESS_MESSAGE("=== SPONSOR SUCCESSFULLY ADDED ==="));
     }
 
-    free_tag(tag);
+    free_sponsor(sponsor);
     free(name);
   } else {
     ERROR_REPLY_405;
   }
 }
 
-void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
-                  char *name, struct error_reply *error_reply) {
+void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
+                      char *name, struct error_reply *error_reply) {
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
-    printf(TERMINAL_ENDPOINT_MESSAGE("=== GET TAG ==="));
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== GET SPONSOR ==="));
 
     // Check if exists
-    int exists = tag_exists(name);
+    int exists = sponsor_exists(name);
     if (!exists) {
       ERROR_REPLY_404;
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("TAG NOT FOUND"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("SPONSOR NOT FOUND"));
       return;
     }
 
-    struct tag *tag = NULL;
-    tag = malloc(sizeof(struct tag));
+    struct sponsor *sponsor = NULL;
+    sponsor = malloc(sizeof(struct sponsor));
 
-    query_code = get_tag(tag, name);
+    query_code = get_sponsor(sponsor, name);
 
     if (query_code != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING TAG"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING SPONSOR"));
       HANDLE_QUERY_CODE;
 
       return;
     } else {
-      char *result = tag_to_json(tag);
+      char *result = sponsor_to_json(sponsor);
 
       mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
-      printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY SENT ==="));
+      printf(TERMINAL_SUCCESS_MESSAGE("=== SPONSOR SUCCESSFULLY SENT ==="));
     }
 
-    free_tag(tag);
+    free_sponsor(sponsor);
   } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
@@ -223,64 +222,64 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    struct tag *tag = malloc(sizeof(struct tag));
+    struct sponsor *sponsor = malloc(sizeof(struct sponsor));
 
     // Check if exists
-    int exists = tag_exists(name);
+    int exists = sponsor_exists(name);
     if (!exists) {
       ERROR_REPLY_404;
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("TAG NOT FOUND"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("SPONSOR NOT FOUND"));
       return;
     }
 
     int offset, length;
 
     // Required props
-    REQUIRED_BODY_PROPERTY("color", COLOR_REQUIRED_MESSAGE);
+    REQUIRED_BODY_PROPERTY("link", LINK_REQUIRED_MESSAGE);
 
-    // Retrieve actual values of tag
-    query_code = get_tag(tag, name);
+    // Retrieve actual values of sponsor
+    query_code = get_sponsor(sponsor, name);
     if (query_code != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING TAGS"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING SPONSORS"));
       HANDLE_QUERY_CODE;
 
       return;
     }
 
     // Hydrate
-    tag_hydrate(msg, tag);
+    sponsor_hydrate(msg, sponsor);
 
     // Store in DB
-    query_code = edit_tag(tag, name);
+    query_code = edit_sponsor(sponsor, name);
     if (query_code != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING TAGS"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING SPONSORS"));
       HANDLE_QUERY_CODE;
 
       return;
     } else {
       mg_http_reply(c, 200, JSON_HEADER,
                     "{ \"message\": \"Tag successfully edited\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY EDITED ==="));
+      printf(TERMINAL_SUCCESS_MESSAGE("=== SPONSOR SUCCESSFULLY EDITED ==="));
     }
 
-    free_tag(tag);
+    free_sponsor(sponsor);
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
     // Check if exists
-    int exists = tag_exists(name);
+    int exists = sponsor_exists(name);
     if (!exists) {
       ERROR_REPLY_404;
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("TAG NOT FOUND"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("SPONSOR NOT FOUND"));
 
       return;
     }
 
-    int delete_rc = delete_tag(name);
+    int delete_rc = delete_sponsor(name);
     if (delete_rc != 0) {
       ERROR_REPLY_500;
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("COULDN'T DELETE TAG"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("COULDN'T DELETE SPONSOR"));
     }
 
-    printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY DELETE ==="));
+    printf(TERMINAL_SUCCESS_MESSAGE("=== SPONSOR SUCCESSFULLY DELETE ==="));
     mg_http_reply(c, 200, JSON_HEADER,
                   "{ \"message\": \"Tag successfully deleted\" }");
   } else {

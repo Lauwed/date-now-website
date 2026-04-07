@@ -5,11 +5,14 @@
                                 "singular": "media",
                                 "plural": "medias"
                         },
-                        "primaryKey": {
-                                "name": "id",
-                                "type": "integer",
-                                "defaultValue": "1"
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "id",
+                                        "type": "integer",
+                                        "defaultValue": "1",
+                                        "isPrimary": true
+                                }
+                        ],
                         "uri": "/media",
                         "schema": {
                                 "id": "integer",
@@ -34,11 +37,14 @@
                                 "singular": "user",
                                 "plural": "users"
                         },
-                        "primaryKey": {
-                                "name": "id",
-                                "type": "integer",
-                                "defaultValue": "1"
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "id",
+                                        "type": "integer",
+                                        "defaultValue": "1",
+                                        "isPrimary": true
+                                }
+                        ],
                         "uri": "/user",
                         "schema": {
                                 "id": "integer",
@@ -46,13 +52,10 @@
                                 "email": "string",
                                 "role": "USER | AUTHOR",
                                 "totpSeed": "string?",
-
                                 "link": "string?",
                                 "picture": "foreignKey-media",
-
                                 "subscribedAt": "timestamp?",
                                 "isSupporter": "boolean",
-
                                 "createdAt": "timestamp"
                         },
                         "body": {
@@ -80,11 +83,14 @@
                                 "singular": "tag",
                                 "plural": "tags"
                         },
-                        "primaryKey": {
-                                "name": "name",
-                                "type": "string",
-                                "defaultValue": "Computer Science"
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "name",
+                                        "type": "string",
+                                        "defaultValue": "Computer Science",
+                                        "isPrimary": true
+                                }
+                        ],
                         "uri": "/tag",
                         "schema": {
                                 "name": "string",
@@ -95,7 +101,9 @@
                                         "defaultValue": "{\n\t\"name\": \"Computer Science\",\n\t\"color\": \"#6b3a9e\"\n}"
                                 },
                                 "put": {
-                                        "schema": { "color": "string" },
+                                        "schema": {
+                                                "color": "string"
+                                        },
                                         "defaultValue": "{\n\t\"color\": \"#123456\"\n}"
                                 }
                         }
@@ -105,11 +113,14 @@
                                 "singular": "sponsor",
                                 "plural": "sponsors"
                         },
-                        "primaryKey": {
-                                "name": "name",
-                                "type": "string",
-                                "defaultValue": "Firefox"
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "name",
+                                        "type": "string",
+                                        "defaultValue": "Firefox",
+                                        "isPrimary": true
+                                }
+                        ],
                         "uri": "/sponsor",
                         "schema": {
                                 "name": "string",
@@ -117,7 +128,9 @@
                         },
                         "body": {
                                 "put": {
-                                        "schema": { "link": "string" },
+                                        "schema": {
+                                                "link": "string"
+                                        },
                                         "defaultValue": "{\n\t\"link\": \"firefox.com\"\n}"
                                 }
                         }
@@ -127,11 +140,14 @@
                                 "singular": "issue",
                                 "plural": "issues"
                         },
-                        "primaryKey": {
-                                "name": "id",
-                                "type": "integer",
-                                "defaultValue": 1
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "id",
+                                        "type": "integer",
+                                        "defaultValue": 1,
+                                        "isPrimary": true
+                                }
+                        ],
                         "uri": "/issue",
                         "schema": {
                                 "id": "integer",
@@ -173,6 +189,7 @@
                         },
                         "body": {
                                 "post": {
+                                        "defaultValue": "{\n\t\"title\": \"Les code potes m'ont payés pour faire cette API en C\",\n\t\"subtitle\": \"c'est très rigolo\",\n\t\"issueNumber\": 80,\n\t\"excerpt\": \"La lecture va vous étonner\",\n\t\"content\": \"Ahbahdakor\",\n\t\"status\": \"DRAFT\"\n}",
                                         "schema": {
                                                 "slug": "string?",
                                                 "title": "string",
@@ -185,6 +202,7 @@
                                         }
                                 },
                                 "put": {
+                                        "defaultValue": "{\n\t\"title\": \"Les code potes m'ont payés pour faire cette API en C\",\n\t\"subtitle\": \"c'est très rigolo\",\n\t\"issueNumber\": 80,\n\t\"excerpt\": \"La lecture va vous étonner\",\n\t\"content\": \"Ahbahdakor\",\n\t\"status\": \"DRAFT\"\n}",
                                         "schema": {
                                                 "slug": "string?",
                                                 "title": "string",
@@ -203,62 +221,101 @@
                                 "singular": "issue tag",
                                 "plural": "issue tags"
                         },
-                        "primaryKey": {
-                                "name": "tagId",
-                                "type": "integer",
-                                "defaultValue": 1
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "tagName",
+                                        "type": "string",
+                                        "defaultValue": "Software",
+                                        "isPrimary": true
+                                },
+                                {
+                                        "name": "id",
+                                        "type": "integer",
+                                        "defaultValue": 1
+                                }
+                        ],
                         "uri": "/issue/{ID}/tag",
                         "schema": {
                                 "tagId": "integer",
                                 "issueId": "integer"
                         },
-                        "includedEndpoints": ["GET-list", "POST", "DELETE"]
+                        "includedEndpoints": [
+                                "GET-list",
+                                "POST",
+                                "DELETE"
+                        ]
                 },
                 {
                         "name": {
                                 "singular": "issue author",
                                 "plural": "issue authors"
                         },
-                        "primaryKey": {
-                                "name": "userId",
-                                "type": "integer",
-                                "defaultValue": 1
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "userId",
+                                        "type": "integer",
+                                        "defaultValue": 1,
+                                        "isPrimary": true
+                                },
+                                {
+                                        "name": "id",
+                                        "type": "integer",
+                                        "defaultValue": 1
+                                }
+                        ],
                         "uri": "/issue/{ID}/author",
                         "schema": {
                                 "authorId": "integer",
                                 "issueId": "integer"
                         },
-                        "includedEndpoints": ["GET-list", "POST", "DELETE"]
+                        "includedEndpoints": [
+                                "GET-list",
+                                "POST",
+                                "DELETE"
+                        ]
                 },
                 {
                         "name": {
                                 "singular": "issue sponsor",
                                 "plural": "issue sponsors"
                         },
-                        "primaryKey": {
-                                "name": "sponsorId",
-                                "type": "integer",
-                                "defaultValue": 1
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "sponsorName",
+                                        "type": "string",
+                                        "defaultValue": "Lilymonad",
+                                        "isPrimary": true
+                                },
+                                {
+                                        "name": "id",
+                                        "type": "integer",
+                                        "defaultValue": 1
+                                }
+                        ],
                         "uri": "/issue/{ID}/sponsor",
                         "schema": {
                                 "sponsorId": "integer",
                                 "issueId": "integer"
                         },
-                        "includedEndpoints": ["GET-list", "POST", "DELETE"]
+                        "includedEndpoints": [
+                                "GET-list",
+                                "POST",
+                                "DELETE"
+                        ]
                 },
                 {
                         "name": {
                                 "singular": "view",
                                 "plural": "views"
                         },
-                        "primaryKey": {
-                                "name": "id",
-                                "type": "integer",
-                                "defaultValue": 1
-                        },
+                        "uriParameters": [
+                                {
+                                        "name": "id",
+                                        "type": "integer",
+                                        "defaultValue": 1,
+                                        "isPrimary": true
+                                }
+                        ],
                         "uri": "/view",
                         "schema": {
                                 "id": "integer",
@@ -266,7 +323,11 @@
                                 "hashedIp": "string",
                                 "issueId": "integer"
                         },
-                        "includedEndpoints": ["GET-list", "POST", "DELETE"]
+                        "includedEndpoints": [
+                                "GET-list",
+                                "POST",
+                                "DELETE"
+                        ]
                 }
         ]
 }

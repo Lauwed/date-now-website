@@ -4,9 +4,9 @@ CFLAGS := -I ./include/ -g
 includes := ./include
 src := ./src
 
-tables := user tag
+tables := user tag sponsor issue issue_tag issue_author issue_sponsor
 
-libs_o := obj/lib/mongoose.o obj/lib/sqlite3.o
+libs_o := obj/lib/mongoose.o obj/lib/sqlite3.o obj/lib/validatejson.o
 helpers_o := obj/utils.o
 endpoints_o := ${foreach t,$(tables),obj/endpoints/$(t).o}
 sql_o := ${foreach t,$(tables),obj/sql/$(t).o}

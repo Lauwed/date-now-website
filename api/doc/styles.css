@@ -213,6 +213,9 @@ button:focus {
 
         .endpoint__uri-parameters-container {
                 width: 100%;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
         }
 
         .endpoint__query-parameters-container {

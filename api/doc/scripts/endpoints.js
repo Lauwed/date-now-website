@@ -1,3 +1,13 @@
+const getParametersURIArr = (data) => {
+        const uriParameters = [];
+
+               data.uriParameters.forEach(key => {
+                       uriParameters.push(key);
+               });
+
+        return uriParameters;
+}
+
 const generateGETListEndpoint = (data) => {
         return {
                 method: "GET",
@@ -43,6 +53,13 @@ const generateGETListEndpoint = (data) => {
                         },
                 ],
                 uri: data.uri,
+                uriParameters: 
+                        getParametersURIArr(data).filter(p => !p.isPrimary).map(key => ({
+                                defaultValue: key.defaultValue,
+                                name: `${key.name}`,
+                                parameter: `{${key.name.toUpperCase()}}`,
+                                type: key.type,
+                        }))
         };
 };
 
@@ -58,15 +75,15 @@ const generateGETSingleEndpoint = (data) => {
                                         data.schema,
                         },
                 ],
-                uri: `${data.uri}/{${data.primaryKey.name.toUpperCase()}}`,
-                uriParameters: [
-                        {
-                                defaultValue: data.primaryKey.defaultValue,
-                                name: `${data.name.singular} ${data.primaryKey.name}`,
-                                parameter: `{${data.primaryKey.name.toUpperCase()}}`,
-                                type: data.primaryKey.type,
-                        },
-                ],
+                uri: `${data.uri}/{${data.uriParameters.find(p => p.isPrimary).name.toUpperCase()}}`,
+                uriParameters: 
+                        getParametersURIArr(data).map(key => ({
+
+                                defaultValue: key.defaultValue,
+                                name: `${data.name.singular} ${key.name}`,
+                                parameter: `{${key.name.toUpperCase()}}`,
+                                type: key.type,
+                        }))
         };
 };
 
@@ -83,6 +100,13 @@ const generatePOSTEndpoint = (data) => {
                         },
                 ],
                 uri: data.uri,
+                uriParameters: 
+                        getParametersURIArr(data).filter(p => !p.isPrimary).map(key => ({
+                                defaultValue: key.defaultValue,
+                                name: `${key.name}`,
+                                parameter: `{${key.name.toUpperCase()}}`,
+                                type: key.type,
+                        }))
         };
 };
 
@@ -98,15 +122,15 @@ const generatePUTEndpoint = (data) => {
                                 response: `${data.name.singular} has been successfully edited`,
                         },
                 ],
-                uri: `${data.uri}/{${data.primaryKey.name.toUpperCase()}}`,
-                uriParameters: [
-                        {
-                                defaultValue: data.primaryKey.defaultValue,
-                                name: `${data.name.singular} ${data.primaryKey.name}`,
-                                parameter: `{${data.primaryKey.name.toUpperCase()}}`,
-                                type: data.primaryKey.type,
-                        },
-                ],
+                uri: `${data.uri}/{${data.uriParameters.find(p => p.isPrimary).name.toUpperCase()}}`,
+                uriParameters: 
+                        getParametersURIArr(data).map(key => ({
+
+                                defaultValue: key.defaultValue,
+                                name: `${data.name.singular} ${key.name}`,
+                                parameter: `{${key.name.toUpperCase()}}`,
+                                type: key.type,
+                        }))
         };
 };
 
@@ -120,15 +144,14 @@ const generateDELETEEndpoint = (data) => {
                                 response: `${data.name.singular} has been successfully deleted`,
                         },
                 ],
-                uri: `${data.uri}/{${data.primaryKey.name.toUpperCase()}}`,
-                uriParameters: [
-                        {
-                                defaultValue: data.primaryKey.defaultValue,
-                                name: `${data.name.singular} ${data.primaryKey.name}`,
-                                parameter: `{${data.primaryKey.name.toUpperCase()}}`,
-                                type: data.primaryKey.type,
-                        },
-                ],
+                uri: `${data.uri}/{${data.uriParameters.find(p => p.isPrimary).name.toUpperCase()}}`,
+                uriParameters: 
+                        getParametersURIArr(data).map(key => ({
+                                defaultValue: key.defaultValue,
+                                name: `${data.name.singular} ${key.name}`,
+                                parameter: `{${key.name.toUpperCase()}}`,
+                                type: key.type,
+                        }))
         };
 };
 

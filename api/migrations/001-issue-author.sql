@@ -1,0 +1,10 @@
+
+-- ISSUEAUTHOR
+DROP TABLE IF EXISTS IssueAuthor;
+CREATE TABLE IssueAuthor(
+	userId INTEGER NOT NULL,
+	issueId INTEGER NOT NULL,
+	FOREIGN KEY(issueId) REFERENCES Issue(id),
+	FOREIGN KEY(userId) REFERENCES User(id),
+	PRIMARY KEY(userId, issueId)
+);
