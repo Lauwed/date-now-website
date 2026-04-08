@@ -89,7 +89,7 @@ struct issue_sponsor {
 
 struct view {
   int id;
-  int timestamp;
+  int time;
   char *hashed_ip;
   int issue_id;
 };

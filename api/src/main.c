@@ -38,7 +38,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       printf("endpoint:  %.*s\n", (int)endpoint_cap[0].len,
              endpoint_cap[0].buf);
 
-      if (mg_strcmp(endpoint_cap[0], mg_str("user")) >= 0) {
+      if (mg_match(endpoint_cap[0], mg_str("user#"), NULL)) {
         struct mg_str caps[2];
 
         if (mg_match(endpoint_cap[0], mg_str("user/*"), caps)) {
@@ -57,7 +57,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         }
 
         return;
-      } else if (mg_strcmp(endpoint_cap[0], mg_str("tag")) >= 0) {
+      } else if (mg_match(endpoint_cap[0], mg_str("tag#"), NULL)) {
         struct mg_str caps[2];
 
         if (mg_match(endpoint_cap[0], mg_str("tag/*"), caps)) {
@@ -77,7 +77,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         }
 
         return;
-      } else if (mg_strcmp(endpoint_cap[0], mg_str("sponsor")) >= 0) {
+      } else if (mg_match(endpoint_cap[0], mg_str("sponsor#"), NULL)) {
         struct mg_str caps[2];
 
         if (mg_match(endpoint_cap[0], mg_str("sponsor/*"), caps)) {
@@ -96,13 +96,15 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         }
 
         return;
-      } else if (mg_strcmp(endpoint_cap[0], mg_str("view")) >= 0) {
+      } else if (mg_match(endpoint_cap[0], mg_str("view#"), NULL)) {
+        printf("VIEWS PUTAIN\n");
+        printf("%d\n", mg_strcmp(endpoint_cap[0], mg_str("view")) == 0);
         if (mg_strcmp(endpoint_cap[0], mg_str("view")) == 0) {
           send_views_res(c, http_msg, error_reply);
         }
 
         return;
-      } else if (mg_strcmp(endpoint_cap[0], mg_str("issue")) >= 0) {
+      } else if (mg_match(endpoint_cap[0], mg_str("issue#"), NULL)) {
         struct mg_str caps[3];
         printf("issues\n");
 

@@ -26,10 +26,14 @@ extern sqlite3 *db;
   "i.isSponsored, "                                                            \
   "i.status, i.openedMailCount, "                                              \
   "m.id, m.textAlternatif, m.url, m.width, m.height "                          \
-  "FROM Issue i LEFT JOIN Media m ON m.id = i.cover"
+  "FROM Issue i"                                                               \
+  "LEFT JOIN Media m ON m.id = i.cover"                                        \
+  "LEFT JOIN IssueAuthor a ON a.issue_id = i.id"                               \
+  "LEFT JOIN IssueTag t ON t.issue_id = i.id"                                  \
+  "LEFT JOIN IssueSponsor s ON s.issue_id = i.id"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE i.id = ?"
 #define QUERY_Q_TMP                                                            \
-  " WHERE i.title LIKE ?100 OR CAST(i.issueNumber, Text) LIKE ?100 OR "        \
+  " WHERE i.title LIKE ?100 OR CAST(i.issueNumber AS Text) LIKE ?100 OR "      \
   "i.content LIKE ?100"
 #define QUERY_SORT_TMP " ORDER BY i.title COLLATE NOCASE %s"
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"

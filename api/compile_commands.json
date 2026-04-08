@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/main.o",
+      "src/main.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/main.c",
+    "output": "/home/devgirl_/date-now/api/obj/main.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/sql/issue.o",
+      "src/sql/issue.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/sql/issue.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/issue.o"
+  }
+]

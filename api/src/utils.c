@@ -60,6 +60,7 @@
 #define ISSUE_SPONSOR_JSON                                                     \
   "{\"sponsorName\":\"%s\",\"issueId\":%d,\"link\":\"%s\"}"
 #define ISSUE_TAG_JSON "{\"tagName\":\"%s\",\"issueId\":%d}"
+#define VIEW_JSON "{\"id\":%d,\"time\":%d,\"hashedIp\":\"%s\",\"issueId\":%d}"
 
 const size_t NULL_SIZE = strlen("null") * sizeof(char);
 const size_t DOUBLE_QUOTES_SIZE = strlen("\"\"") * sizeof(char);
@@ -230,6 +231,69 @@ char *users_to_json(struct user **users, size_t len) {
   }
 
   free(users_json);
+
+  return json;
+}
+
+size_t view_to_json_len(struct view *view) {
+  if (view == NULL) {
+    return NULL_SIZE;
+  }
+
+  int len = snprintf(NULL, 0, VIEW_JSON, view->id, view->time, view->hashed_ip,
+                     view->issue_id) +
+            1;
+
+  return len;
+}
+
+char *view_to_json(struct view *view) {
+  if (view == NULL) {
+    return "null";
+  }
+
+  char *json = NULL;
+  json = malloc(view_to_json_len(view));
+
+  sprintf(json, VIEW_JSON, view->id, view->time, view->hashed_ip,
+          view->issue_id);
+
+  return json;
+}
+
+char *views_to_json(struct view **views, size_t len) {
+  char *json = NULL;
+
+  size_t json_len = 0;
+  for (int i = 0; i < len; i += 1) {
+    json_len += view_to_json_len(views[i]);
+
+    if (i < len - 1) {
+      json_len += COMMA_SIZE;
+    }
+  }
+
+  char *views_json = malloc(json_len + 1);
+  views_json[0] = '\0';
+  for (int i = 0; i < len; i += 1) {
+    char *view = view_to_json(views[i]);
+
+    strcat(views_json, view);
+    if (i < len - 1)
+      strcat(views_json, ",");
+
+    if (strcmp(view, "null"))
+      free(view);
+  }
+
+  if (len > 0) {
+    json = malloc(snprintf(NULL, 0, "[%s]", views_json) + 1);
+    sprintf(json, "[%s]", views_json);
+  } else {
+    json = "[]";
+  }
+
+  free(views_json);
 
   return json;
 }
@@ -645,6 +709,17 @@ int free_user(struct user *user) {
   return 0;
 }
 
+int free_view(struct view *view) {
+  free(view->hashed_ip);
+
+  view->hashed_ip = NULL;
+
+  free(view);
+  view = NULL;
+
+  return 0;
+}
+
 int free_issue(struct issue *issue) {
   free(issue->slug);
   free(issue->title);
@@ -737,6 +812,24 @@ int free_users(struct user **users, size_t len) {
 
   free(users);
   users = NULL;
+
+  return result_code;
+}
+
+int free_views(struct view **views, size_t len) {
+  int result_code = 0;
+  for (int i = 0; i < len; i += 1) {
+    if (views[i] != NULL) {
+      result_code = free_view(views[i]);
+
+      if (result_code != 0) {
+        return result_code;
+      }
+    }
+  }
+
+  free(views);
+  views = NULL;
 
   return result_code;
 }
@@ -902,6 +995,25 @@ int user_map(struct user *user, sqlite3_stmt *stmt, int start_index,
   return 0;
 }
 
+int view_map(struct view *view, sqlite3_stmt *stmt, int start_index,
+             int end_index) {
+  if (start_index > end_index || view == NULL || stmt == NULL) {
+    return -1;
+  }
+
+  printf(ANSI_BACKGROUND_AMBER " USER " ANSI_RESET_ALL "\n");
+  // ID
+  MAP_INT(view->id, stmt, start_index, 1);
+  // Username
+  MAP_INT(view->time, stmt, start_index + 1, 1);
+  // Email
+  MAP_TEXT(view->hashed_ip, stmt, start_index + 2, 1);
+  // Role
+  MAP_INT(view->issue_id, stmt, start_index + 3, 1);
+
+  return 0;
+}
+
 int issue_map(struct issue *issue, sqlite3_stmt *stmt, int start_index,
               int end_index) {
   if (start_index > end_index || issue == NULL || stmt == NULL) {
@@ -1048,6 +1160,28 @@ void user_hydrate(struct mg_http_message *msg, struct user *user) {
       number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
       if (number_parsed) {
         user->is_supporter = number;
+      }
+    }
+  }
+}
+
+void view_hydrate(struct mg_http_message *msg, struct view *view) {
+  struct mg_str key, val;
+  int number;
+  bool number_parsed;
+
+  size_t ofs = 0;
+  while ((ofs = mg_json_next(msg->body, ofs, &key, &val)) > 0) {
+    printf("%.*s -> %.*s\n", (int)key.len, key.buf, (int)val.len, val.buf);
+
+    if (mg_strcmp(key, mg_str("\"hashedIp\"")) == 0) {
+      printf("HASHED IP: %.*s\n", (int)val.len, val.buf);
+      view->hashed_ip = malloc(val.len);
+      sprintf(view->hashed_ip, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"issueId\"")) == 0) {
+      number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
+      if (number_parsed) {
+        view->issue_id = number;
       }
     }
   }
@@ -1256,6 +1390,19 @@ int user_init(struct user *user) {
 
   user->subscribed_at = 0;
   user->is_supporter = 0;
+
+  return 0;
+}
+
+int view_init(struct view *view) {
+  if (view == NULL) {
+    return -1;
+  }
+
+  view->hashed_ip = NULL;
+
+  view->time = 0;
+  view->issue_id = 0;
 
   return 0;
 }
