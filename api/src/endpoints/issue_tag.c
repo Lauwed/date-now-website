@@ -1,5 +1,6 @@
 
 
+#include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -129,6 +130,10 @@ void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER, "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     // Hydrate
     struct issue_tag *issue = malloc(sizeof(struct issue_tag));
     int issue_init_rc = issue_tag_init(issue);
@@ -190,6 +195,10 @@ void send_issue_tag_res(struct mg_connection *c, struct mg_http_message *msg,
   }
 
   if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER, "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     int delete_rc = delete_issue_tag(issue_id, id);
     if (delete_rc != 0) {
       ERROR_REPLY_500;

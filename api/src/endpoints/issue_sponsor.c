@@ -1,4 +1,5 @@
 
+#include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -132,6 +133,10 @@ void send_issue_sponsors_res(struct mg_connection *c,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER, "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     // Body validation
     int offset, length;
 
@@ -208,6 +213,10 @@ void send_issue_sponsor_res(struct mg_connection *c,
   }
 
   if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER, "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     int delete_rc = delete_issue_sponsor(issue_id, id);
     if (delete_rc != 0) {
       ERROR_REPLY_500;

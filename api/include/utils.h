@@ -105,6 +105,7 @@ void issue_sponsor_hydrate(struct mg_http_message *msg,
 void issue_tag_hydrate(struct mg_http_message *msg, struct issue_tag *issue);
 
 /** INIT */
+int media_init(struct media *media);
 int user_init(struct user *user);
 int view_init(struct view *view);
 int issue_init(struct issue *issue);
@@ -114,3 +115,7 @@ int sponsor_init(struct sponsor *sponsor);
 int issue_author_init(struct issue_author *issue);
 int issue_sponsor_init(struct issue_sponsor *issue);
 int issue_tag_init(struct issue_tag *issue);
+
+/** MEDIA HYDRATE */
+void media_hydrate(struct mg_http_message *msg, struct media *media);
+void user_totp_hydrate(struct mg_http_message *msg, struct user *user);

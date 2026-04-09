@@ -1,3 +1,4 @@
+#include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -115,6 +116,11 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER,
+                    "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
@@ -241,6 +247,11 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
 
     free_user(user);
   } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER,
+                    "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
@@ -323,6 +334,11 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
 
     free_user(user);
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER,
+                    "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     int delete_rc = delete_user(id);
     if (delete_rc != 0) {
       ERROR_REPLY_500;

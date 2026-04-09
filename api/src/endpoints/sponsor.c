@@ -1,3 +1,4 @@
+#include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -115,6 +116,10 @@ void send_sponsors_res(struct mg_connection *c, struct mg_http_message *msg,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER, "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
@@ -212,6 +217,10 @@ void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
 
     free_sponsor(sponsor);
   } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER, "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
@@ -264,6 +273,10 @@ void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
 
     free_sponsor(sponsor);
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER, "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     // Check if exists
     int exists = sponsor_exists(name);
     if (!exists) {

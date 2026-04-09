@@ -1,3 +1,4 @@
+#include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -6,11 +7,40 @@
 #include <macros/utils.h>
 #include <math.h>
 #include <sql/issue.h>
+#include <sql/issue_author.h>
+#include <sql/issue_sponsor.h>
+#include <sql/issue_tag.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <structs.h>
 #include <utils.h>
+
+/* Charge les authors/tags/sponsors dans la struct issue */
+static void populate_issue_relations(struct issue *issue) {
+  struct mg_str empty = {.buf = NULL, .len = 0};
+
+  issue->authors_count = get_issue_authors_len(&empty, issue->id);
+  if (issue->authors_count > 0) {
+    issue->authors =
+        malloc(issue->authors_count * sizeof(struct issue_author *));
+    get_issue_authors(issue->authors_count, issue->authors, issue->id, -1, 0);
+  }
+
+  issue->tags_count = get_issue_tags_len(&empty, issue->id);
+  if (issue->tags_count > 0) {
+    issue->tags = malloc(issue->tags_count * sizeof(struct issue_tag *));
+    get_issue_tags(issue->tags_count, issue->tags, issue->id, -1, 0);
+  }
+
+  issue->sponsors_count = get_issue_sponsors_len(&empty, issue->id);
+  if (issue->sponsors_count > 0) {
+    issue->sponsors =
+        malloc(issue->sponsors_count * sizeof(struct issue_sponsor *));
+    get_issue_sponsors(issue->sponsors_count, issue->sponsors, issue->id, -1,
+                       0);
+  }
+}
 
 #define ISSUE_EXISTS_MESSAGE "The issue already exists."
 #define TITLE_REQUIRED_MESSAGE "Title is required."
@@ -104,6 +134,10 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
         free(reply);
         return;
       }
+
+      for (int i = 0; i < reply->count; i++) {
+        populate_issue_relations(issues[i]);
+      }
     }
 
     reply->data = issues_to_json(issues, reply->count);
@@ -119,6 +153,11 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER,
+                    "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
@@ -273,14 +312,21 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
 
       return;
     } else {
+      populate_issue_relations(issue);
       char *result = issue_to_json(issue);
 
       mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+      free(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY SENT ==="));
     }
 
     free_issue(issue);
   } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER,
+                    "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
@@ -404,6 +450,11 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
 
     free_issue(issue);
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
+    if (check_auth(msg) != 0) {
+      mg_http_reply(c, 401, JSON_HEADER,
+                    "{\"code\":401,\"message\":\"Unauthorized\"}");
+      return;
+    }
     int delete_rc = delete_issue(id);
     if (delete_rc != 0) {
       ERROR_REPLY_500;

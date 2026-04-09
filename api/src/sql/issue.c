@@ -20,17 +20,13 @@ extern sqlite3 *db;
 #define QUERY_SELECT_TMP                                                       \
   "SELECT "                                                                    \
   "i.id, i.slug, i.title, i.subtitle, UNIXEPOCH(i.createdAt), "                \
-  "COALESCE(UNIXEPOCH(i.publishedAt), i.publishedAt), "                        \
-  "COALESCE(UNIXEPOCH(i.updatedAt), i.updatedAt), i.issueNumber, i.excerpt, "  \
-  "i.content, "                                                                \
-  "i.isSponsored, "                                                            \
-  "i.status, i.openedMailCount, "                                              \
+  "COALESCE(UNIXEPOCH(i.publishedAt), 0), "                                    \
+  "COALESCE(UNIXEPOCH(i.updatedAt), 0), "                                      \
+  "i.issueNumber, i.excerpt, i.content, i.isSponsored, i.status, "             \
+  "i.openedMailCount, "                                                        \
   "m.id, m.textAlternatif, m.url, m.width, m.height "                          \
-  "FROM Issue i"                                                               \
-  "LEFT JOIN Media m ON m.id = i.cover"                                        \
-  "LEFT JOIN IssueAuthor a ON a.issue_id = i.id"                               \
-  "LEFT JOIN IssueTag t ON t.issue_id = i.id"                                  \
-  "LEFT JOIN IssueSponsor s ON s.issue_id = i.id"
+  "FROM Issue i "                                                              \
+  "LEFT JOIN Media m ON m.id = i.cover"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE i.id = ?"
 #define QUERY_Q_TMP                                                            \
   " WHERE i.title LIKE ?100 OR CAST(i.issueNumber AS Text) LIKE ?100 OR "      \
@@ -315,7 +311,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int issue_rc = issue_map(u, stmt, 0, 7);
+    int issue_rc = issue_map(u, stmt, 0, 12);
     if (issue_rc != 0) {
       free(u);
 
@@ -328,7 +324,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     }
 
     // Picture
-    int cover_rc = media_map(m, stmt, 8, 12);
+    int cover_rc = media_map(m, stmt, 13, 17);
     if (cover_rc != 0) {
       free(m);
     } else {
@@ -398,7 +394,7 @@ int get_issue(struct issue *issue, int id) {
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int issue_rc = issue_map(issue, stmt, 0, 13);
+    int issue_rc = issue_map(issue, stmt, 0, 12);
     if (issue_rc != 0) {
       free(issue);
 
@@ -407,7 +403,7 @@ int get_issue(struct issue *issue, int id) {
     }
 
     // Picture
-    int cover_rc = media_map(m, stmt, 14, 18);
+    int cover_rc = media_map(m, stmt, 13, 17);
     if (cover_rc != 0) {
       free(m);
     } else {

@@ -1546,3 +1546,57 @@ int sponsor_init(struct sponsor *sponsor) {
 
   return 0;
 }
+
+int media_init(struct media *media) {
+  if (media == NULL) {
+    return -1;
+  }
+
+  media->id = 0;
+  media->alternative_text = NULL;
+  media->url = NULL;
+  media->width = 0.0;
+  media->height = 0.0;
+
+  return 0;
+}
+
+void media_hydrate(struct mg_http_message *msg, struct media *media) {
+  struct mg_str key, val;
+  int number;
+  bool number_parsed;
+  double dbl;
+
+  size_t ofs = 0;
+  while ((ofs = mg_json_next(msg->body, ofs, &key, &val)) > 0) {
+    if (mg_strcmp(key, mg_str("\"alt\"")) == 0) {
+      media->alternative_text = malloc(val.len);
+      sprintf(media->alternative_text, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"width\"")) == 0) {
+      char *tmp = malloc(val.len + 1);
+      sprintf(tmp, "%.*s", (int)val.len, val.buf);
+      media->width = atof(tmp);
+      free(tmp);
+    } else if (mg_strcmp(key, mg_str("\"height\"")) == 0) {
+      char *tmp = malloc(val.len + 1);
+      sprintf(tmp, "%.*s", (int)val.len, val.buf);
+      media->height = atof(tmp);
+      free(tmp);
+    }
+  }
+}
+
+void user_totp_hydrate(struct mg_http_message *msg, struct user *user) {
+  struct mg_str key, val;
+
+  size_t ofs = 0;
+  while ((ofs = mg_json_next(msg->body, ofs, &key, &val)) > 0) {
+    if (mg_strcmp(key, mg_str("\"totpSeed\"")) == 0) {
+      int len = (int)val.len - 2;
+      if (len > 0 && len < 255) {
+        memcpy(user->totp_seed, val.buf + 1, len);
+        user->totp_seed[len] = '\0';
+      }
+    }
+  }
+}

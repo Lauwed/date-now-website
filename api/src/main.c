@@ -1,7 +1,9 @@
+#include <endpoints/auth.h>
 #include <endpoints/issue.h>
 #include <endpoints/issue_author.h>
 #include <endpoints/issue_sponsor.h>
 #include <endpoints/issue_tag.h>
+#include <endpoints/media.h>
 #include <endpoints/sponsor.h>
 #include <endpoints/tag.h>
 #include <endpoints/user.h>
@@ -38,7 +40,39 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       printf("endpoint:  %.*s\n", (int)endpoint_cap[0].len,
              endpoint_cap[0].buf);
 
-      if (mg_match(endpoint_cap[0], mg_str("user#"), NULL)) {
+      if (mg_match(endpoint_cap[0], mg_str("auth#"), NULL)) {
+        /* POST /api/auth/request-token  — demande de token email */
+        if (mg_strcmp(endpoint_cap[0], mg_str("auth/request-token")) == 0) {
+          send_auth_request_res(c, http_msg, error_reply);
+        }
+        /* POST /api/auth/verify  — vérification token + TOTP */
+        else if (mg_strcmp(endpoint_cap[0], mg_str("auth/verify")) == 0) {
+          send_auth_verify_res(c, http_msg, error_reply);
+        }
+        /* DELETE /api/auth/session  — révocation de session */
+        else if (mg_strcmp(endpoint_cap[0], mg_str("auth/session")) == 0) {
+          send_auth_session_res(c, http_msg, error_reply);
+        }
+
+        return;
+      } else if (mg_match(endpoint_cap[0], mg_str("media#"), NULL)) {
+        struct mg_str caps[2];
+
+        if (mg_match(endpoint_cap[0], mg_str("media/*"), caps)) {
+          int id;
+          int id_parsed = mg_str_to_num(caps[0], 10, &id, sizeof(int));
+          if (!id_parsed) {
+            mg_http_reply(c, 400, JSON_HEADER,
+                          "{\"code\":400,\"error\":\"ID invalide.\"}");
+            return;
+          }
+          send_media_res(c, http_msg, id, error_reply);
+        } else if (mg_strcmp(endpoint_cap[0], mg_str("media")) == 0) {
+          send_medias_res(c, http_msg, error_reply);
+        }
+
+        return;
+      } else if (mg_match(endpoint_cap[0], mg_str("user#"), NULL)) {
         struct mg_str caps[2];
 
         if (mg_match(endpoint_cap[0], mg_str("user/*"), caps)) {
