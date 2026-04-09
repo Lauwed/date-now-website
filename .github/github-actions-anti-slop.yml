@@ -1,2 +1,9 @@
-- name: anti-slop
-  uses: peakoss/anti-slop@v0.2.1
+name: GitHub Actions Demo
+run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+on: [push]
+jobs:
+  Explore-GitHub-Actions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: anti-slop
+        uses: peakoss/anti-slop@v0.2.1

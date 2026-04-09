@@ -2,6 +2,11 @@
 
 #include <stdlib.h>
 
+/* Forward declarations for issue relations */
+struct issue_author;
+struct issue_tag;
+struct issue_sponsor;
+
 struct error_reply {
   int code;
   int code_http;
@@ -69,6 +74,14 @@ struct issue {
   int is_sponsored;
   char *status;
   int opened_mail_count;
+
+  /* Relations (populated on demand) */
+  struct issue_author **authors;
+  int authors_count;
+  struct issue_tag **tags;
+  int tags_count;
+  struct issue_sponsor **sponsors;
+  int sponsors_count;
 };
 
 struct issue_author {
@@ -92,4 +105,12 @@ struct view {
   int time;
   char *hashed_ip;
   int issue_id;
+};
+
+struct auth_session {
+  int id;
+  int user_id;
+  char *token_hash;
+  int created_at;
+  int expires_at;
 };
