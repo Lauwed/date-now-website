@@ -11,6 +11,7 @@ on:
     paths:
       - 'front/**'
       - '.github/workflows/front-ci.yml'
+  workflow_dispatch:
 
 jobs:
   ci:
