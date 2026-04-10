@@ -1,31 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Date.now() API Doc</title>
 
-		<link rel="stylesheet" href="doc/styles.css" media="all">
-		<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/pretty-print-json@3.0/dist/css/pretty-print-json.css>
-		<script src=https://cdn.jsdelivr.net/npm/pretty-print-json@3.0/dist/pretty-print-json.min.js></script>
-	</head>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Date.now() API Doc</title>
 
-	<body>
-		<header class="header">
-			<h1 class="header__title">Date.now() API Doc</h1>
+	<link rel="stylesheet" href="doc/styles.css" media="all">
+	<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/pretty-print-json@3.0/dist/css/pretty-print-json.css>
+	<script src=https://cdn.jsdelivr.net/npm/pretty-print-json@3.0/dist/pretty-print-json.min.js></script>
+</head>
 
-			<nav class="header__nav">
-				<button id="expand-all">Expand all</button>
-				<button id="collapse-all">Collapse all</button>
-			</nav>
-		</header>
+<body>
+	<header class="header">
+		<h1 class="header__title">Date.now() API Doc</h1>
 
-		<main id="main">
+		<nav class="header__nav">
+			<button id="expand-all">Expand all</button>
+			<button id="collapse-all">Collapse all</button>
+		</nav>
+	</header>
+
+	<main id="main">
+		<section id="auth" class="auth">
+			<h2 class="auth__title">Authentication</h2>
+
+			<form action="" method="" class="auth__form">
+				<label for="token">Token</label>
+				<input id="token" required />
+				<button type="submit">Login</button>
+			</form>
+		</section>
+		<section id="endpoints">
 			<h2>Endpoints</h2>
-		</main>
+		</section>
+	</main>
 
-		<script src="doc/scripts/constants.js"></script>
-		<script src="doc/scripts/endpoints.js"></script>
-		<script src="doc/script.js"></script>
-	</body>
+	<script src="doc/scripts/constants.js"></script>
+	<script src="doc/scripts/endpoints.js"></script>
+	<script src="doc/script.js"></script>
+</body>
+
 </html>
