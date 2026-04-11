@@ -9,6 +9,21 @@
 			"uriParameters": [],
 			"customEndpoints": [
 				{
+					"name": "confirm subscribe",
+					"uri": "/subscribe/confirm",
+					"method": "POST",
+					"tokenRequired": false,
+					"responses": [
+						{
+							"code": 200,
+							"response": "User successfully subscribed"
+						}
+					],
+					"body": {
+						"email": "string"
+					}
+				},
+				{
 					"name": "subscribe",
 					"uri": "/subscribe",
 					"method": "POST",
@@ -16,7 +31,7 @@
 					"responses": [
 						{
 							"code": 200,
-							"response": "User successfully subscribed"
+							"response": "Confirmation mail sent"
 						}
 					],
 					"body": {
@@ -71,6 +86,7 @@
 						}
 					],
 					"body": {
+						"email": "string",
 						"code": "string"
 					}
 				}

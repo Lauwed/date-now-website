@@ -1,5 +1,6 @@
 let expandAllButton, collapseAllButton;
-let errorAuth;
+let authContainer, errorAuth;
+let token;
 
 window.addEventListener("load", async () => {
 	const res = await fetch("/doc/api.json");
@@ -8,16 +9,12 @@ window.addEventListener("load", async () => {
 	console.log(data);
 
 	const apiContainer = document.querySelector("#main");
-	const authContainer = apiContainer.querySelector("#auth");
+	authContainer = apiContainer.querySelector("#auth");
 	const endpointsContainer = apiContainer.querySelector("#endpoints");
 
-	// Init auth form
-	const authForm = authContainer.querySelector("form");
-	errorAuth = document.createElement("p");
-	errorAuth.classList.add("auth__error", "alert", "alert--danger");
-	authForm.appendChild(errorAuth);
-
-	authForm.addEventListener("submit", handleAuthFormSubmit);
+	token = sessionStorage.getItem("token");
+	// Init auth area
+	displayAuthForm(authContainer);
 
 	// Init endpoints
 	const tables = generateTablesEndpoints(data.tables);
@@ -29,14 +26,51 @@ window.addEventListener("load", async () => {
 	collapseAllButton.addEventListener("click", handleCollapseAll);
 });
 
+const displayAuthForm = () => {
+	const isUserLogged = token && token.length > 0;
+
+	const title = '<h2 class="auth__title">Authentication</h2>';
+	const authForm = `<form action="" method="" class="auth__form">
+				<label for="token">Token</label>
+				<input id="token" required />
+				<button type="submit">Login</button>
+			</form>`;
+	const logoutButton = "<button>Log out</button>";
+
+	authContainer.innerHTML = title;
+
+	if (!isUserLogged) {
+		authContainer.innerHTML += authForm;
+
+		const authFormNode = authContainer.querySelector("form");
+		errorAuth = document.createElement("p");
+		errorAuth.classList.add("auth__error", "alert", "alert--danger");
+		authFormNode.appendChild(errorAuth);
+
+		authFormNode.addEventListener("submit", handleAuthFormSubmit);
+	} else {
+		authContainer.innerHTML += logoutButton;
+
+		const logoutButtonNode = authContainer.querySelector("button");
+		logoutButtonNode.addEventListener("click", handleClickLogout);
+	}
+};
+
+const handleClickLogout = () => {
+	sessionStorage.removeItem("token");
+	token = null;
+	displayAuthForm();
+};
+
 const handleAuthFormSubmit = (e) => {
 	e.preventDefault();
 
 	errorAuth.innerHTML = "";
-	const token = e.target.querySelector("input").value;
+	token = e.target.querySelector("input").value;
 
 	if (token && token.length > 0) {
 		sessionStorage.setItem("token", token);
+		displayAuthForm();
 	} else {
 		errorAuth.innerHTML = "Please provide a token.";
 	}
@@ -257,11 +291,8 @@ const handleFetch = (
 
 	const headers = { "Content-Type": "application/json" };
 	if (tokenRequired) {
-		const token = sessionStorage.getItem("token");
-
 		headers.Authorization = `Bearer ${token}`;
 	}
-	console.log(headers);
 
 	let body;
 	if (method === "POST" || method === "PUT") {
@@ -298,8 +329,6 @@ const getEndpointNode = (endpoint) => {
 	title.innerHTML = name;
 	header.appendChild(title);
 
-	console.log(title.innerHTML);
-
 	const methodTag = document.createElement("p");
 	methodTag.innerHTML = method;
 	methodTag.classList.add("tag");
@@ -321,7 +350,6 @@ const getEndpointNode = (endpoint) => {
 
 		requiredTag.innerHTML = `${shieldSVG}${requiredText}`;
 		requiredTag.classList.add("tag");
-		console.log(requiredTag);
 		header.appendChild(requiredTag);
 	}
 

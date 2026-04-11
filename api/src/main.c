@@ -1,3 +1,4 @@
+#include <endpoints/auth.h>
 #include <endpoints/issue.h>
 #include <endpoints/issue_author.h>
 #include <endpoints/issue_sponsor.h>
@@ -38,6 +39,29 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       printf("endpoint:  %.*s\n", (int)endpoint_cap[0].len,
              endpoint_cap[0].buf);
 
+      if (mg_match(endpoint_cap[0], mg_str("auth#"), NULL)) {
+        struct mg_str caps[2];
+
+        if (mg_match(endpoint_cap[0], mg_str("auth/subscribe"), caps)) {
+          send_subscription_mail(c, http_msg, error_reply);
+        }
+        if (mg_match(endpoint_cap[0], mg_str("auth/subscribe/confirm"), caps)) {
+          subscribe_user(c, http_msg, error_reply);
+        }
+        if (mg_match(endpoint_cap[0], mg_str("auth/register"), caps)) {
+          register_user(c, http_msg, error_reply);
+        }
+        if (mg_match(endpoint_cap[0], mg_str("auth/login"), caps)) {
+          send_login_mail(c, http_msg, error_reply);
+        }
+        if (mg_match(endpoint_cap[0], mg_str("auth/login/totp"), caps)) {
+          login_user(c, http_msg, error_reply);
+        }
+
+        mg_http_reply(c, 404, JSON_HEADER,
+                      "{\"code\": 404, \"error\": \"Not found\"}");
+        return;
+      }
       if (mg_match(endpoint_cap[0], mg_str("user#"), NULL)) {
         struct mg_str caps[2];
 
@@ -56,6 +80,8 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           send_users_res(c, http_msg, error_reply);
         }
 
+        mg_http_reply(c, 404, JSON_HEADER,
+                      "{\"code\": 404, \"error\": \"Not found\"}");
         return;
       } else if (mg_match(endpoint_cap[0], mg_str("tag#"), NULL)) {
         struct mg_str caps[2];
@@ -76,6 +102,8 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           send_tags_res(c, http_msg, error_reply);
         }
 
+        mg_http_reply(c, 404, JSON_HEADER,
+                      "{\"code\": 404, \"error\": \"Not found\"}");
         return;
       } else if (mg_match(endpoint_cap[0], mg_str("sponsor#"), NULL)) {
         struct mg_str caps[2];
@@ -95,6 +123,8 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           send_sponsors_res(c, http_msg, error_reply);
         }
 
+        mg_http_reply(c, 404, JSON_HEADER,
+                      "{\"code\": 404, \"error\": \"Not found\"}");
         return;
       } else if (mg_match(endpoint_cap[0], mg_str("view#"), NULL)) {
         printf("VIEWS PUTAIN\n");
@@ -103,6 +133,8 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           send_views_res(c, http_msg, error_reply);
         }
 
+        mg_http_reply(c, 404, JSON_HEADER,
+                      "{\"code\": 404, \"error\": \"Not found\"}");
         return;
       } else if (mg_match(endpoint_cap[0], mg_str("issue#"), NULL)) {
         struct mg_str caps[3];
@@ -233,6 +265,8 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           send_issues_res(c, http_msg, error_reply);
         }
 
+        mg_http_reply(c, 404, JSON_HEADER,
+                      "{\"code\": 404, \"error\": \"Not found\"}");
         return;
       }
     } else {
