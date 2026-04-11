@@ -9,10 +9,10 @@
 	<tbody>
 		<tr>
             <td align="center">
-                <a href="https://github.com/Coleim">
-                    <img src="https://avatars.githubusercontent.com/u/430679?v=4" width="100;" alt="Coleim"/>
+                <a href="https://github.com/lilymonad">
+                    <img src="https://avatars.githubusercontent.com/u/3987649?v=4" width="100;" alt="lilymonad"/>
                     <br />
-                    <sub><b>Clément </b></sub>
+                    <sub><b>Lily Blanleuil</b></sub>
                 </a>
             </td>
             <td align="center">
@@ -23,10 +23,10 @@
                 </a>
             </td>
             <td align="center">
-                <a href="https://github.com/lilymonad">
-                    <img src="https://avatars.githubusercontent.com/u/3987649?v=4" width="100;" alt="lilymonad"/>
+                <a href="https://github.com/Coleim">
+                    <img src="https://avatars.githubusercontent.com/u/430679?v=4" width="100;" alt="Coleim"/>
                     <br />
-                    <sub><b>Lily Blanleuil</b></sub>
+                    <sub><b>Clément </b></sub>
                 </a>
             </td>
             <td align="center">
