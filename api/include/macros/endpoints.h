@@ -2,9 +2,12 @@
 
 #define JSON_HEADER "Content-Type: application/json\r\n"
 
+#define EMAIL_ERROR_MESSAGE "ERROR WHILE SENDING EMAIL"
 #define BODY_REQUIRED_MESSAGE "BODY IS REQUIRED"
 #define JSON_ERROR_MESSAGE "JSON IS NOT VALID"
 #define BAD_REQUEST_MESSAGE "Bad request."
+#define JWT_EXPIRED "JWT Token expired"
+#define BAD_JWT_TOKEN "Wrong signature or token invalid"
 
 #define ERROR_REPLY_500                                                        \
   error_reply_map(error_reply, 500, "Internal error", 500);                    \

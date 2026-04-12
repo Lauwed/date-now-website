@@ -5,6 +5,20 @@ services:
       - "8000:8000"
     environment:
       - JWT_SECRET=${JWT_SECRET}
+    env_file:
+      - .env
     volumes:
       - ./data:/app/data
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
     restart: unless-stopped
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+          target: .
+          ignore:
+            - uwu.db
+            - README.md
