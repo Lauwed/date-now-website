@@ -1,17 +1,19 @@
 FROM alpine:3.23.3 AS base
 
 RUN apk update && apk add --no-cache \
-    libjwt \
+    libjwt2 \
     openssl \
-    sqlite
+    sqlite \
+    curl
 
 FROM base AS dev
 
 RUN apk add --no-cache \
     alpine-sdk \
-    libjwt-dev \
+    libjwt2-dev \
     openssl-dev \
-    sqlite-dev
+    sqlite-dev \
+    curl-dev
 
 WORKDIR /app
 

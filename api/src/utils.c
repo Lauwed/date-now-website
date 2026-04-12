@@ -1,5 +1,5 @@
 #include <lib/mongoose.h>
-#include <lib/sqlite3.h>
+#include <sqlite3.h>
 #include <macros/colors.h>
 #include <macros/utils.h>
 #include <stdbool.h>
