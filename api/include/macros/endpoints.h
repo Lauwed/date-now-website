@@ -3,11 +3,13 @@
 #define JSON_HEADER "Content-Type: application/json\r\n"
 
 #define EMAIL_ERROR_MESSAGE "ERROR WHILE SENDING EMAIL"
+#define EMAIL_VALIDITY_ERROR_MESSAGE "EMAIL IS NOT VALID"
 #define BODY_REQUIRED_MESSAGE "BODY IS REQUIRED"
 #define JSON_ERROR_MESSAGE "JSON IS NOT VALID"
 #define BAD_REQUEST_MESSAGE "Bad request."
-#define JWT_EXPIRED "JWT Token expired"
-#define BAD_JWT_TOKEN "Wrong signature or token invalid"
+#define JWT_EXPIRED_MESSAGE "JWT expired"
+#define BAD_JWT_MESSAGE "Wrong signature or token invalid"
+#define WRONG_JWT_TYPE_MESSAGE "Wrong type of JWT"
 
 #define ERROR_REPLY_500                                                        \
   error_reply_map(error_reply, 500, "Internal error", 500);                    \

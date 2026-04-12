@@ -63,10 +63,10 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           register_user(c, http_msg, error_reply);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/login"), caps)) {
-          send_login_mail(c, http_msg, error_reply);
+          send_login_mail(c, http_msg, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/login/totp"), caps)) {
-          login_user(c, http_msg, error_reply);
+          login_user(c, http_msg, error_reply, secret);
         }
 
         mg_http_reply(c, 404, JSON_HEADER,

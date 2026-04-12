@@ -139,6 +139,14 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
       char *email = malloc(length);
       strncpy(email, msg->body.buf + offset + 1, length - 2);
 
+      // Check if email validity
+      int email_valid = check_email_validity(email);
+      if (email_valid != 0) {
+        ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+        fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
+        return;
+      }
+
       char *username = NULL;
       offset = mg_json_get(msg->body, "$.username", &length);
       if (offset >= 0) {
@@ -262,6 +270,14 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       // Email and username not existing already
       char *email = malloc(length);
       strncpy(email, msg->body.buf + offset + 1, length - 2);
+
+      // Check if email validity
+      int email_valid = check_email_validity(email);
+      if (email_valid != 0) {
+        ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+        fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
+        return;
+      }
 
       char *username = NULL;
       offset = mg_json_get(msg->body, "$.username", &length);

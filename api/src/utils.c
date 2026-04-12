@@ -2,6 +2,7 @@
 #include <lib/sqlite3.h>
 #include <macros/colors.h>
 #include <macros/utils.h>
+#include <regex.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,6 +66,46 @@
 const size_t NULL_SIZE = strlen("null") * sizeof(char);
 const size_t DOUBLE_QUOTES_SIZE = strlen("\"\"") * sizeof(char);
 const size_t COMMA_SIZE = strlen(",") * sizeof(char);
+
+// Returns
+// -1 -> Email is NULL
+// 1 -> Regex error
+// 2 -> No match
+int check_email_validity(char *email) {
+  printf("CHECK EMAIL VALIDITY\tEmail: %s\n", email);
+
+  if (email == NULL) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("EMAIL IS NULL"));
+    return -1;
+  }
+
+  regex_t regex;
+  int rc;
+  const int msgbuf_len = 100;
+  char msgbuf[msgbuf_len];
+
+  rc = regcomp(&regex, "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$",
+               REG_EXTENDED);
+  if (rc) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("COULD NOT COMPILE REGEX"));
+    return 1;
+  }
+
+  rc = regexec(&regex, email, 0, NULL, 0);
+  if (rc == REG_NOMATCH) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("NO MATCH"));
+    regfree(&regex);
+    return 2;
+  } else if (rc != 0) {
+    regerror(rc, &regex, msgbuf, msgbuf_len);
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("REGEX MATCH FAILED: %s"), msgbuf);
+    regfree(&regex);
+    return 1;
+  }
+
+  regfree(&regex);
+  return 0;
+}
 
 const char *get_method(const char *method_buf) {
   const char *methods[METHODS_LEN] = {"GET", "POST", "PUT", "DELETE"};

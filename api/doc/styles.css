@@ -218,6 +218,26 @@ input {
 		border-bottom: 0;
 	}
 
+	.endpoint__header {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 10px;
+		background: rgb(from var(--black) r g b / 0.15);
+		cursor: pointer;
+
+		&::before {
+			content: "▶";
+			display: inline-block;
+			transition: rotate 0.3s ease;
+		}
+
+		h3 {
+			font-size: 1rem;
+			text-transform: capitalize;
+		}
+	}
+
 	&.endpoint--GET {
 		.endpoint__header {
 			background: var(--blue-transparent);
@@ -244,26 +264,6 @@ input {
 
 	&[open] .endpoint__header::before {
 		rotate: 90deg;
-	}
-
-	.endpoint__header {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 10px;
-		background: rgb(from var(--black) r g b / 0.15);
-		cursor: pointer;
-
-		&::before {
-			content: "▶";
-			display: inline-block;
-			transition: rotate 0.3s ease;
-		}
-
-		h3 {
-			font-size: 1rem;
-			text-transform: capitalize;
-		}
 	}
 
 	.endpoint__content {
