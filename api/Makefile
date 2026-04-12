@@ -1,13 +1,13 @@
 CC ?= cc
 CFLAGS := -I ./include/ -g
-LIBS := -ljwt -lssl -lcrypto
+LIBS := -ljwt -lssl -lcrypto -lsqlite3
 
 includes := ./include
 src := ./src
 
 tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth
 
-libs_o := obj/lib/mongoose.o obj/lib/sqlite3.o obj/lib/validatejson.o
+libs_o := obj/lib/mongoose.o obj/lib/validatejson.o
 helpers_o := obj/utils.o
 endpoints_o := ${foreach t,$(tables),obj/endpoints/$(t).o}
 sql_o := ${foreach t,$(tables),obj/sql/$(t).o}

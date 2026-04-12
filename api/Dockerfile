@@ -1,10 +1,17 @@
-FROM ubuntu:24.04
+FROM alpine:3.23.3 AS base
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
+RUN apk update && apk add --no-cache \
+    libjwt \
+    openssl \
+    sqlite
+
+FROM base AS dev
+
+RUN apk add --no-cache \
+    alpine-sdk \
     libjwt-dev \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    openssl-dev \
+    sqlite-dev
 
 WORKDIR /app
 
@@ -17,3 +24,12 @@ RUN make
 EXPOSE 8000
 
 CMD ["./bin/serv_api"]
+
+FROM base AS run
+
+RUN rm -rf /sbin/apk /etc/apk /lib/apk /usr/share/apk /var/lib/apk
+
+COPY --from=dev /app/bin /app/bin
+
+CMD ["/app/bin/serv_api"]
+
