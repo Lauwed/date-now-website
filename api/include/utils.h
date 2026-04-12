@@ -1,7 +1,7 @@
 #pragma once
 
 #include <lib/mongoose.h>
-#include <lib/sqlite3.h>
+#include <sqlite3.h>
 #include <stddef.h>
 #include <structs.h>
 

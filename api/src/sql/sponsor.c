@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <lib/sqlite3.h>
+#include <sqlite3.h>
 #include <structs.h>
 #include <sql/sponsor.h>
 #include <enums.h>

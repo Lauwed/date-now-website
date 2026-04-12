@@ -8,7 +8,7 @@
 #include <endpoints/user.h>
 #include <endpoints/view.h>
 #include <lib/mongoose.h>
-#include <lib/sqlite3.h>
+#include <sqlite3.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
 #include <signal.h>

@@ -1,6 +1,6 @@
 
 #include <enums.h>
-#include <lib/sqlite3.h>
+#include <sqlite3.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
 #include <sql/view.h>
