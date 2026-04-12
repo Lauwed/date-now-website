@@ -47,7 +47,7 @@
 #define MEDIA_JSON                                                             \
   "{\"id\":%d,\"alt\":\"%s\",\"url\":\"%s\",\"width\":%f,\"height\":%f}"
 #define USER_JSON                                                              \
-  "{\"id\":%d,\"username\":\"%s\",\"email\":\"%s\",\"role\":\"%s\",\"link\":%" \
+  "{\"id\":%d,\"username\":%s,\"email\":\"%s\",\"role\":\"%s\",\"link\":%"     \
   "s,\"picture\":%s,\"subscribedAt\":%d,\"isSupporter\":%d,\"createdAt\":%d}"
 #define ISSUE_JSON                                                             \
   "{\"id\":%d,\"slug\":\"%s\",\"title\":\"%s\",\"subtitle\":\"%s\",\"cover\":" \
@@ -156,6 +156,12 @@ size_t user_to_json_len(struct user *user) {
     return NULL_SIZE;
   }
 
+  char *username = "null";
+  if (user->username != NULL) {
+    username = malloc(snprintf(NULL, 0, "\"%s\"", user->username) + 1);
+    sprintf(username, "\"%s\"", user->username);
+  }
+
   char *link = "null";
   if (user->link != NULL) {
     link = malloc(snprintf(NULL, 0, "\"%s\"", user->link) + 1);
@@ -163,13 +169,16 @@ size_t user_to_json_len(struct user *user) {
   }
 
   int len =
-      snprintf(NULL, 0, USER_JSON, user->id, user->username, user->email,
-               user->role, link, media_to_json(user->picture),
-               user->subscribed_at, user->is_supporter, user->created_at) +
+      snprintf(NULL, 0, USER_JSON, user->id, username, user->email, user->role,
+               link, media_to_json(user->picture), user->subscribed_at,
+               user->is_supporter, user->created_at) +
       1;
 
   if (strcmp(link, "null") != 0)
     free(link);
+
+  if (strcmp(username, "null") != 0)
+    free(username);
 
   return len;
 }
@@ -177,6 +186,12 @@ size_t user_to_json_len(struct user *user) {
 char *user_to_json(struct user *user) {
   if (user == NULL) {
     return "null";
+  }
+
+  char *username = "null";
+  if (user->username != NULL) {
+    username = malloc(snprintf(NULL, 0, "\"%s\"", user->username) + 1);
+    sprintf(username, "\"%s\"", user->username);
   }
 
   char *link = "null";
@@ -188,12 +203,15 @@ char *user_to_json(struct user *user) {
   char *json = NULL;
   json = malloc(user_to_json_len(user));
 
-  sprintf(json, USER_JSON, user->id, user->username, user->email, user->role,
-          link, media_to_json(user->picture), user->subscribed_at,
-          user->is_supporter, user->created_at);
+  sprintf(json, USER_JSON, user->id, username, user->email, user->role, link,
+          media_to_json(user->picture), user->subscribed_at, user->is_supporter,
+          user->created_at);
 
   if (strcmp(link, "null") != 0)
     free(link);
+
+  if (strcmp(username, "null") != 0)
+    free(username);
 
   return json;
 }

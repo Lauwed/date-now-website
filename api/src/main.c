@@ -29,13 +29,24 @@ void sigTerm(int code) {
 }
 
 static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
-  struct error_reply *error_reply = NULL;
-
   if (ev == MG_EV_HTTP_MSG) {
     struct mg_http_message *http_msg = (struct mg_http_message *)ev_data;
     struct mg_str endpoint_cap[2];
 
     if (mg_match(http_msg->uri, mg_str("/api/#"), endpoint_cap)) {
+      struct error_reply *error_reply = NULL;
+
+      // JWT Secret
+      const char *secret = getenv("JWT_SECRET");
+      if (!secret) {
+        mg_http_reply(c, 500, JSON_HEADER,
+                      "{\"code\": 500, \"error\": \"Internal Error\"}");
+        fprintf(stderr, TERMINAL_ERROR_MESSAGE("SECRET JWT NOT SET"));
+        exit(1);
+      }
+
+      // Check if user logged
+
       printf("endpoint:  %.*s\n", (int)endpoint_cap[0].len,
              endpoint_cap[0].buf);
 
@@ -43,10 +54,10 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         struct mg_str caps[2];
 
         if (mg_match(endpoint_cap[0], mg_str("auth/subscribe"), caps)) {
-          send_subscription_mail(c, http_msg, error_reply);
+          send_subscription_mail(c, http_msg, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/subscribe/confirm"), caps)) {
-          subscribe_user(c, http_msg, error_reply);
+          subscribe_user(c, http_msg, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/register"), caps)) {
           register_user(c, http_msg, error_reply);
@@ -269,6 +280,12 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
                       "{\"code\": 404, \"error\": \"Not found\"}");
         return;
       }
+
+      if (error_reply != NULL) {
+        free(error_reply->json);
+        free(error_reply->message);
+      }
+      free(error_reply);
     } else {
       struct mg_http_serve_opts opts = {.root_dir = ".", .fs = &mg_fs_posix};
       mg_http_serve_dir(c, http_msg, &opts);
@@ -277,12 +294,6 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
     mg_http_reply(c, 500, JSON_HEADER,
                   "{\"code\": 500, \"error\": \"Internal Error\"}");
   }
-
-  if (error_reply != NULL) {
-    free(error_reply->json);
-    free(error_reply->message);
-  }
-  free(error_reply);
 }
 
 int main() {

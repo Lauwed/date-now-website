@@ -9,21 +9,6 @@
 			"uriParameters": [],
 			"customEndpoints": [
 				{
-					"name": "confirm subscribe",
-					"uri": "/subscribe/confirm",
-					"method": "POST",
-					"tokenRequired": false,
-					"responses": [
-						{
-							"code": 200,
-							"response": "User successfully subscribed"
-						}
-					],
-					"body": {
-						"email": "string"
-					}
-				},
-				{
 					"name": "subscribe",
 					"uri": "/subscribe",
 					"method": "POST",
@@ -38,6 +23,27 @@
 						"email": "string"
 					}
 				},
+				{
+					"name": "confirm subscribe",
+					"uri": "/subscribe/confirm",
+					"method": "GET",
+					"tokenRequired": false,
+					"responses": [
+						{
+							"code": 200,
+							"response": "User successfully subscribed"
+						}
+					],
+					"queryParameters": [
+						{
+							"label": "Token",
+							"name": "token",
+							"type": "string",
+							"required": true
+						}
+					]
+				},
+
 				{
 					"name": "author registration",
 					"uri": "/register",

@@ -5,10 +5,11 @@
 
 void send_subscription_mail(struct mg_connection *c,
                             struct mg_http_message *msg,
-                            struct error_reply *error_reply);
+                            struct error_reply *error_reply,
+                            const char *secret);
 
 void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
-                    struct error_reply *error_reply);
+                    struct error_reply *error_reply, const char *secret);
 
 void register_user(struct mg_connection *c, struct mg_http_message *msg,
                    struct error_reply *error_reply);
