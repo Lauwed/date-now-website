@@ -1,8 +1,8 @@
 #include <lib/mongoose.h>
-#include <sqlite3.h>
 #include <macros/colors.h>
 #include <macros/utils.h>
 #include <regex.h>
+#include <sqlite3.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,6 +67,19 @@ const size_t NULL_SIZE = strlen("null") * sizeof(char);
 const size_t DOUBLE_QUOTES_SIZE = strlen("\"\"") * sizeof(char);
 const size_t COMMA_SIZE = strlen(",") * sizeof(char);
 
+static void trim(char *str) {
+  int len = strlen(str);
+  while (len > 0 &&
+         (str[len - 1] == ' ' || str[len - 1] == '\r' || str[len - 1] == '\n'))
+    str[--len] = '\0';
+
+  int start = 0;
+  while (str[start] == ' ' || str[start] == '\r' || str[start] == '\n')
+    start++;
+  if (start > 0)
+    memmove(str, str + start, len - start + 1);
+}
+
 // Returns
 // -1 -> Email is NULL
 // 1 -> Regex error
@@ -78,6 +91,7 @@ int check_email_validity(char *email) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("EMAIL IS NULL"));
     return -1;
   }
+  trim(email);
 
   regex_t regex;
   int rc;

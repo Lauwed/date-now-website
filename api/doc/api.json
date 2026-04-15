@@ -43,7 +43,23 @@
 						}
 					]
 				},
-
+				{
+					"name": "generate author totp seed",
+					"uri": "/seed",
+					"method": "POST",
+					"responses": [
+						{
+							"code": 200,
+							"response": {
+								"message": "Author successfully registered",
+								"totpseed": "string"
+							}
+						}
+					],
+					"body": {
+						"email": "string"
+					}
+				},
 				{
 					"name": "author registration",
 					"uri": "/register",
@@ -340,7 +356,11 @@
 				"tagId": "integer",
 				"issueId": "integer"
 			},
-			"includedEndpoints": ["GET-list", "POST", "DELETE"]
+			"includedEndpoints": [
+				"GET-list",
+				"POST",
+				"DELETE"
+			]
 		},
 		{
 			"name": {
@@ -365,7 +385,11 @@
 				"authorId": "integer",
 				"issueId": "integer"
 			},
-			"includedEndpoints": ["GET-list", "POST", "DELETE"]
+			"includedEndpoints": [
+				"GET-list",
+				"POST",
+				"DELETE"
+			]
 		},
 		{
 			"name": {
@@ -390,7 +414,11 @@
 				"sponsorId": "integer",
 				"issueId": "integer"
 			},
-			"includedEndpoints": ["GET-list", "POST", "DELETE"]
+			"includedEndpoints": [
+				"GET-list",
+				"POST",
+				"DELETE"
+			]
 		},
 		{
 			"name": {
@@ -412,7 +440,10 @@
 				"hashedIp": "string",
 				"issueId": "integer"
 			},
-			"includedEndpoints": ["GET-list", "POST"]
+			"includedEndpoints": [
+				"GET-list",
+				"POST"
+			]
 		}
 	]
 }

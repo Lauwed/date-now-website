@@ -14,6 +14,10 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
 void register_user(struct mg_connection *c, struct mg_http_message *msg,
                    struct error_reply *error_reply);
 
+void generate_totpseed_user(struct mg_connection *c,
+                            struct mg_http_message *msg,
+                            struct error_reply *error_reply);
+
 void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
                      struct error_reply *error_reply, const char *secret);
 

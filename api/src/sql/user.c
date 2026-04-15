@@ -1,12 +1,12 @@
 #include <enums.h>
-#include <sqlite3.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
 #include <sql/user.h>
+#include <sqlite3.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <strings.h>
 #include <structs.h>
 #include <utils.h>
 
@@ -21,20 +21,21 @@ extern sqlite3 *db;
   "u.id, u.username, u.email, u.role, u.link, UNIXEPOCH(u.subscribedAt), "     \
   "u.isSupporter, UNIXEPOCH(u.createdAt), m.id, m.textAlternatif, m.url, "     \
   "m.width, m.height "                                                         \
-  "FROM User u LEFT JOIN Media m ON m.id = u.picture";
+  "FROM User u LEFT JOIN Media m ON m.id = u.picture"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE id = ?"
+#define QUERY_SELECT_SINGLE_BY_EMAIL_TMP QUERY_SELECT_TMP " WHERE email = ?"
 #define QUERY_Q_TMP                                                            \
   " WHERE username LIKE ?100 OR email LIKE ?100 OR link LIKE ?100"
 #define QUERY_SORT_TMP " ORDER BY email COLLATE NOCASE %s"
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
 #define QUERY_POST_TMP                                                         \
-  "INSERT INTO User (username, email, role, link)"                             \
-  "VALUES (?, ?, COALESCE(?, 'USER'), ?);";
+  "INSERT INTO User (username, email, role, link, totpSeed)"                   \
+  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?);";
 #define QUERY_PUT_TMP                                                          \
   "UPDATE User "                                                               \
   "SET username = ?, email = ?, role = COALESCE(?, 'USER'), "                  \
-  "link = ?, isSupporter = ? "                                                 \
+  "link = ?, isSupporter = ?, totpSeed = ? "                                   \
   "WHERE id = ?;";
 
 #define QUERY_DELETE_TMP "DELETE FROM User WHERE id = ?;"
@@ -409,6 +410,79 @@ int get_user(struct user *user, int id) {
   return 0;
 }
 
+int get_user_by_email(struct user *user, char *email) {
+  if (email == NULL) {
+    return HTTP_BAD_REQUEST;
+  }
+
+  printf(TERMINAL_SQL_MESSAGE("=== GET USER WITH EMAIL SQL ==="));
+
+  int query_rc = SQLITE_ROW;
+
+  char *query_tmp = QUERY_SELECT_SINGLE_BY_EMAIL_TMP ";";
+
+  sqlite3_stmt *stmt;
+  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+
+    return query_rc;
+  }
+
+  // Binding
+  sqlite3_bind_text(stmt, 1, email, -1, SQLITE_STATIC);
+
+  GET_EXPANDED_QUERY(stmt);
+
+  query_rc = sqlite3_step(stmt);
+
+  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  } else if (query_rc == SQLITE_DONE) {
+    sqlite3_finalize(stmt);
+    return HTTP_NOT_FOUND;
+  }
+
+  while (query_rc == SQLITE_ROW) {
+    int user_init_rc = user_init(user);
+    if (user_init_rc != 0) {
+      fprintf(stderr, "The user is NULL\n");
+      return HTTP_INTERNAL_ERROR;
+    }
+
+    struct media *m = NULL;
+    m = malloc(sizeof(struct media));
+
+    int user_rc = user_map(user, stmt, 0, 7);
+    if (user_rc != 0) {
+      free(user);
+
+      query_rc = sqlite3_step(stmt);
+      continue;
+    }
+
+    // Picture
+    int picture_rc = media_map(m, stmt, 8, 12);
+    if (picture_rc != 0) {
+      free(m);
+    } else {
+      user->picture = m;
+    }
+
+    printf("\n");
+    query_rc = sqlite3_step(stmt);
+  }
+
+  sqlite3_finalize(stmt);
+
+  return 0;
+}
+
 int add_user(struct user *user) {
   printf(TERMINAL_SQL_MESSAGE("=== ADD USER SQL ==="));
 
@@ -431,6 +505,7 @@ int add_user(struct user *user) {
   sqlite3_bind_text(stmt, 2, user->email, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 3, user->role, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 5, user->totp_seed, -1, SQLITE_STATIC);
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -468,7 +543,8 @@ int edit_user(struct user *user) {
   sqlite3_bind_text(stmt, 3, user->role, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 5, user->is_supporter);
-  sqlite3_bind_int(stmt, 6, user->id);
+  sqlite3_bind_text(stmt, 6, user->totp_seed, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 7, user->id);
 
   GET_EXPANDED_QUERY(stmt);
 

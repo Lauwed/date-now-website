@@ -1,12 +1,12 @@
 #include <enums.h>
-#include <sqlite3.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
 #include <sql/issue.h>
+#include <sqlite3.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <strings.h>
 #include <structs.h>
 #include <time.h>
 #include <utils.h>

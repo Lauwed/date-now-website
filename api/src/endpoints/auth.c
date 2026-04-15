@@ -2,6 +2,7 @@
 #include <jwt.h>
 #include <lib/email.h>
 #include <lib/mongoose.h>
+#include <lib/totp.h>
 #include <lib/validatejson.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
@@ -189,6 +190,105 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
 void register_user(struct mg_connection *c, struct mg_http_message *msg,
                    struct error_reply *error_reply) {}
 
+void generate_totpseed_user(struct mg_connection *c,
+                            struct mg_http_message *msg,
+                            struct error_reply *error_reply) {
+  int query_code;
+  error_reply = malloc(sizeof(struct error_reply));
+
+  // Check if POST
+  if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== GENERATE NEW USER TOTP SEED ==="));
+
+    // Check if body and validate JSON
+    if (msg->body.len <= 0) {
+      ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
+      return;
+    } else if (!mg_validateJSON(msg->body)) {
+      ERROR_REPLY_400(JSON_ERROR_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
+      return;
+    }
+
+    // Email mandatory
+    int offset, length;
+    char *email = NULL;
+    offset = mg_json_get(msg->body, "$.email", &length);
+    if (offset < 0) {
+      ERROR_REPLY_400(EMAIL_REQUIRED_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_REQUIRED_MESSAGE));
+      return;
+    } else {
+      // email = malloc(length - 1);
+      // strncpy(email, msg->body.buf + offset + 1, length - 2);
+      email = mg_json_get_str(msg->body, "$.email");
+      printf("%s\n", email);
+
+      // Check if email validity
+      int email_valid = check_email_validity(email);
+      if (email_valid != 0) {
+        ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+        fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
+        return;
+      }
+    }
+
+    // Check if user esists
+    if (user_identity_exists(NULL, email)) {
+      struct user *user = malloc(sizeof(struct user));
+      // Get User
+      int query_code = get_user_by_email(user, email);
+      free(email);
+
+      if (query_code != 0) {
+        fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USER"));
+        HANDLE_QUERY_CODE;
+
+        return;
+      } else {
+        // Generate totpseed
+        if (totp_generate_secret(user->totp_seed) != 0) {
+          ERROR_REPLY_500;
+          fprintf(stderr, TERMINAL_ERROR_MESSAGE("OPENSSL ERROR"));
+
+          free_user(user);
+          return;
+        }
+
+        printf("TOTP SEED GENERATED:\t%s\n", user->totp_seed);
+
+        // Update user
+        query_code = edit_user(user);
+        if (query_code != 0) {
+          fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR UPDATING USER"));
+          HANDLE_QUERY_CODE;
+
+          free_user(user);
+          return;
+        } else {
+          char seed_json[100];
+          sprintf(seed_json, "{\"seed\": \"%s\"}", user->totp_seed);
+
+          mg_http_reply(c, 200, JSON_HEADER, seed_json);
+          printf(TERMINAL_SUCCESS_MESSAGE(
+              "=== USER SEED SUCCESSFULLY UPDATED ==="));
+
+          free_user(user);
+          return;
+        }
+      }
+    }
+
+    ERROR_REPLY_404
+    return;
+  }
+
+  ERROR_REPLY_405;
+  fprintf(stderr, TERMINAL_ERROR_MESSAGE("METHOD NOT ALLOWED"));
+  return;
+}
+
 void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
                      struct error_reply *error_reply, const char *secret) {
   int query_code;
@@ -355,6 +455,8 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     printf("TOKEN GRANTS:\tEXP: %ld\tEMAIL: %s\n", exp, email);
 
     // Check TOTP Code
+    uint32_t totp_code = totp_generate(seed, 30);
+    printf("TOTP CODE:\tCALCULATED:%06u\tFROM USER:%s\n", totp_code, code);
 
     // Generate session JWT - email + exp
     jwt_t *jwt = NULL;

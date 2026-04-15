@@ -8,10 +8,10 @@
 #include <endpoints/user.h>
 #include <endpoints/view.h>
 #include <lib/mongoose.h>
-#include <sqlite3.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
 #include <signal.h>
+#include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <structs.h>
@@ -38,6 +38,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
 
       // JWT Secret
       const char *secret = getenv("JWT_SECRET");
+      printf("%s\n", secret);
       if (!secret) {
         mg_http_reply(c, 500, JSON_HEADER,
                       "{\"code\": 500, \"error\": \"Internal Error\"}");
@@ -61,6 +62,9 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/register"), caps)) {
           register_user(c, http_msg, error_reply);
+        }
+        if (mg_match(endpoint_cap[0], mg_str("auth/seed"), caps)) {
+          generate_totpseed_user(c, http_msg, error_reply);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/login"), caps)) {
           send_login_mail(c, http_msg, error_reply, secret);
