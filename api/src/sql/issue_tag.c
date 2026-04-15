@@ -195,7 +195,6 @@ int get_issue_tags(size_t len, struct issue_tag **arr, int issue_id, int page,
     if (issue_rc != 0) {
       free(u);
 
-      count += 1;
       query_rc = sqlite3_step(stmt);
       fprintf(stderr,
               TERMINAL_ERROR_MESSAGE("Error at line: %ld. Error code: %d"),

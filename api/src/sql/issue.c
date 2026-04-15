@@ -2,6 +2,9 @@
 #include <macros/colors.h>
 #include <macros/sql.h>
 #include <sql/issue.h>
+#include <sql/issue_author.h>
+#include <sql/issue_sponsor.h>
+#include <sql/issue_tag.h>
 #include <sqlite3.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -26,11 +29,11 @@ extern sqlite3 *db;
   "i.isSponsored, "                                                            \
   "i.status, i.openedMailCount, "                                              \
   "m.id, m.textAlternatif, m.url, m.width, m.height "                          \
-  "FROM Issue i"                                                               \
-  "LEFT JOIN Media m ON m.id = i.cover"                                        \
-  "LEFT JOIN IssueAuthor a ON a.issue_id = i.id"                               \
-  "LEFT JOIN IssueTag t ON t.issue_id = i.id"                                  \
-  "LEFT JOIN IssueSponsor s ON s.issue_id = i.id"
+  "FROM Issue i "                                                              \
+  "LEFT JOIN Media m ON m.id = i.cover "                                       \
+  "LEFT JOIN IssueAuthor a ON a.issueId = i.id "                               \
+  "LEFT JOIN IssueTag t ON t.issueId = i.id "                                  \
+  "LEFT JOIN IssueSponsor s ON s.issueId = i.id "
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE i.id = ?"
 #define QUERY_Q_TMP                                                            \
   " WHERE i.title LIKE ?100 OR CAST(i.issueNumber AS Text) LIKE ?100 OR "      \
@@ -319,7 +322,6 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     if (issue_rc != 0) {
       free(u);
 
-      count += 1;
       query_rc = sqlite3_step(stmt);
       fprintf(stderr,
               TERMINAL_ERROR_MESSAGE("Error at line: %ld. Error code: %d"),
@@ -334,6 +336,27 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     } else {
       u->cover = m;
     }
+
+    int tags_len = get_issue_tags_len(NULL, u->id);
+    if (tags_len > 0) {
+      u->tags = calloc(tags_len, sizeof(struct issue_tag *));
+      get_issue_tags(tags_len, u->tags, u->id, -1, 0);
+    }
+    u->tags_count = tags_len > 0 ? (size_t)tags_len : 0;
+
+    int authors_len = get_issue_authors_len(NULL, u->id);
+    if (authors_len > 0) {
+      u->authors = calloc(authors_len, sizeof(struct user *));
+      get_issue_authors(authors_len, u->authors, u->id, -1, 0);
+    }
+    u->authors_count = authors_len > 0 ? (size_t)authors_len : 0;
+
+    int sponsors_len = get_issue_sponsors_len(NULL, u->id);
+    if (sponsors_len > 0) {
+      u->sponsors = calloc(sponsors_len, sizeof(struct issue_sponsor *));
+      get_issue_sponsors(sponsors_len, u->sponsors, u->id, -1, 0);
+    }
+    u->sponsors_count = sponsors_len > 0 ? (size_t)sponsors_len : 0;
 
     printf("\n");
 
@@ -419,6 +442,27 @@ int get_issue(struct issue *issue, int id) {
   }
 
   sqlite3_finalize(stmt);
+
+  int tags_len = get_issue_tags_len(NULL, issue->id);
+  if (tags_len > 0) {
+    issue->tags = calloc(tags_len, sizeof(struct issue_tag *));
+    get_issue_tags(tags_len, issue->tags, issue->id, -1, 0);
+  }
+  issue->tags_count = tags_len > 0 ? (size_t)tags_len : 0;
+
+  int authors_len = get_issue_authors_len(NULL, issue->id);
+  if (authors_len > 0) {
+    issue->authors = calloc(authors_len, sizeof(struct user *));
+    get_issue_authors(authors_len, issue->authors, issue->id, -1, 0);
+  }
+  issue->authors_count = authors_len > 0 ? (size_t)authors_len : 0;
+
+  int sponsors_len = get_issue_sponsors_len(NULL, issue->id);
+  if (sponsors_len > 0) {
+    issue->sponsors = calloc(sponsors_len, sizeof(struct issue_sponsor *));
+    get_issue_sponsors(sponsors_len, issue->sponsors, issue->id, -1, 0);
+  }
+  issue->sponsors_count = sponsors_len > 0 ? (size_t)sponsors_len : 0;
 
   return 0;
 }

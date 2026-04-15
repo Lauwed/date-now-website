@@ -54,6 +54,22 @@ struct sponsor {
   char *link;
 };
 
+struct issue_author {
+  int user_id;
+  int issue_id;
+};
+
+struct issue_tag {
+  char *tag_name;
+  int issue_id;
+};
+
+struct issue_sponsor {
+  char *sponsor_name;
+  int issue_id;
+  char *link;
+};
+
 struct issue {
   int id;
   char *slug;
@@ -69,22 +85,12 @@ struct issue {
   int is_sponsored;
   char *status;
   int opened_mail_count;
-};
-
-struct issue_author {
-  int user_id;
-  int issue_id;
-};
-
-struct issue_tag {
-  char *tag_name;
-  int issue_id;
-};
-
-struct issue_sponsor {
-  char *sponsor_name;
-  int issue_id;
-  char *link;
+  struct issue_tag **tags;
+  size_t tags_count;
+  struct user **authors;
+  size_t authors_count;
+  struct issue_sponsor **sponsors;
+  size_t sponsors_count;
 };
 
 struct view {

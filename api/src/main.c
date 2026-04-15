@@ -338,6 +338,8 @@ int main() {
 
   printf("===\tDB - successfully opened!\t===\n");
 
+  sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+
   struct mg_mgr mgr;
   mg_log_set(MG_LL_DEBUG);
   mg_mgr_init(&mgr);

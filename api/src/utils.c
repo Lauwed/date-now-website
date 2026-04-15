@@ -54,7 +54,7 @@
   "{\"id\":%d,\"slug\":\"%s\",\"title\":\"%s\",\"subtitle\":\"%s\",\"cover\":" \
   "%s,\"createdAt\":%d,\"publishedAt\":%d,\"updatedAt\":%d,\"issueNumber\":"   \
   "%d,\"excerpt\":\"%s\",\"content\":\"%s\",\"isSponsored\":%d,\"status\":\"%" \
-  "s\",\"openedMailCount\":%d}"
+  "s\",\"openedMailCount\":%d,\"tags\":%s,\"authors\":%s,\"sponsors\":%s}"
 #define TAG_JSON "{\"name\":\"%s\",\"color\":\"%s\"}"
 #define SPONSOR_JSON "{\"name\":\"%s\",\"link\":\"%s\"}"
 #define ISSUE_AUTHOR_JSON "{\"userId\":%d,\"issueId\":%d}"
@@ -501,7 +501,10 @@ size_t issue_to_json_len(struct issue *issue) {
                issue->subtitle, media_to_json(issue->cover), issue->created_at,
                issue->published_at, issue->updated_at, issue->issue_number,
                issue->excerpt, issue->content, issue->is_sponsored,
-               issue->status, issue->opened_mail_count) +
+               issue->status, issue->opened_mail_count,
+               issue_tags_to_json(issue->tags, issue->tags_count),
+               users_to_json(issue->authors, issue->authors_count),
+               issue_sponsors_to_json(issue->sponsors, issue->sponsors_count)) +
       1;
 
   return len;
@@ -512,14 +515,27 @@ char *issue_to_json(struct issue *issue) {
     return "null";
   }
 
-  char *json = NULL;
-  json = malloc(issue_to_json_len(issue));
+  char *cover_json = media_to_json(issue->cover);
+  char *tags_json = issue_tags_to_json(issue->tags, issue->tags_count);
+  char *authors_json = users_to_json(issue->authors, issue->authors_count);
+  char *sponsors_json = issue_sponsors_to_json(issue->sponsors, issue->sponsors_count);
+
+  char *json = malloc(snprintf(NULL, 0, ISSUE_JSON, issue->id, issue->slug,
+      issue->title, issue->subtitle, cover_json, issue->created_at,
+      issue->published_at, issue->updated_at, issue->issue_number,
+      issue->excerpt, issue->content, issue->is_sponsored, issue->status,
+      issue->opened_mail_count, tags_json, authors_json, sponsors_json) + 1);
 
   sprintf(json, ISSUE_JSON, issue->id, issue->slug, issue->title,
-          issue->subtitle, media_to_json(issue->cover), issue->created_at,
-          issue->published_at, issue->updated_at, issue->issue_number,
-          issue->excerpt, issue->content, issue->is_sponsored, issue->status,
-          issue->opened_mail_count);
+      issue->subtitle, cover_json, issue->created_at,
+      issue->published_at, issue->updated_at, issue->issue_number,
+      issue->excerpt, issue->content, issue->is_sponsored, issue->status,
+      issue->opened_mail_count, tags_json, authors_json, sponsors_json);
+
+  if (issue->cover != NULL) free(cover_json);
+  if (issue->tags_count > 0) free(tags_json);
+  if (issue->authors_count > 0) free(authors_json);
+  if (issue->sponsors_count > 0) free(sponsors_json);
 
   return json;
 }
@@ -803,6 +819,16 @@ int free_issue(struct issue *issue) {
 
   if (issue->cover != NULL) {
     free_media(issue->cover);
+  }
+
+  if (issue->tags != NULL) {
+    free_issue_tags(issue->tags, issue->tags_count);
+  }
+  if (issue->authors != NULL) {
+    free_users(issue->authors, issue->authors_count);
+  }
+  if (issue->sponsors != NULL) {
+    free_issue_sponsors(issue->sponsors, issue->sponsors_count);
   }
 
   issue->slug = NULL;
@@ -1488,6 +1514,13 @@ int issue_init(struct issue *issue) {
   issue->updated_at = 0;
 
   issue->cover = NULL;
+
+  issue->tags = NULL;
+  issue->tags_count = 0;
+  issue->authors = NULL;
+  issue->authors_count = 0;
+  issue->sponsors = NULL;
+  issue->sponsors_count = 0;
 
   return 0;
 }

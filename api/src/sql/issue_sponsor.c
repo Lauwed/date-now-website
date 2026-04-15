@@ -195,7 +195,6 @@ int get_issue_sponsors(size_t len, struct issue_sponsor **arr, int issue_id,
     if (issue_rc != 0) {
       free(u);
 
-      count += 1;
       query_rc = sqlite3_step(stmt);
       fprintf(stderr,
               TERMINAL_ERROR_MESSAGE("Error at line: %ld. Error code: %d"),
