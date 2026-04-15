@@ -57,14 +57,13 @@ static void base32_encode(const uint8_t *input, int len, char *output) {
   output[out] = '\0';
 }
 
-uint32_t totp_generate(const char *base32_secret, uint32_t step_seconds) {
+uint32_t totp_generate_at(const char *base32_secret, uint32_t step_seconds,
+                          time_t timestamp) {
   uint8_t secret[64];
   int secret_len = base32_decode(base32_secret, secret);
 
-  // Time counter
-  uint64_t counter = (uint64_t)time(NULL) / step_seconds;
+  uint64_t counter = (uint64_t)timestamp / step_seconds;
 
-  // ???
   const size_t msg_len = 8;
   uint8_t msg[msg_len];
   for (int i = msg_len - 1; i >= 0; i--) {
@@ -72,7 +71,6 @@ uint32_t totp_generate(const char *base32_secret, uint32_t step_seconds) {
     counter >>= msg_len;
   }
 
-  // HMAC
   uint8_t hash[20];
   unsigned int hash_len = 20;
   HMAC(EVP_sha1(), secret, secret_len, msg, msg_len, hash, &hash_len);
@@ -81,8 +79,11 @@ uint32_t totp_generate(const char *base32_secret, uint32_t step_seconds) {
   uint32_t code = ((hash[offset] & 0x7F) << 24) |
                   ((hash[offset + 1] & 0xFF) << 16) |
                   ((hash[offset + 2] & 0xFF) << 8) | (hash[offset + 3] & 0xFF);
-
   return code % 1000000;
+}
+
+uint32_t totp_generate(const char *base32_secret, uint32_t step_seconds) {
+  return totp_generate_at(base32_secret, step_seconds, time(NULL));
 }
 
 int totp_generate_secret(char *output) {

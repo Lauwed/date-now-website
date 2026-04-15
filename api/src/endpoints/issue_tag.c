@@ -1,5 +1,4 @@
-
-
+#include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -22,7 +21,8 @@
 #define LINK_DOES_NOT_EXIST "The link doesn't exists"
 
 void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
-                         int issue_id, struct error_reply *error_reply) {
+                         int issue_id, struct error_reply *error_reply,
+                         const char *secret) {
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
@@ -129,6 +129,16 @@ void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    // Check if user logged
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
     // Hydrate
     struct issue_tag *issue = malloc(sizeof(struct issue_tag));
     int issue_init_rc = issue_tag_init(issue);
@@ -170,8 +180,8 @@ void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
 }
 
 void send_issue_tag_res(struct mg_connection *c, struct mg_http_message *msg,
-                        int issue_id, char *id,
-                        struct error_reply *error_reply) {
+                        int issue_id, char *id, struct error_reply *error_reply,
+                        const char *secret) {
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
@@ -190,6 +200,16 @@ void send_issue_tag_res(struct mg_connection *c, struct mg_http_message *msg,
   }
 
   if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
+    // Check if user logged
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
     int delete_rc = delete_issue_tag(issue_id, id);
     if (delete_rc != 0) {
       ERROR_REPLY_500;

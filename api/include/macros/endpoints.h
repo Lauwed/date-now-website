@@ -10,6 +10,7 @@
 #define JWT_EXPIRED_MESSAGE "JWT expired"
 #define BAD_JWT_MESSAGE "Wrong signature or token invalid"
 #define WRONG_JWT_TYPE_MESSAGE "Wrong type of JWT"
+#define UNAUTHORIZED_MESSAGE "Not authorized"
 
 #define ERROR_REPLY_500                                                        \
   error_reply_map(error_reply, 500, "Internal error", 500);                    \
@@ -25,6 +26,9 @@
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
 #define ERROR_REPLY_404                                                        \
   error_reply_map(error_reply, 404, "Not found", 404);                         \
+  mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
+#define ERROR_REPLY_401                                                        \
+  error_reply_map(error_reply, 401, "Not authorized", 401);                    \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
 
 #define HANDLE_QUERY_CODE                                                      \

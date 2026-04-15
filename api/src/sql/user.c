@@ -24,14 +24,16 @@ extern sqlite3 *db;
   "FROM User u LEFT JOIN Media m ON m.id = u.picture"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE id = ?"
 #define QUERY_SELECT_SINGLE_BY_EMAIL_TMP QUERY_SELECT_TMP " WHERE email = ?"
+#define QUERY_SELECT_SINGLE_TOTP_SEED                                          \
+  "SELECT totpSeed FROM User WHERE email = ?;"
 #define QUERY_Q_TMP                                                            \
   " WHERE username LIKE ?100 OR email LIKE ?100 OR link LIKE ?100"
 #define QUERY_SORT_TMP " ORDER BY email COLLATE NOCASE %s"
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
 #define QUERY_POST_TMP                                                         \
-  "INSERT INTO User (username, email, role, link, totpSeed)"                   \
-  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?);";
+  "INSERT INTO User (username, email, role, link, totpSeed, subscribedAt)"     \
+  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?, DATETIME(?, 'unixepoch'));";
 #define QUERY_PUT_TMP                                                          \
   "UPDATE User "                                                               \
   "SET username = ?, email = ?, role = COALESCE(?, 'USER'), "                  \
@@ -121,6 +123,7 @@ int user_identity_exists(char *username, char *email) {
 
     query_rc = sqlite3_step(stmt);
   }
+  printf("USERS COUNT:\t%d\n", users_count);
 
   sqlite3_finalize(stmt);
 
@@ -483,6 +486,58 @@ int get_user_by_email(struct user *user, char *email) {
   return 0;
 }
 
+int get_user_totp_seed(char *email, char **seed) {
+  if (email == NULL) {
+    return HTTP_BAD_REQUEST;
+  }
+
+  printf(TERMINAL_SQL_MESSAGE("=== GET USER TOTP SEED ==="));
+
+  int query_rc = SQLITE_ROW;
+
+  char *query_tmp = QUERY_SELECT_SINGLE_TOTP_SEED;
+
+  sqlite3_stmt *stmt;
+  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+
+    return query_rc;
+  }
+
+  // Binding
+  sqlite3_bind_text(stmt, 1, email, -1, SQLITE_STATIC);
+
+  GET_EXPANDED_QUERY(stmt);
+
+  query_rc = sqlite3_step(stmt);
+
+  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  } else if (query_rc == SQLITE_DONE) {
+    sqlite3_finalize(stmt);
+    return HTTP_NOT_FOUND;
+  }
+
+  while (query_rc == SQLITE_ROW && *seed == NULL) {
+    if (sqlite3_column_type(stmt, 0) == SQLITE_TEXT) {
+      const char *str = (const char *)sqlite3_column_text(stmt, 0);
+      printf("%s: %s\n", sqlite3_column_name(stmt, 0), str);
+      *seed = strndup(str, strlen(str) + 1);
+    }
+
+    query_rc = sqlite3_step(stmt);
+  }
+
+  sqlite3_finalize(stmt);
+  return *seed == NULL;
+}
+
 int add_user(struct user *user) {
   printf(TERMINAL_SQL_MESSAGE("=== ADD USER SQL ==="));
 
@@ -506,6 +561,7 @@ int add_user(struct user *user) {
   sqlite3_bind_text(stmt, 3, user->role, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 5, user->totp_seed, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 6, user->subscribed_at);
 
   GET_EXPANDED_QUERY(stmt);
 

@@ -5,8 +5,9 @@
 
 void send_issue_authors_res(struct mg_connection *c,
                             struct mg_http_message *msg, int issue_id,
-                            struct error_reply *error_reply);
+                            struct error_reply *error_reply,
+                            const char *secret);
 
 void send_issue_author_res(struct mg_connection *c, struct mg_http_message *msg,
                            int issue_id, int id,
-                           struct error_reply *error_reply);
+                           struct error_reply *error_reply, const char *secret);

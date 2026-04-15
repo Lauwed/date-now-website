@@ -11,7 +11,7 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
               const struct mg_str *sort, int page, int page_size);
 int get_user(struct user *user, int id);
 int get_user_by_email(struct user *user, char *email);
-char *get_user_totp_seed(char *email);
+int get_user_totp_seed(char *email, char **seed);
 int add_user(struct user *user);
 int edit_user(struct user *user);
 int delete_user(int id);

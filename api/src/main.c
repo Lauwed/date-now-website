@@ -46,8 +46,6 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         exit(1);
       }
 
-      // Check if user logged
-
       printf("endpoint:  %.*s\n", (int)endpoint_cap[0].len,
              endpoint_cap[0].buf);
 
@@ -61,7 +59,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           subscribe_user(c, http_msg, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/register"), caps)) {
-          register_user(c, http_msg, error_reply);
+          register_user(c, http_msg, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/seed"), caps)) {
           generate_totpseed_user(c, http_msg, error_reply);
@@ -90,9 +88,9 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_user_res(c, http_msg, id, error_reply);
+          send_user_res(c, http_msg, id, error_reply, secret);
         } else if (mg_strcmp(endpoint_cap[0], mg_str("user")) == 0) {
-          send_users_res(c, http_msg, error_reply);
+          send_users_res(c, http_msg, error_reply, secret);
         }
 
         mg_http_reply(c, 404, JSON_HEADER,
@@ -111,10 +109,10 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_tag_res(c, http_msg, name, error_reply);
+          send_tag_res(c, http_msg, name, error_reply, secret);
           free(name);
         } else if (mg_strcmp(endpoint_cap[0], mg_str("tag")) == 0) {
-          send_tags_res(c, http_msg, error_reply);
+          send_tags_res(c, http_msg, error_reply, secret);
         }
 
         mg_http_reply(c, 404, JSON_HEADER,
@@ -132,10 +130,10 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_sponsor_res(c, http_msg, name, error_reply);
+          send_sponsor_res(c, http_msg, name, error_reply, secret);
           free(name);
         } else if (mg_strcmp(endpoint_cap[0], mg_str("sponsor")) == 0) {
-          send_sponsors_res(c, http_msg, error_reply);
+          send_sponsors_res(c, http_msg, error_reply, secret);
         }
 
         mg_http_reply(c, 404, JSON_HEADER,
@@ -145,7 +143,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         printf("VIEWS PUTAIN\n");
         printf("%d\n", mg_strcmp(endpoint_cap[0], mg_str("view")) == 0);
         if (mg_strcmp(endpoint_cap[0], mg_str("view")) == 0) {
-          send_views_res(c, http_msg, error_reply);
+          send_views_res(c, http_msg, error_reply, secret);
         }
 
         mg_http_reply(c, 404, JSON_HEADER,
@@ -167,7 +165,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_issue_tags_res(c, http_msg, issue_id, error_reply);
+          send_issue_tags_res(c, http_msg, issue_id, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("issue/*/tag/*"), caps)) {
           printf("issue tag\n");
@@ -190,7 +188,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_issue_tag_res(c, http_msg, issue_id, name, error_reply);
+          send_issue_tag_res(c, http_msg, issue_id, name, error_reply, secret);
         }
 
         if (mg_match(endpoint_cap[0], mg_str("issue/*/author"), caps)) {
@@ -204,7 +202,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_issue_authors_res(c, http_msg, issue_id, error_reply);
+          send_issue_authors_res(c, http_msg, issue_id, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("issue/*/author/*"), caps)) {
           printf("issue author\n");
@@ -226,7 +224,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_issue_author_res(c, http_msg, issue_id, id, error_reply);
+          send_issue_author_res(c, http_msg, issue_id, id, error_reply, secret);
         }
 
         if (mg_match(endpoint_cap[0], mg_str("issue/*/sponsor"), caps)) {
@@ -240,7 +238,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_issue_sponsors_res(c, http_msg, issue_id, error_reply);
+          send_issue_sponsors_res(c, http_msg, issue_id, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("issue/*/sponsor/*"), caps)) {
           printf("issue sponsor\n");
@@ -262,7 +260,8 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_issue_sponsor_res(c, http_msg, issue_id, name, error_reply);
+          send_issue_sponsor_res(c, http_msg, issue_id, name, error_reply,
+                                 secret);
         }
 
         if (mg_match(endpoint_cap[0], mg_str("issue/*"), caps)) {
@@ -275,9 +274,9 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
             return;
           }
 
-          send_issue_res(c, http_msg, id, error_reply);
+          send_issue_res(c, http_msg, id, error_reply, secret);
         } else if (mg_strcmp(endpoint_cap[0], mg_str("issue")) == 0) {
-          send_issues_res(c, http_msg, error_reply);
+          send_issues_res(c, http_msg, error_reply, secret);
         }
 
         mg_http_reply(c, 404, JSON_HEADER,

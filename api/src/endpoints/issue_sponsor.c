@@ -1,4 +1,4 @@
-
+#include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -23,7 +23,8 @@
 
 void send_issue_sponsors_res(struct mg_connection *c,
                              struct mg_http_message *msg, int issue_id,
-                             struct error_reply *error_reply) {
+                             struct error_reply *error_reply,
+                             const char *secret) {
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
@@ -132,6 +133,16 @@ void send_issue_sponsors_res(struct mg_connection *c,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    // Check if user logged
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
     // Body validation
     int offset, length;
 
@@ -189,7 +200,8 @@ void send_issue_sponsors_res(struct mg_connection *c,
 
 void send_issue_sponsor_res(struct mg_connection *c,
                             struct mg_http_message *msg, int issue_id, char *id,
-                            struct error_reply *error_reply) {
+                            struct error_reply *error_reply,
+                            const char *secret) {
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
@@ -208,6 +220,16 @@ void send_issue_sponsor_res(struct mg_connection *c,
   }
 
   if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
+    // Check if user logged
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
     int delete_rc = delete_issue_sponsor(issue_id, id);
     if (delete_rc != 0) {
       ERROR_REPLY_500;

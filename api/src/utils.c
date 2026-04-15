@@ -23,7 +23,7 @@
 
 #define MAP_TEXT(dest, stmt, index, required)                                  \
   if (sqlite3_column_type(stmt, index) == SQLITE_TEXT) {                       \
-    const char *str = sqlite3_column_text(stmt, index);                        \
+    const char *str = (const char *)sqlite3_column_text(stmt, index);          \
     printf("%s: %s, ", sqlite3_column_name(stmt, index), str);                 \
     dest = strndup(str, strlen(str));                                          \
   } else if (required) {                                                       \
@@ -1035,35 +1035,26 @@ int user_map(struct user *user, sqlite3_stmt *stmt, int start_index,
     return -1;
   }
 
-  int id_index = start_index;
-  int username_index = start_index + 1;
-  int email_index = start_index + 2;
-  int role_index = start_index + 3;
-  int link_index = start_index + 4;
-  int subscribed_at_index = start_index + 5;
-  int is_supporter_index = start_index + 6;
-  int created_at_index = start_index + 7;
-
   printf(ANSI_BACKGROUND_AMBER " USER " ANSI_RESET_ALL "\n");
   // ID
-  MAP_INT(user->id, stmt, id_index, 1);
+  MAP_INT(user->id, stmt, start_index, 1);
   // Username
-  MAP_TEXT(user->username, stmt, username_index, 0);
+  MAP_TEXT(user->username, stmt, start_index + 1, 0);
   // Email
-  MAP_TEXT(user->email, stmt, email_index, 1);
+  MAP_TEXT(user->email, stmt, start_index + 2, 1);
   // Role
-  MAP_TEXT(user->role, stmt, role_index, 1);
+  MAP_TEXT(user->role, stmt, start_index + 3, 1);
 
   // Link
-  MAP_TEXT(user->link, stmt, link_index, 0);
+  MAP_TEXT(user->link, stmt, start_index + 4, 0);
 
   // Subscribed at
-  MAP_INT(user->subscribed_at, stmt, subscribed_at_index, 0);
+  MAP_INT(user->subscribed_at, stmt, start_index + 5, 0);
   // Is supporter
-  MAP_INT(user->is_supporter, stmt, is_supporter_index, 1);
+  MAP_INT(user->is_supporter, stmt, start_index + 6, 1);
 
   // Created at
-  MAP_INT(user->created_at, stmt, created_at_index, 1);
+  MAP_INT(user->created_at, stmt, start_index + 7, 1);
 
   return 0;
 }
