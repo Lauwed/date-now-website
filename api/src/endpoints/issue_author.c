@@ -100,10 +100,10 @@ void send_issue_authors_res(struct mg_connection *c,
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
            reply->total, reply->count, reply->total_pages);
 
-    struct issue_author **issues = NULL;
+    struct user **issues = NULL;
 
     if (reply->count > 0) {
-      issues = malloc(reply->count * sizeof(struct issue *));
+      issues = malloc(reply->count * sizeof(struct user *));
       query_code = get_issue_authors(reply->count, issues, issue_id,
                                      reply->page, reply->page_size);
 
@@ -118,14 +118,14 @@ void send_issue_authors_res(struct mg_connection *c,
       }
     }
 
-    reply->data = issue_authors_to_json(issues, reply->count);
+    reply->data = users_to_json(issues, reply->count);
     list_reply_to_json(reply);
 
     mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE AUTHORS SUCCESSFULLY SENT ==="));
 
     if (reply->count > 0) {
-      free_issue_authors(issues, reply->count);
+      free_users(issues, reply->count);
       free(reply->data);
       free(reply->json);
     }

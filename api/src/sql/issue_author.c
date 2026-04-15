@@ -17,7 +17,13 @@ extern sqlite3 *db;
 #define QUERY_COUNT_TMP "SELECT COUNT(*) FROM IssueAuthor WHERE issueId = ?"
 #define QUERY_EXISTS_TMP QUERY_COUNT_TMP " AND userId = ?"
 #define QUERY_SELECT_TMP                                                       \
-  "SELECT issueId, userId FROM IssueAuthor WHERE issueId = ?"
+  "SELECT u.id, u.username, u.email, u.role, u.link, "                        \
+  "UNIXEPOCH(u.subscribedAt), u.isSupporter, UNIXEPOCH(u.createdAt), "        \
+  "m.id, m.textAlternatif, m.url, m.width, m.height "                         \
+  "FROM IssueAuthor ia "                                                       \
+  "JOIN User u ON u.id = ia.userId "                                           \
+  "LEFT JOIN Media m ON m.id = u.picture "                                     \
+  "WHERE ia.issueId = ?"
 
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
@@ -131,9 +137,9 @@ int get_issue_authors_len(const struct mg_str *q, int issue_id) {
   return issues_count;
 }
 
-int get_issue_authors(size_t len, struct issue_author **arr, int issue_id,
+int get_issue_authors(size_t len, struct user **arr, int issue_id,
                       int page, int page_size) {
-  printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES SQL ==="));
+  printf(TERMINAL_SQL_MESSAGE("=== GET ISSUE AUTHORS SQL ==="));
 
   int query_rc = SQLITE_ROW;
 
@@ -158,6 +164,7 @@ int get_issue_authors(size_t len, struct issue_author **arr, int issue_id,
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
+    free(query);
 
     return query_rc;
   }
@@ -178,25 +185,26 @@ int get_issue_authors(size_t len, struct issue_author **arr, int issue_id,
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
+    free(query);
     return query_rc;
   }
 
   size_t count = 0;
   while (query_rc == SQLITE_ROW && count < len) {
-    struct issue_author *u = NULL;
-    u = malloc(sizeof(struct issue));
+    struct user *u = malloc(sizeof(struct user));
 
-    int issue_init_rc = issue_author_init(u);
-    if (issue_init_rc != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("The issue author is NULL"));
+    int user_init_rc = user_init(u);
+    if (user_init_rc != 0) {
+      free(u);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("The author user is NULL"));
+      free(query);
       return HTTP_INTERNAL_ERROR;
     }
 
-    int issue_rc = issue_author_map(u, stmt, 0, 1);
-    if (issue_rc != 0) {
+    int user_rc = user_map(u, stmt, 0, 7);
+    if (user_rc != 0) {
       free(u);
 
-      count += 1;
       query_rc = sqlite3_step(stmt);
       fprintf(stderr,
               TERMINAL_ERROR_MESSAGE("Error at line: %ld. Error code: %d"),
@@ -204,9 +212,16 @@ int get_issue_authors(size_t len, struct issue_author **arr, int issue_id,
       continue;
     }
 
+    struct media *m = malloc(sizeof(struct media));
+    int cover_rc = media_map(m, stmt, 8, 12);
+    if (cover_rc != 0) {
+      free(m);
+    } else {
+      u->picture = m;
+    }
+
     printf("\n");
 
-    // Add a to arr
     arr[count] = u;
 
     count += 1;
@@ -214,6 +229,7 @@ int get_issue_authors(size_t len, struct issue_author **arr, int issue_id,
   }
 
   sqlite3_finalize(stmt);
+  free(query);
 
   return 0;
 }
