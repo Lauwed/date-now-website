@@ -7,12 +7,12 @@
       "./include/",
       "-g",
       "-o",
-      "obj/main.o",
-      "src/main.c"
+      "obj/endpoints/user.o",
+      "src/endpoints/user.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/main.c",
-    "output": "/home/devgirl_/date-now/api/obj/main.o"
+    "file": "/home/devgirl_/date-now/api/src/endpoints/user.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/user.o"
   },
   {
     "arguments": [
@@ -22,11 +22,131 @@
       "./include/",
       "-g",
       "-o",
-      "obj/sql/issue.o",
-      "src/sql/issue.c"
+      "obj/endpoints/tag.o",
+      "src/endpoints/tag.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/sql/issue.c",
-    "output": "/home/devgirl_/date-now/api/obj/sql/issue.o"
+    "file": "/home/devgirl_/date-now/api/src/endpoints/tag.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/tag.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/endpoints/sponsor.o",
+      "src/endpoints/sponsor.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/endpoints/sponsor.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/sponsor.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/endpoints/issue.o",
+      "src/endpoints/issue.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/endpoints/issue.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/issue.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/endpoints/issue_tag.o",
+      "src/endpoints/issue_tag.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/endpoints/issue_tag.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/issue_tag.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/endpoints/issue_author.o",
+      "src/endpoints/issue_author.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/endpoints/issue_author.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/issue_author.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/endpoints/issue_sponsor.o",
+      "src/endpoints/issue_sponsor.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/endpoints/issue_sponsor.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/issue_sponsor.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/endpoints/view.o",
+      "src/endpoints/view.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/endpoints/view.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/view.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/endpoints/auth.o",
+      "src/endpoints/auth.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/endpoints/auth.c",
+    "output": "/home/devgirl_/date-now/api/obj/endpoints/auth.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-I",
+      "./include/",
+      "-g",
+      "-o",
+      "obj/main.o",
+      "src/main.c"
+    ],
+    "directory": "/home/devgirl_/date-now/api",
+    "file": "/home/devgirl_/date-now/api/src/main.c",
+    "output": "/home/devgirl_/date-now/api/obj/main.o"
   }
 ]

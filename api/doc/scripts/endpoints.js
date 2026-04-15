@@ -184,6 +184,7 @@ const generateCustomEndpoint = (e, uri) => {
 				type: key.type,
 			}),
 		),
+		queryParameters: e.queryParameters,
 	};
 };
 

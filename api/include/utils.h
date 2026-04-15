@@ -1,10 +1,11 @@
 #pragma once
 
 #include <lib/mongoose.h>
-#include <lib/sqlite3.h>
+#include <sqlite3.h>
 #include <stddef.h>
 #include <structs.h>
 
+int check_email_validity(char *email);
 const char *get_method(const char *buffer);
 int mg_str_to_str(char *dest, struct mg_str src);
 int str_to_slug(char *str, size_t len);

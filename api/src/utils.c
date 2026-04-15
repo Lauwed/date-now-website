@@ -1,7 +1,8 @@
 #include <lib/mongoose.h>
-#include <lib/sqlite3.h>
 #include <macros/colors.h>
 #include <macros/utils.h>
+#include <regex.h>
+#include <sqlite3.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +23,7 @@
 
 #define MAP_TEXT(dest, stmt, index, required)                                  \
   if (sqlite3_column_type(stmt, index) == SQLITE_TEXT) {                       \
-    const char *str = sqlite3_column_text(stmt, index);                        \
+    const char *str = (const char *)sqlite3_column_text(stmt, index);          \
     printf("%s: %s, ", sqlite3_column_name(stmt, index), str);                 \
     dest = strndup(str, strlen(str));                                          \
   } else if (required) {                                                       \
@@ -47,7 +48,7 @@
 #define MEDIA_JSON                                                             \
   "{\"id\":%d,\"alt\":\"%s\",\"url\":\"%s\",\"width\":%f,\"height\":%f}"
 #define USER_JSON                                                              \
-  "{\"id\":%d,\"username\":\"%s\",\"email\":\"%s\",\"role\":\"%s\",\"link\":%" \
+  "{\"id\":%d,\"username\":%s,\"email\":\"%s\",\"role\":\"%s\",\"link\":%"     \
   "s,\"picture\":%s,\"subscribedAt\":%d,\"isSupporter\":%d,\"createdAt\":%d}"
 #define ISSUE_JSON                                                             \
   "{\"id\":%d,\"slug\":\"%s\",\"title\":\"%s\",\"subtitle\":\"%s\",\"cover\":" \
@@ -65,6 +66,60 @@
 const size_t NULL_SIZE = strlen("null") * sizeof(char);
 const size_t DOUBLE_QUOTES_SIZE = strlen("\"\"") * sizeof(char);
 const size_t COMMA_SIZE = strlen(",") * sizeof(char);
+
+static void trim(char *str) {
+  int len = strlen(str);
+  while (len > 0 &&
+         (str[len - 1] == ' ' || str[len - 1] == '\r' || str[len - 1] == '\n'))
+    str[--len] = '\0';
+
+  int start = 0;
+  while (str[start] == ' ' || str[start] == '\r' || str[start] == '\n')
+    start++;
+  if (start > 0)
+    memmove(str, str + start, len - start + 1);
+}
+
+// Returns
+// -1 -> Email is NULL
+// 1 -> Regex error
+// 2 -> No match
+int check_email_validity(char *email) {
+  printf("CHECK EMAIL VALIDITY\tEmail: %s\n", email);
+
+  if (email == NULL) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("EMAIL IS NULL"));
+    return -1;
+  }
+  trim(email);
+
+  regex_t regex;
+  int rc;
+  const int msgbuf_len = 100;
+  char msgbuf[msgbuf_len];
+
+  rc = regcomp(&regex, "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$",
+               REG_EXTENDED);
+  if (rc) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("COULD NOT COMPILE REGEX"));
+    return 1;
+  }
+
+  rc = regexec(&regex, email, 0, NULL, 0);
+  if (rc == REG_NOMATCH) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("NO MATCH"));
+    regfree(&regex);
+    return 2;
+  } else if (rc != 0) {
+    regerror(rc, &regex, msgbuf, msgbuf_len);
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("REGEX MATCH FAILED: %s"), msgbuf);
+    regfree(&regex);
+    return 1;
+  }
+
+  regfree(&regex);
+  return 0;
+}
 
 const char *get_method(const char *method_buf) {
   const char *methods[METHODS_LEN] = {"GET", "POST", "PUT", "DELETE"};
@@ -156,6 +211,12 @@ size_t user_to_json_len(struct user *user) {
     return NULL_SIZE;
   }
 
+  char *username = "null";
+  if (user->username != NULL) {
+    username = malloc(snprintf(NULL, 0, "\"%s\"", user->username) + 1);
+    sprintf(username, "\"%s\"", user->username);
+  }
+
   char *link = "null";
   if (user->link != NULL) {
     link = malloc(snprintf(NULL, 0, "\"%s\"", user->link) + 1);
@@ -163,13 +224,16 @@ size_t user_to_json_len(struct user *user) {
   }
 
   int len =
-      snprintf(NULL, 0, USER_JSON, user->id, user->username, user->email,
-               user->role, link, media_to_json(user->picture),
-               user->subscribed_at, user->is_supporter, user->created_at) +
+      snprintf(NULL, 0, USER_JSON, user->id, username, user->email, user->role,
+               link, media_to_json(user->picture), user->subscribed_at,
+               user->is_supporter, user->created_at) +
       1;
 
   if (strcmp(link, "null") != 0)
     free(link);
+
+  if (strcmp(username, "null") != 0)
+    free(username);
 
   return len;
 }
@@ -177,6 +241,12 @@ size_t user_to_json_len(struct user *user) {
 char *user_to_json(struct user *user) {
   if (user == NULL) {
     return "null";
+  }
+
+  char *username = "null";
+  if (user->username != NULL) {
+    username = malloc(snprintf(NULL, 0, "\"%s\"", user->username) + 1);
+    sprintf(username, "\"%s\"", user->username);
   }
 
   char *link = "null";
@@ -188,12 +258,15 @@ char *user_to_json(struct user *user) {
   char *json = NULL;
   json = malloc(user_to_json_len(user));
 
-  sprintf(json, USER_JSON, user->id, user->username, user->email, user->role,
-          link, media_to_json(user->picture), user->subscribed_at,
-          user->is_supporter, user->created_at);
+  sprintf(json, USER_JSON, user->id, username, user->email, user->role, link,
+          media_to_json(user->picture), user->subscribed_at, user->is_supporter,
+          user->created_at);
 
   if (strcmp(link, "null") != 0)
     free(link);
+
+  if (strcmp(username, "null") != 0)
+    free(username);
 
   return json;
 }
@@ -962,35 +1035,26 @@ int user_map(struct user *user, sqlite3_stmt *stmt, int start_index,
     return -1;
   }
 
-  int id_index = start_index;
-  int username_index = start_index + 1;
-  int email_index = start_index + 2;
-  int role_index = start_index + 3;
-  int link_index = start_index + 4;
-  int subscribed_at_index = start_index + 5;
-  int is_supporter_index = start_index + 6;
-  int created_at_index = start_index + 7;
-
   printf(ANSI_BACKGROUND_AMBER " USER " ANSI_RESET_ALL "\n");
   // ID
-  MAP_INT(user->id, stmt, id_index, 1);
+  MAP_INT(user->id, stmt, start_index, 1);
   // Username
-  MAP_TEXT(user->username, stmt, username_index, 0);
+  MAP_TEXT(user->username, stmt, start_index + 1, 0);
   // Email
-  MAP_TEXT(user->email, stmt, email_index, 1);
+  MAP_TEXT(user->email, stmt, start_index + 2, 1);
   // Role
-  MAP_TEXT(user->role, stmt, role_index, 1);
+  MAP_TEXT(user->role, stmt, start_index + 3, 1);
 
   // Link
-  MAP_TEXT(user->link, stmt, link_index, 0);
+  MAP_TEXT(user->link, stmt, start_index + 4, 0);
 
   // Subscribed at
-  MAP_INT(user->subscribed_at, stmt, subscribed_at_index, 0);
+  MAP_INT(user->subscribed_at, stmt, start_index + 5, 0);
   // Is supporter
-  MAP_INT(user->is_supporter, stmt, is_supporter_index, 1);
+  MAP_INT(user->is_supporter, stmt, start_index + 6, 1);
 
   // Created at
-  MAP_INT(user->created_at, stmt, created_at_index, 1);
+  MAP_INT(user->created_at, stmt, start_index + 7, 1);
 
   return 0;
 }

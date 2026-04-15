@@ -1,3 +1,4 @@
+#include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -16,7 +17,7 @@
 #define COLOR_REQUIRED_MESSAGE "The color is required."
 
 void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
-                   struct error_reply *error_reply) {
+                   struct error_reply *error_reply, const char *secret) {
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
@@ -115,6 +116,16 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    // Check if user logged
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
@@ -179,7 +190,8 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
 }
 
 void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
-                  char *name, struct error_reply *error_reply) {
+                  char *name, struct error_reply *error_reply,
+                  const char *secret) {
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
@@ -213,6 +225,16 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
 
     free_tag(tag);
   } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
+    // Check if user logged
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
@@ -265,6 +287,16 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
 
     free_tag(tag);
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
+    // Check if user logged
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
     // Check if exists
     int exists = tag_exists(name);
     if (!exists) {

@@ -33,7 +33,7 @@ struct user {
   char *email;
   char *role;
 
-  char totp_seed[255];
+  char totp_seed[64];
 
   struct media *picture;
   char *link;
