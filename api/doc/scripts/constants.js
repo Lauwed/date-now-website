@@ -2,6 +2,7 @@ const INPUT_TYPE = {
         select: "select",
         string: "text",
         integer: "number",
+        file: "file",
 };
 
 const HTTP_RESPONSE_TITLE = {

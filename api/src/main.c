@@ -313,7 +313,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       }
       free(error_reply);
     } else {
-      if (mg_match(http_msg->uri, mg_str("/uploads/*"), NULL)) {
+      if (mg_match(http_msg->uri, mg_str("/uploads/#"), NULL)) {
         struct mg_http_serve_opts opts = {
             .root_dir = "/uploads=/var/www/uploads",
             .extra_headers = "Cache-Control: public, max-age=2592000\r\n"};
