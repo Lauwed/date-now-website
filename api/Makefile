@@ -1,11 +1,13 @@
 CC ?= cc
-CFLAGS := -I ./include/ -g
-LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl
+VIPS_CFLAGS := $(shell pkg-config --cflags vips 2>/dev/null)
+VIPS_LIBS   := $(shell pkg-config --libs   vips 2>/dev/null)
+CFLAGS := -I ./include/ -g $(VIPS_CFLAGS)
+LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl $(VIPS_LIBS)
 
 includes := ./include
 src := ./src
 
-tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth
+tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth media
 
 libs_o := obj/lib/mongoose.o obj/lib/validatejson.o obj/lib/email.o obj/lib/totp.o
 helpers_o := obj/utils.o

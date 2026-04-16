@@ -9,6 +9,8 @@ services:
       - .env
     volumes:
       - ./data:/app/data
+      - ./uwu.db:/app/uwu.db
+      - uploads:/var/www/uploads
     cap_add:
       - SYS_PTRACE
     security_opt:
@@ -22,3 +24,6 @@ services:
           ignore:
             - uwu.db
             - README.md
+
+volumes:
+  uploads:

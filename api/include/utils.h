@@ -16,6 +16,7 @@ void list_reply_to_json(struct list_reply *reply);
 
 size_t media_to_json_len(struct media *media);
 char *media_to_json(struct media *media);
+char *medias_to_json(struct media **medias, size_t len);
 
 size_t user_to_json_len(struct user *user);
 char *user_to_json(struct user *user);

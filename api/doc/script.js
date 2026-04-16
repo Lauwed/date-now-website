@@ -134,6 +134,12 @@ const getFormControl = (label, inputOpts, help = null) => {
 		} else {
 			input.innerHTML = '<option name="null">No option available</option>';
 		}
+	} else if (type === "file") {
+		input = document.createElement("input");
+		input.type = "file";
+		input.setAttribute("accept", "image/*");
+		if (required !== undefined && required === true)
+			input.setAttribute("required", "true");
 	} else {
 		input = document.createElement("input");
 		input.type = type;
@@ -248,6 +254,8 @@ const handleFetch = (
 	dataContainer,
 	queryParameters,
 	tokenRequired,
+	isMultipart,
+	multipartFields,
 ) => {
 	let updatedURI = uri;
 
@@ -289,14 +297,30 @@ const handleFetch = (
 		});
 	}
 
-	const headers = { "Content-Type": "application/json" };
+	let body;
+	let headers = {};
+
 	if (tokenRequired) {
 		headers.Authorization = `Bearer ${token}`;
 	}
 
-	let body;
 	if (method === "POST" || method === "PUT") {
-		body = fetchContainer.querySelector("textarea").value || "";
+		if (isMultipart && multipartFields) {
+			const formData = new FormData();
+			multipartFields.forEach((field) => {
+				const input = fetchContainer.querySelector(`#multipart-${field.name}`);
+				if (!input) return;
+				if (input.type === "file") {
+					if (input.files[0]) formData.append(field.name, input.files[0]);
+				} else {
+					formData.append(field.name, input.value);
+				}
+			});
+			body = formData;
+		} else {
+			headers["Content-Type"] = "application/json";
+			body = fetchContainer.querySelector("textarea").value || "";
+		}
 	}
 
 	appendFetchedEndpointData(dataContainer, updatedURI, method, {
@@ -316,6 +340,8 @@ const getEndpointNode = (endpoint) => {
 		defaultBody,
 		body,
 		queryParameters,
+		multipart,
+		multipartFields,
 	} = endpoint;
 
 	const container = document.createElement("details");
@@ -369,6 +395,8 @@ const getEndpointNode = (endpoint) => {
 			dataContainer,
 			queryParameters,
 			tokenRequired,
+			multipart,
+			multipartFields,
 		);
 	});
 	content.appendChild(fetchContainer);
@@ -412,15 +440,29 @@ const getEndpointNode = (endpoint) => {
 		fetchBody.classList.add("endpoint__body-value");
 		fetchContainer.appendChild(fetchBody);
 
-		const label = `Body`;
-		const inputOpts = {
-			type: "textarea",
-			defaultValue: defaultBody || "{}",
-			id: `${name}-body`,
-			required: true,
-		};
+		if (multipart && multipartFields && multipartFields.length > 0) {
+			const multipartTitle = document.createElement("h4");
+			multipartTitle.innerHTML = "Body <span class=\"tag\">multipart/form-data</span>";
+			fetchBody.appendChild(multipartTitle);
 
-		fetchBody.appendChild(getFormControl(label, inputOpts));
+			multipartFields.forEach((field) => {
+				const inputOpts = {
+					type: INPUT_TYPE[field.type] ?? "text",
+					id: `multipart-${field.name}`,
+					required: field.required ?? false,
+				};
+				fetchBody.appendChild(getFormControl(field.label, inputOpts));
+			});
+		} else {
+			const label = `Body`;
+			const inputOpts = {
+				type: "textarea",
+				defaultValue: defaultBody || "{}",
+				id: `${name}-body`,
+				required: true,
+			};
+			fetchBody.appendChild(getFormControl(label, inputOpts));
+		}
 	}
 
 	const fetchButton = document.createElement("button");
@@ -442,13 +484,26 @@ const getEndpointNode = (endpoint) => {
 
 		const bodyTitle = document.createElement("h4");
 		bodyTitle.classList.add("endpoint__body__title");
-		bodyTitle.innerHTML = "Body";
+		bodyTitle.innerHTML = multipart
+			? 'Body <span class="tag">multipart/form-data</span>'
+			: "Body";
 		bodyContainer.appendChild(bodyTitle);
 
-		const bodySchema = document.createElement("code");
-		bodySchema.classList.add("endpoint__body__schema");
-		bodySchema.innerHTML = `<pre>${prettyPrintJson.toHtml(body)}</pre>`;
-		bodyContainer.appendChild(bodySchema);
+		if (multipart && multipartFields && multipartFields.length > 0) {
+			const fieldsList = document.createElement("ul");
+			fieldsList.classList.add("endpoint__body__schema");
+			multipartFields.forEach((field) => {
+				const li = document.createElement("li");
+				li.innerHTML = `<code>${field.name}</code> <span class="tag">${field.type}</span>${field.required ? ' <span class="tag">required</span>' : ""} — ${field.label}`;
+				fieldsList.appendChild(li);
+			});
+			bodyContainer.appendChild(fieldsList);
+		} else {
+			const bodySchema = document.createElement("code");
+			bodySchema.classList.add("endpoint__body__schema");
+			bodySchema.innerHTML = `<pre>${prettyPrintJson.toHtml(body)}</pre>`;
+			bodyContainer.appendChild(bodySchema);
+		}
 	}
 
 	const responsesContainer = document.createElement("ul");

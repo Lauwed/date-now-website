@@ -3,6 +3,7 @@
 #include <endpoints/issue_author.h>
 #include <endpoints/issue_sponsor.h>
 #include <endpoints/issue_tag.h>
+#include <endpoints/media.h>
 #include <endpoints/sponsor.h>
 #include <endpoints/tag.h>
 #include <endpoints/user.h>
@@ -16,6 +17,7 @@
 #include <stdlib.h>
 #include <structs.h>
 #include <utils.h>
+#include <vips/vips.h>
 
 sqlite3 *db;
 
@@ -144,6 +146,27 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         printf("%d\n", mg_strcmp(endpoint_cap[0], mg_str("view")) == 0);
         if (mg_strcmp(endpoint_cap[0], mg_str("view")) == 0) {
           send_views_res(c, http_msg, error_reply, secret);
+        }
+
+        mg_http_reply(c, 404, JSON_HEADER,
+                      "{\"code\": 404, \"error\": \"Not found\"}");
+        return;
+      } else if (mg_match(endpoint_cap[0], mg_str("media#"), NULL)) {
+        struct mg_str caps[2];
+
+        if (mg_match(endpoint_cap[0], mg_str("media/*"), caps)) {
+          int id;
+          int id_parsed = mg_str_to_num(caps[0], 10, &id, sizeof(int));
+          if (!id_parsed) {
+            mg_http_reply(
+                c, 400, JSON_HEADER,
+                "{ \"code\": 400, \"error\": \"ID is not a number.\" }");
+            return;
+          }
+
+          send_media_res(c, http_msg, id, error_reply, secret);
+        } else if (mg_strcmp(endpoint_cap[0], mg_str("media")) == 0) {
+          send_medias_res(c, http_msg, error_reply, secret);
         }
 
         mg_http_reply(c, 404, JSON_HEADER,
@@ -290,6 +313,13 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       }
       free(error_reply);
     } else {
+      if (mg_match(http_msg->uri, mg_str("/uploads/#"), NULL)) {
+        struct mg_http_serve_opts opts = {
+            .root_dir = "/uploads=/var/www/uploads",
+            .extra_headers = "Cache-Control: public, max-age=2592000\r\n"};
+        mg_http_serve_dir(c, http_msg, &opts);
+        return;
+      }
       struct mg_http_serve_opts opts = {.root_dir = ".", .fs = &mg_fs_posix};
       mg_http_serve_dir(c, http_msg, &opts);
     }
@@ -317,6 +347,11 @@ int main() {
                                      "__\\|/__\\|/__\\|/__\\|" ANSI_RESET_ALL
                                      "\n");
   printf("\n\n");
+
+  if (VIPS_INIT("") != 0) {
+    fprintf(stderr, "Failed to initialize libvips\n");
+    return EXIT_FAILURE;
+  }
 
   printf("===\tDB - opening...\t===\n");
 

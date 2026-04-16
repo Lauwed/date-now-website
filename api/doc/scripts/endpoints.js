@@ -86,9 +86,12 @@ const generateGETSingleEndpoint = (data) => {
 };
 
 const generatePOSTEndpoint = (data) => {
+	const isMultipart = data.body?.post?.multipart ?? false;
 	return {
-		body: data.body?.post?.schema ?? data.schema,
+		body: isMultipart ? null : (data.body?.post?.schema ?? data.schema),
 		defaultBody: data.body?.post?.defaultValue,
+		multipart: isMultipart,
+		multipartFields: data.body?.post?.fields ?? [],
 		method: "POST",
 		name: `Add ${data.name.singular}`,
 		responses: [

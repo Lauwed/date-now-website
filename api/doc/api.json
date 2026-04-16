@@ -138,14 +138,24 @@
 				"width": "double?",
 				"height": "double?"
 			},
+			"includedEndpoints": ["GET-list", "GET-single", "POST", "DELETE"],
 			"body": {
-				"put": {
-					"schema": {
-						"alt": "string",
-						"url": "string",
-						"width": "double?",
-						"height": "double?"
-					}
+				"post": {
+					"multipart": true,
+					"fields": [
+						{
+							"name": "textAlternatif",
+							"label": "Text alternatif",
+							"type": "string",
+							"required": true
+						},
+						{
+							"name": "file",
+							"label": "Image (JPEG, PNG, GIF, WebP, BMP, TIFF — max 5 MB)",
+							"type": "file",
+							"required": true
+						}
+					]
 				}
 			}
 		},
