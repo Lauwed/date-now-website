@@ -22,7 +22,7 @@ extern sqlite3 *db;
   "u.isSupporter, UNIXEPOCH(u.createdAt), m.id, m.textAlternatif, m.url, "     \
   "m.width, m.height "                                                         \
   "FROM User u LEFT JOIN Media m ON m.id = u.picture"
-#define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE id = ?"
+#define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE u.id = ?"
 #define QUERY_SELECT_SINGLE_BY_EMAIL_TMP QUERY_SELECT_TMP " WHERE email = ?"
 #define QUERY_SELECT_SINGLE_TOTP_SEED                                          \
   "SELECT totpSeed FROM User WHERE email = ?;"
@@ -32,12 +32,13 @@ extern sqlite3 *db;
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
 #define QUERY_POST_TMP                                                         \
-  "INSERT INTO User (username, email, role, link, totpSeed, subscribedAt)"     \
-  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?, DATETIME(?, 'unixepoch'));";
+  "INSERT INTO User (username, email, role, link, totpSeed, subscribedAt, "    \
+  "picture) "                                                                  \
+  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?, DATETIME(?, 'unixepoch'), ?);";
 #define QUERY_PUT_TMP                                                          \
   "UPDATE User "                                                               \
   "SET username = ?, email = ?, role = COALESCE(?, 'USER'), "                  \
-  "link = ?, isSupporter = ?, totpSeed = ? "                                   \
+  "link = ?, isSupporter = ?, totpSeed = ?, picture = ? "                      \
   "WHERE id = ?;";
 
 #define QUERY_DELETE_TMP "DELETE FROM User WHERE id = ?;"
@@ -562,6 +563,9 @@ int add_user(struct user *user) {
   sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 5, user->totp_seed, -1, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 6, user->subscribed_at);
+  if (user->picture != NULL && user->picture->id > 0) {
+    sqlite3_bind_int(stmt, 7, user->picture->id);
+  }
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -600,7 +604,10 @@ int edit_user(struct user *user) {
   sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 5, user->is_supporter);
   sqlite3_bind_text(stmt, 6, user->totp_seed, -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 7, user->id);
+  if (user->picture != NULL && user->picture->id > 0) {
+    sqlite3_bind_int(stmt, 7, user->picture->id);
+  }
+  sqlite3_bind_int(stmt, 8, user->id);
 
   GET_EXPANDED_QUERY(stmt);
 
