@@ -206,6 +206,38 @@ char *media_to_json(struct media *media) {
   return json;
 }
 
+char *medias_to_json(struct media **medias, size_t len) {
+  size_t json_len = 0;
+  for (size_t i = 0; i < len; i += 1) {
+    json_len += media_to_json_len(medias[i]);
+    if (i < len - 1) {
+      json_len += COMMA_SIZE;
+    }
+  }
+
+  char *medias_json = malloc(json_len + 1);
+  medias_json[0] = '\0';
+  for (size_t i = 0; i < len; i += 1) {
+    char *m = media_to_json(medias[i]);
+    strcat(medias_json, m);
+    if (i < len - 1)
+      strcat(medias_json, ",");
+    if (strcmp(m, "null") != 0)
+      free(m);
+  }
+
+  char *json;
+  if (len > 0) {
+    json = malloc(snprintf(NULL, 0, "[%s]", medias_json) + 1);
+    sprintf(json, "[%s]", medias_json);
+  } else {
+    json = "[]";
+  }
+
+  free(medias_json);
+  return json;
+}
+
 size_t user_to_json_len(struct user *user) {
   if (user == NULL) {
     return NULL_SIZE;
