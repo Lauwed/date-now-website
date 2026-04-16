@@ -1283,6 +1283,18 @@ void user_hydrate(struct mg_http_message *msg, struct user *user) {
       if (number_parsed) {
         user->is_supporter = number;
       }
+    } else if (mg_strcmp(key, mg_str("\"pictureId\"")) == 0) {
+      number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
+      if (number_parsed && number > 0) {
+        if (user->picture == NULL) {
+          user->picture = malloc(sizeof(struct media));
+          user->picture->alternative_text = NULL;
+          user->picture->url = NULL;
+          user->picture->width = 0;
+          user->picture->height = 0;
+        }
+        user->picture->id = number;
+      }
     }
   }
 }
@@ -1376,6 +1388,18 @@ void issue_hydrate(struct mg_http_message *msg, struct issue *issue) {
       number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
       if (number_parsed) {
         issue->is_sponsored = number;
+      }
+    } else if (mg_strcmp(key, mg_str("\"coverId\"")) == 0) {
+      number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
+      if (number_parsed && number > 0) {
+        if (issue->cover == NULL) {
+          issue->cover = malloc(sizeof(struct media));
+          issue->cover->alternative_text = NULL;
+          issue->cover->url = NULL;
+          issue->cover->width = 0;
+          issue->cover->height = 0;
+        }
+        issue->cover->id = number;
       }
     }
   }

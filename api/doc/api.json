@@ -138,7 +138,12 @@
 				"width": "double?",
 				"height": "double?"
 			},
-			"includedEndpoints": ["GET-list", "GET-single", "POST", "DELETE"],
+			"includedEndpoints": [
+				"GET-list",
+				"GET-single",
+				"POST",
+				"DELETE"
+			],
 			"body": {
 				"post": {
 					"multipart": true,
@@ -191,17 +196,21 @@
 						"username": "string?",
 						"email": "string",
 						"role": "USER | AUTHOR",
-						"link": "string?"
+						"link": "string?",
+						"pictureId": "integer?"
 					},
 					"defaultValue": "{\n\t\"username\": \"DevGirl_\",\n\t\"email\": \"contact@lauradurieux.dev\",\n\t\"role\": \"AUTHOR\",\n\t\"link\": \"hihihuhuh.com\"\n}"
 				},
 				"put": {
-					"username": "string?",
-					"email": "string",
-					"role": "USER | AUTHOR",
-					"link": "string?",
-					"subscribedAt": "timestamp?",
-					"isSupporter": "boolean"
+					"schema": {
+						"username": "string?",
+						"email": "string",
+						"role": "USER | AUTHOR",
+						"link": "string?",
+						"subscribedAt": "timestamp?",
+						"isSupporter": "boolean",
+						"pictureId": "integer?"
+					}
 				}
 			}
 		},
@@ -325,7 +334,8 @@
 						"excerpt": "string",
 						"content": "string",
 						"isSponsored": "boolean?",
-						"status": "DRAFT | PUBLISHED | ARCHIVED"
+						"status": "DRAFT | PUBLISHED | ARCHIVED",
+						"coverId": "integer?"
 					}
 				},
 				"put": {
@@ -338,7 +348,8 @@
 						"excerpt": "string",
 						"content": "string",
 						"isSponsored": "boolean?",
-						"status": "DRAFT | PUBLISHED | ARCHIVED"
+						"status": "DRAFT | PUBLISHED | ARCHIVED",
+						"coverId": "integer?"
 					}
 				}
 			}

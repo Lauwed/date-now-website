@@ -42,12 +42,13 @@ extern sqlite3 *db;
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
 #define QUERY_POST_TMP                                                         \
-  "INSERT INTO Issue (title, slug, subtitle, publishedAt, issueNumber, "       \
+  "INSERT INTO Issue (title, slug, subtitle, cover, publishedAt, issueNumber, "\
   "excerpt, content, isSponsored, status) "                                    \
-  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'DRAFT'));"
+  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'DRAFT'));"
 #define QUERY_PUT_TMP                                                          \
   "UPDATE Issue "                                                              \
-  "SET title = ?, slug = ?, subtitle = ?, publishedAt = COALESCE(?, CASE "     \
+  "SET title = ?, slug = ?, subtitle = ?, cover = ?, "                         \
+  "publishedAt = COALESCE(?, CASE "                                            \
   "WHEN status = 'PUBLISHED' THEN CURRENT_TIMESTAMP ELSE NULL END), "          \
   "issueNumber = ?, "                                                          \
   "excerpt = ?, content = ?, isSponsored = ?, status = COALESCE(?, 'DRAFT'), " \
@@ -492,14 +493,17 @@ int add_issue(struct issue *issue) {
   sqlite3_bind_text(stmt, 1, issue->title, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 2, issue->slug, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 3, issue->subtitle, -1, SQLITE_STATIC);
-  if (issue->published_at > 0) {
-    sqlite3_bind_int(stmt, 4, issue->published_at);
+  if (issue->cover != NULL && issue->cover->id > 0) {
+    sqlite3_bind_int(stmt, 4, issue->cover->id);
   }
-  sqlite3_bind_int(stmt, 5, issue->issue_number);
-  sqlite3_bind_text(stmt, 6, issue->excerpt, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 7, issue->content, -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 8, issue->is_sponsored);
-  sqlite3_bind_text(stmt, 9, issue->status, -1, SQLITE_STATIC);
+  if (issue->published_at > 0) {
+    sqlite3_bind_int(stmt, 5, issue->published_at);
+  }
+  sqlite3_bind_int(stmt, 6, issue->issue_number);
+  sqlite3_bind_text(stmt, 7, issue->excerpt, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 8, issue->content, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 9, issue->is_sponsored);
+  sqlite3_bind_text(stmt, 10, issue->status, -1, SQLITE_STATIC);
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -540,15 +544,18 @@ int edit_issue(struct issue *issue) {
   sqlite3_bind_text(stmt, 1, issue->title, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 2, issue->slug, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 3, issue->subtitle, -1, SQLITE_STATIC);
-  if (issue->published_at > 0) {
-    sqlite3_bind_int(stmt, 4, issue->published_at);
+  if (issue->cover != NULL && issue->cover->id > 0) {
+    sqlite3_bind_int(stmt, 4, issue->cover->id);
   }
-  sqlite3_bind_int(stmt, 5, issue->issue_number);
-  sqlite3_bind_text(stmt, 6, issue->excerpt, -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 7, issue->content, -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 8, issue->is_sponsored);
-  sqlite3_bind_text(stmt, 9, issue->status, -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 10, issue->id);
+  if (issue->published_at > 0) {
+    sqlite3_bind_int(stmt, 5, issue->published_at);
+  }
+  sqlite3_bind_int(stmt, 6, issue->issue_number);
+  sqlite3_bind_text(stmt, 7, issue->excerpt, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 8, issue->content, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 9, issue->is_sponsored);
+  sqlite3_bind_text(stmt, 10, issue->status, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 11, issue->id);
 
   GET_EXPANDED_QUERY(stmt);
 
