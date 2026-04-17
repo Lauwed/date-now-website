@@ -5,11 +5,13 @@
 				"singular": "authentication",
 				"plural": "authentication"
 			},
+			"description": "Author authentication via magic link and TOTP.",
 			"uri": "/auth",
-			"uriParameters": [],
+			"includedEndpoints": [],
 			"customEndpoints": [
 				{
 					"name": "subscribe",
+					"description": "Sends a confirmation email to the given address.",
 					"uri": "/subscribe",
 					"method": "POST",
 					"tokenRequired": false,
@@ -17,6 +19,14 @@
 						{
 							"code": 200,
 							"response": "Confirmation mail sent"
+						},
+						{
+							"code": 400,
+							"response": "Invalid email address"
+						},
+						{
+							"code": 409,
+							"response": "Email already subscribed"
 						}
 					],
 					"body": {
@@ -25,6 +35,7 @@
 				},
 				{
 					"name": "confirm subscribe",
+					"description": "Confirms the subscription via the token received by email.",
 					"uri": "/subscribe/confirm",
 					"method": "GET",
 					"tokenRequired": false,
@@ -32,6 +43,14 @@
 						{
 							"code": 200,
 							"response": "User successfully subscribed"
+						},
+						{
+							"code": 400,
+							"response": "Invalid or expired token"
+						},
+						{
+							"code": 404,
+							"response": "User not found"
 						}
 					],
 					"queryParameters": [
@@ -45,6 +64,7 @@
 				},
 				{
 					"name": "generate author totp seed",
+					"description": "Generates a TOTP seed for an existing author account.",
 					"uri": "/seed",
 					"method": "POST",
 					"responses": [
@@ -54,6 +74,14 @@
 								"message": "Author successfully registered",
 								"totpseed": "string"
 							}
+						},
+						{
+							"code": 400,
+							"response": "Invalid email address"
+						},
+						{
+							"code": 404,
+							"response": "Author not found"
 						}
 					],
 					"body": {
@@ -62,6 +90,7 @@
 				},
 				{
 					"name": "author registration",
+					"description": "Creates a new author account and returns the TOTP seed.",
 					"uri": "/register",
 					"method": "POST",
 					"responses": [
@@ -71,6 +100,14 @@
 								"message": "Author successfully registered",
 								"totpseed": "string"
 							}
+						},
+						{
+							"code": 400,
+							"response": "Invalid or missing fields"
+						},
+						{
+							"code": 409,
+							"response": "Email already registered"
 						}
 					],
 					"body": {
@@ -80,6 +117,7 @@
 				},
 				{
 					"name": "author login",
+					"description": "Sends a magic link to the author's email address.",
 					"uri": "/login",
 					"method": "POST",
 					"tokenRequired": false,
@@ -87,6 +125,14 @@
 						{
 							"code": 200,
 							"response": "Email sent"
+						},
+						{
+							"code": 400,
+							"response": "Invalid email address"
+						},
+						{
+							"code": 404,
+							"response": "Author not found"
 						}
 					],
 					"body": {
@@ -95,6 +141,7 @@
 				},
 				{
 					"name": "TOTP login",
+					"description": "Validates the TOTP code and returns a JWT.",
 					"uri": "/login/totp",
 					"method": "POST",
 					"tokenRequired": false,
@@ -105,6 +152,14 @@
 								"message": "Successfully logged in",
 								"token": "string"
 							}
+						},
+						{
+							"code": 400,
+							"response": "Invalid or expired TOTP code"
+						},
+						{
+							"code": 404,
+							"response": "User not found"
 						}
 					],
 					"body": {
@@ -112,21 +167,19 @@
 						"code": "string"
 					}
 				}
-			],
-			"body": {},
-			"schema": {},
-			"includedEndpoints": []
+			]
 		},
 		{
 			"name": {
 				"singular": "media",
 				"plural": "medias"
 			},
+			"description": "Images and other media files. Served at /uploads/media/{uuid}/image.webp.",
 			"uriParameters": [
 				{
 					"name": "id",
 					"type": "integer",
-					"defaultValue": "1",
+					"defaultValue": 1,
 					"isPrimary": true
 				}
 			],
@@ -134,7 +187,7 @@
 			"schema": {
 				"id": "integer",
 				"alt": "string",
-				"url": "string — /uploads/media/{uuid}/image.webp",
+				"url": "string",
 				"width": "double?",
 				"height": "double?"
 			},
@@ -169,11 +222,12 @@
 				"singular": "user",
 				"plural": "users"
 			},
+			"description": "Subscribers and authors of the newsletter.",
 			"uriParameters": [
 				{
 					"name": "id",
 					"type": "integer",
-					"defaultValue": "1",
+					"defaultValue": 1,
 					"isPrimary": true
 				}
 			],
@@ -219,6 +273,7 @@
 				"singular": "tag",
 				"plural": "tags"
 			},
+			"description": "Tags used to categorize issues.",
 			"uriParameters": [
 				{
 					"name": "name",
@@ -232,8 +287,19 @@
 				"name": "string",
 				"color": "string"
 			},
+			"includedEndpoints": [
+				"GET-list",
+				"GET-single",
+				"POST",
+				"PUT",
+				"DELETE"
+			],
 			"body": {
 				"post": {
+					"schema": {
+						"name": "string",
+						"color": "string"
+					},
 					"defaultValue": "{\n\t\"name\": \"Computer Science\",\n\t\"color\": \"#6b3a9e\"\n}"
 				},
 				"put": {
@@ -249,6 +315,7 @@
 				"singular": "sponsor",
 				"plural": "sponsors"
 			},
+			"description": "Sponsors associated with newsletter issues.",
 			"uriParameters": [
 				{
 					"name": "name",
@@ -262,7 +329,21 @@
 				"name": "string",
 				"link": "string"
 			},
+			"includedEndpoints": [
+				"GET-list",
+				"GET-single",
+				"POST",
+				"PUT",
+				"DELETE"
+			],
 			"body": {
+				"post": {
+					"schema": {
+						"name": "string",
+						"link": "string"
+					},
+					"defaultValue": "{\n\t\"name\": \"Firefox\",\n\t\"link\": \"firefox.com\"\n}"
+				},
 				"put": {
 					"schema": {
 						"link": "string"
@@ -276,6 +357,7 @@
 				"singular": "issue",
 				"plural": "issues"
 			},
+			"description": "Newsletter issues — drafts, published, and archived.",
 			"uriParameters": [
 				{
 					"name": "id",
@@ -318,14 +400,40 @@
 					"status": "DRAFT | PUBLISHED | ARCHIVED",
 					"openedMailCount": "integer",
 					"views": "integer",
-					"authors": "array-author",
+					"authors": "array-user",
 					"tags": "array-tag",
 					"sponsors": "array-sponsor"
 				}
 			},
+			"listParameters": [
+				{
+					"name": "page",
+					"label": "Page",
+					"type": "integer",
+					"defaultValue": 1,
+					"min": 1
+				},
+				{
+					"name": "limit",
+					"label": "Limit",
+					"type": "integer",
+					"defaultValue": 20,
+					"min": 1,
+					"max": 100
+				},
+				{
+					"name": "status",
+					"label": "Status",
+					"type": "select",
+					"options": [
+						{ "name": "DRAFT", "label": "Draft" },
+						{ "name": "PUBLISHED", "label": "Published" },
+						{ "name": "ARCHIVED", "label": "Archived" }
+					]
+				}
+			],
 			"body": {
 				"post": {
-					"defaultValue": "{\n\t\"title\": \"Les code potes m'ont payés pour faire cette API en C\",\n\t\"subtitle\": \"c'est très rigolo\",\n\t\"issueNumber\": 80,\n\t\"excerpt\": \"La lecture va vous étonner\",\n\t\"content\": \"Ahbahdakor\",\n\t\"status\": \"DRAFT\"\n}",
 					"schema": {
 						"slug": "string?",
 						"title": "string",
@@ -336,10 +444,10 @@
 						"isSponsored": "boolean?",
 						"status": "DRAFT | PUBLISHED | ARCHIVED",
 						"coverId": "integer?"
-					}
+					},
+					"defaultValue": "{\n\t\"title\": \"Les code potes m'ont payés pour faire cette API en C\",\n\t\"subtitle\": \"c'est très rigolo\",\n\t\"issueNumber\": 80,\n\t\"excerpt\": \"La lecture va vous étonner\",\n\t\"content\": \"Ahbahdakor\",\n\t\"status\": \"DRAFT\"\n}"
 				},
 				"put": {
-					"defaultValue": "{\n\t\"title\": \"Les code potes m'ont payés pour faire cette API en C\",\n\t\"subtitle\": \"c'est très rigolo\",\n\t\"issueNumber\": 80,\n\t\"excerpt\": \"La lecture va vous étonner\",\n\t\"content\": \"Ahbahdakor\",\n\t\"status\": \"DRAFT\"\n}",
 					"schema": {
 						"slug": "string?",
 						"title": "string",
@@ -350,7 +458,8 @@
 						"isSponsored": "boolean?",
 						"status": "DRAFT | PUBLISHED | ARCHIVED",
 						"coverId": "integer?"
-					}
+					},
+					"defaultValue": "{\n\t\"title\": \"Les code potes m'ont payés pour faire cette API en C\",\n\t\"subtitle\": \"c'est très rigolo\",\n\t\"issueNumber\": 80,\n\t\"excerpt\": \"La lecture va vous étonner\",\n\t\"content\": \"Ahbahdakor\",\n\t\"status\": \"DRAFT\"\n}"
 				}
 			}
 		},
@@ -359,6 +468,7 @@
 				"singular": "issue tag",
 				"plural": "issue tags"
 			},
+			"description": "Tags associated with an issue. URI: /issue/{id}/tag.",
 			"uriParameters": [
 				{
 					"name": "tagName",
@@ -388,6 +498,7 @@
 				"singular": "issue author",
 				"plural": "issue authors"
 			},
+			"description": "Authors associated with an issue. URI: /issue/{id}/author.",
 			"uriParameters": [
 				{
 					"name": "userId",
@@ -417,6 +528,7 @@
 				"singular": "issue sponsor",
 				"plural": "issue sponsors"
 			},
+			"description": "Sponsors associated with an issue. URI: /issue/{id}/sponsor.",
 			"uriParameters": [
 				{
 					"name": "sponsorName",
@@ -446,6 +558,7 @@
 				"singular": "view",
 				"plural": "views"
 			},
+			"description": "Page view tracking per issue, identified by hashed IP.",
 			"uriParameters": [
 				{
 					"name": "id",
@@ -464,7 +577,10 @@
 			"includedEndpoints": [
 				"GET-list",
 				"POST"
-			]
+			],
+			"tokenRequired": {
+				"post": false
+			}
 		}
 	]
 }

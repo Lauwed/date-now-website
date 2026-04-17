@@ -42,9 +42,9 @@ A linter script (`validate-api.mjs`) is included at the root of the repository. 
 ### Running locally
 
 ```bash
-node validate-api.mjs
+node doc/validate-json-schema.mjs
 # or with an explicit path
-node validate-api.mjs path/to/api.json
+node doc/validate-json-schema.mjs doc/api.json
 ```
 
 ### GitHub Actions
