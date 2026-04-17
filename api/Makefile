@@ -1,8 +1,9 @@
 CC ?= cc
-VIPS_CFLAGS := $(shell pkg-config --cflags vips 2>/dev/null)
-VIPS_LIBS   := $(shell pkg-config --libs   vips 2>/dev/null)
-CFLAGS := -I ./include/ -g $(VIPS_CFLAGS)
-LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl $(VIPS_LIBS)
+MAGICK_PKG    := $(shell pkg-config --list-all 2>/dev/null | grep -i '^MagickWand' | head -1 | cut -d' ' -f1)
+MAGICK_CFLAGS := $(shell pkg-config --cflags $(MAGICK_PKG))
+MAGICK_LIBS   := $(shell pkg-config --libs   $(MAGICK_PKG))
+CFLAGS := -I ./include/ -g $(MAGICK_CFLAGS)
+LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl $(MAGICK_LIBS)
 
 includes := ./include
 src := ./src

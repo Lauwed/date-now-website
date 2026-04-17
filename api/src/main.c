@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <structs.h>
 #include <utils.h>
-#include <vips/vips.h>
+#include <wand/MagickWand.h>
 
 sqlite3 *db;
 
@@ -314,6 +314,11 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       free(error_reply);
     } else {
       if (mg_match(http_msg->uri, mg_str("/uploads/#"), NULL)) {
+        if (http_msg->uri.buf[http_msg->uri.len - 1] == '/') {
+          mg_http_reply(c, 403, JSON_HEADER,
+                        "{\"code\": 403, \"error\": \"Forbidden\"}");
+          return;
+        }
         struct mg_http_serve_opts opts = {
             .root_dir = "/uploads=/var/www/uploads",
             .extra_headers = "Cache-Control: public, max-age=2592000\r\n"};
@@ -348,10 +353,7 @@ int main() {
                                      "\n");
   printf("\n\n");
 
-  if (VIPS_INIT("") != 0) {
-    fprintf(stderr, "Failed to initialize libvips\n");
-    return EXIT_FAILURE;
-  }
+  MagickWandGenesis();
 
   printf("===\tDB - opening...\t===\n");
 

@@ -5,7 +5,8 @@ RUN apk update && apk add --no-cache \
     openssl \
     sqlite-libs \
     curl \
-    vips
+    imagemagick \
+    libwebp
 
 FROM base AS dev
 
@@ -15,8 +16,9 @@ RUN apk add --no-cache \
     openssl-dev \
     sqlite-dev \
     curl-dev \
-    vips-dev \
-    pkgconfig
+    imagemagick-dev \
+    pkgconfig \
+    bear
 
 WORKDIR /app
 
@@ -24,7 +26,7 @@ RUN mkdir -p bin obj/lib obj/endpoints obj/sql /var/www/uploads/media
 
 COPY . .
 
-RUN make
+RUN bear -- make
 
 EXPOSE 8000
 

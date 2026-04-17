@@ -2,6 +2,7 @@
 #include <endpoints/media.h>
 #include <enums.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <lib/mongoose.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
@@ -14,7 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <utils.h>
-#include <vips/vips.h>
+#include <wand/MagickWand.h>
 
 #define TEXT_ALT_REQUIRED_MESSAGE "textAlternatif is required and must not be empty."
 #define FILE_REQUIRED_MESSAGE "file is required."
@@ -47,11 +48,28 @@ static int is_image_data(const char *data, size_t len) {
   return 0;
 }
 
-static void remove_media_dir(unsigned id) {
+static void generate_uuid_v4(char out[37]) {
+  unsigned char bytes[16] = {0};
+  int fd = open("/dev/urandom", O_RDONLY);
+  if (fd >= 0) {
+    read(fd, bytes, sizeof(bytes));
+    close(fd);
+  }
+  bytes[6] = (bytes[6] & 0x0F) | 0x40;
+  bytes[8] = (bytes[8] & 0x3F) | 0x80;
+  snprintf(out, 37,
+           "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x"
+           "-%02x%02x%02x%02x%02x%02x",
+           bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5],
+           bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11],
+           bytes[12], bytes[13], bytes[14], bytes[15]);
+}
+
+static void remove_media_dir(const char *uuid) {
   char img_path[512], thumb_path[512], dir_path[256];
-  snprintf(dir_path, sizeof(dir_path), UPLOAD_DIR "/%u", id);
-  snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%u/image.webp", id);
-  snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%u/thumb.webp", id);
+  snprintf(dir_path, sizeof(dir_path), UPLOAD_DIR "/%s", uuid);
+  snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%s/image.webp", uuid);
+  snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%s/thumb.webp", uuid);
   unlink(img_path);
   unlink(thumb_path);
   rmdir(dir_path);
@@ -194,9 +212,13 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
 
     unsigned media_id = m->id;
 
+    /* Generate UUID for the upload directory */
+    char uuid[37];
+    generate_uuid_v4(uuid);
+
     /* Create upload directory */
     char dir_path[256];
-    snprintf(dir_path, sizeof(dir_path), UPLOAD_DIR "/%u", media_id);
+    snprintf(dir_path, sizeof(dir_path), UPLOAD_DIR "/%s", uuid);
     if (mkdir(dir_path, 0755) != 0 && errno != EEXIST) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR CREATING MEDIA DIR"));
       delete_media((int)media_id);
@@ -211,7 +233,7 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
     int tmp_fd = mkstemp(tmp_path);
     if (tmp_fd < 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR CREATING TEMP FILE"));
-      remove_media_dir(media_id);
+      remove_media_dir(uuid);
       delete_media((int)media_id);
       ERROR_REPLY_500;
       free(alt_text);
@@ -223,17 +245,16 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
 
     /* Build output paths */
     char img_path[512], thumb_path[512];
-    snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%u/image.webp", media_id);
-    snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%u/thumb.webp",
-             media_id);
+    snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%s/image.webp", uuid);
+    snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%s/thumb.webp", uuid);
 
-    /* Convert to WebP at max 1200px width using libvips */
-    VipsImage *img = NULL;
-    if (vips_thumbnail(tmp_path, &img, 1200, "size", VIPS_SIZE_DOWN, NULL) !=
-        0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("VIPS THUMBNAIL FAILED"));
+    /* Convert to WebP at max 1200px width using libmagick */
+    MagickWand *wand = NewMagickWand();
+    if (MagickReadImage(wand, tmp_path) == MagickFalse) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK READ FAILED"));
+      DestroyMagickWand(wand);
       unlink(tmp_path);
-      remove_media_dir(media_id);
+      remove_media_dir(uuid);
       delete_media((int)media_id);
       ERROR_REPLY_500;
       free(alt_text);
@@ -241,34 +262,50 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    int img_width = vips_image_get_width(img);
-    int img_height = vips_image_get_height(img);
+    size_t w = MagickGetImageWidth(wand);
+    size_t h = MagickGetImageHeight(wand);
+    if (w > 1200) {
+      size_t new_h = (size_t)((double)h * 1200.0 / (double)w);
+      MagickThumbnailImage(wand, 1200, new_h);
+      w = 1200;
+      h = new_h;
+    }
+    int img_width = (int)w;
+    int img_height = (int)h;
 
-    if (vips_webpsave(img, img_path, NULL) != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("VIPS WEBPSAVE FAILED"));
-      g_object_unref(img);
+    MagickSetImageFormat(wand, "WEBP");
+    if (MagickWriteImage(wand, img_path) == MagickFalse) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK WRITE FAILED"));
+      DestroyMagickWand(wand);
       unlink(tmp_path);
-      remove_media_dir(media_id);
+      remove_media_dir(uuid);
       delete_media((int)media_id);
       ERROR_REPLY_500;
       free(alt_text);
       free(m);
       return;
     }
-    g_object_unref(img);
+    DestroyMagickWand(wand);
 
     /* Generate 300px thumbnail (non-fatal if it fails) */
-    VipsImage *tn = NULL;
-    if (vips_thumbnail(tmp_path, &tn, 300, "size", VIPS_SIZE_DOWN, NULL) == 0) {
-      vips_webpsave(tn, thumb_path, NULL);
-      g_object_unref(tn);
+    MagickWand *tn = NewMagickWand();
+    if (MagickReadImage(tn, tmp_path) == MagickTrue) {
+      size_t tw = MagickGetImageWidth(tn);
+      size_t th = MagickGetImageHeight(tn);
+      if (tw > 300) {
+        size_t new_th = (size_t)((double)th * 300.0 / (double)tw);
+        MagickThumbnailImage(tn, 300, new_th);
+      }
+      MagickSetImageFormat(tn, "WEBP");
+      MagickWriteImage(tn, thumb_path);
     }
+    DestroyMagickWand(tn);
 
     unlink(tmp_path);
 
     /* Update DB with final URL and dimensions */
     char url[256];
-    snprintf(url, sizeof(url), "/uploads/media/%u/image.webp", media_id);
+    snprintf(url, sizeof(url), "/uploads/media/%s/image.webp", uuid);
 
     query_code =
         update_media_file((int)media_id, url, (double)img_width, (double)img_height);
@@ -362,8 +399,25 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    /* Remove files from disk */
-    remove_media_dir((unsigned)id);
+    /* Fetch URL to extract UUID directory name before deleting from DB */
+    struct media *to_delete = malloc(sizeof(struct media));
+    to_delete->id = 0;
+    to_delete->alternative_text = NULL;
+    to_delete->url = NULL;
+    to_delete->width = 0.0;
+    to_delete->height = 0.0;
+    if (get_media(to_delete, id) == 0 && to_delete->url != NULL) {
+      /* URL format: /uploads/media/{uuid}/image.webp */
+      const char *prefix = "/uploads/media/";
+      const char *p = to_delete->url + strlen(prefix);
+      const char *slash = strchr(p, '/');
+      char uuid[37] = {0};
+      if (slash && (size_t)(slash - p) == 36) {
+        memcpy(uuid, p, 36);
+        remove_media_dir(uuid);
+      }
+    }
+    free_media(to_delete);
 
     /* Remove from DB */
     query_code = delete_media(id);
