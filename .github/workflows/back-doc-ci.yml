@@ -1,0 +1,25 @@
+name: Lint API schema
+ 
+on:
+  push:
+    paths:
+      - "api/doc/api.json"
+      - "api/doc/validate-json-schema.mjs"
+  pull_request:
+    paths:
+      - "api/doc/api.json"
+      - "api/doc/validate-json-schema.mjs"
+ 
+jobs:
+  validate:
+    name: Validate api.json
+    runs-on: ubuntu-latest
+    container:
+      image: node:22-alpine
+ 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+ 
+      - name: Run linter
+        run: node api/doc/validate-json-schema.mjs api/doc/api.json
