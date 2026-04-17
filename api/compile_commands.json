@@ -6,13 +6,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/lib/mongoose.o",
-      "src/lib/mongoose.c"
+      "obj/main.o",
+      "src/main.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/lib/mongoose.c",
-    "output": "/home/devgirl_/date-now/api/obj/lib/mongoose.o"
+    "file": "/home/devgirl_/date-now/api/src/main.c",
+    "output": "/home/devgirl_/date-now/api/obj/main.o"
   },
   {
     "arguments": [
@@ -21,13 +26,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/lib/validatejson.o",
-      "src/lib/validatejson.c"
+      "obj/sql/user.o",
+      "src/sql/user.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/lib/validatejson.c",
-    "output": "/home/devgirl_/date-now/api/obj/lib/validatejson.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/user.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/user.o"
   },
   {
     "arguments": [
@@ -36,13 +46,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/lib/email.o",
-      "src/lib/email.c"
+      "obj/sql/tag.o",
+      "src/sql/tag.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/lib/email.c",
-    "output": "/home/devgirl_/date-now/api/obj/lib/email.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/tag.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/tag.o"
   },
   {
     "arguments": [
@@ -51,13 +66,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/lib/totp.o",
-      "src/lib/totp.c"
+      "obj/sql/sponsor.o",
+      "src/sql/sponsor.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/lib/totp.c",
-    "output": "/home/devgirl_/date-now/api/obj/lib/totp.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/sponsor.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/sponsor.o"
   },
   {
     "arguments": [
@@ -66,13 +86,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/utils.o",
-      "src/utils.c"
+      "obj/sql/issue.o",
+      "src/sql/issue.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/utils.c",
-    "output": "/home/devgirl_/date-now/api/obj/utils.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/issue.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/issue.o"
   },
   {
     "arguments": [
@@ -81,13 +106,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/endpoints/user.o",
-      "src/endpoints/user.c"
+      "obj/sql/issue_tag.o",
+      "src/sql/issue_tag.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/user.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/user.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/issue_tag.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/issue_tag.o"
   },
   {
     "arguments": [
@@ -96,13 +126,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/endpoints/tag.o",
-      "src/endpoints/tag.c"
+      "obj/sql/issue_author.o",
+      "src/sql/issue_author.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/tag.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/tag.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/issue_author.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/issue_author.o"
   },
   {
     "arguments": [
@@ -111,13 +146,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/endpoints/sponsor.o",
-      "src/endpoints/sponsor.c"
+      "obj/sql/issue_sponsor.o",
+      "src/sql/issue_sponsor.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/sponsor.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/sponsor.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/issue_sponsor.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/issue_sponsor.o"
   },
   {
     "arguments": [
@@ -126,13 +166,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/endpoints/issue.o",
-      "src/endpoints/issue.c"
+      "obj/sql/view.o",
+      "src/sql/view.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/issue.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/issue.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/view.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/view.o"
   },
   {
     "arguments": [
@@ -141,13 +186,18 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/endpoints/issue_tag.o",
-      "src/endpoints/issue_tag.c"
+      "obj/sql/auth.o",
+      "src/sql/auth.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/issue_tag.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/issue_tag.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/auth.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/auth.o"
   },
   {
     "arguments": [
@@ -156,72 +206,17 @@
       "-I",
       "./include/",
       "-g",
+      "-I/usr/include/x86_64-linux-gnu/ImageMagick-6",
+      "-I/usr/include/ImageMagick-6",
+      "-fopenmp",
+      "-DMAGICKCORE_HDRI_ENABLE=0",
+      "-DMAGICKCORE_QUANTUM_DEPTH=16",
       "-o",
-      "obj/endpoints/issue_author.o",
-      "src/endpoints/issue_author.c"
+      "obj/sql/media.o",
+      "src/sql/media.c"
     ],
     "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/issue_author.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/issue_author.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/cc",
-      "-c",
-      "-I",
-      "./include/",
-      "-g",
-      "-o",
-      "obj/endpoints/issue_sponsor.o",
-      "src/endpoints/issue_sponsor.c"
-    ],
-    "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/issue_sponsor.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/issue_sponsor.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/cc",
-      "-c",
-      "-I",
-      "./include/",
-      "-g",
-      "-o",
-      "obj/endpoints/view.o",
-      "src/endpoints/view.c"
-    ],
-    "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/view.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/view.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/cc",
-      "-c",
-      "-I",
-      "./include/",
-      "-g",
-      "-o",
-      "obj/endpoints/auth.o",
-      "src/endpoints/auth.c"
-    ],
-    "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/auth.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/auth.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/cc",
-      "-c",
-      "-I",
-      "./include/",
-      "-g",
-      "-o",
-      "obj/endpoints/media.o",
-      "src/endpoints/media.c"
-    ],
-    "directory": "/home/devgirl_/date-now/api",
-    "file": "/home/devgirl_/date-now/api/src/endpoints/media.c",
-    "output": "/home/devgirl_/date-now/api/obj/endpoints/media.o"
+    "file": "/home/devgirl_/date-now/api/src/sql/media.c",
+    "output": "/home/devgirl_/date-now/api/obj/sql/media.o"
   }
 ]

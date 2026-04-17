@@ -134,7 +134,7 @@
 			"schema": {
 				"id": "integer",
 				"alt": "string",
-				"url": "string",
+				"url": "string — /uploads/media/{uuid}/image.webp",
 				"width": "double?",
 				"height": "double?"
 			},
