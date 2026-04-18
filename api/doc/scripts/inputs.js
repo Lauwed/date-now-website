@@ -12,12 +12,14 @@ const getFileFormControl = (
   multiple = false,
   accept = ["image/*"],
   maxWeight = 5,
+  id = null,
 ) => {
   const instanceId = `fi-${Date.now() + Math.random().toString(36).slice(2)}`;
 
   // --- Root form-control ---
   const wrapper = document.createElement("div");
   wrapper.className = "form-control form-control--file";
+  if (id) wrapper.id = id;
 
   // --- Label ---
   const labelEl = document.createElement("label");
@@ -105,15 +107,6 @@ const getFileFormControl = (
   clearBtn.textContent = "Clear";
   clearBtn.addEventListener("click", clearAll);
   actionsEl.appendChild(clearBtn);
-
-  const submitBtn = document.createElement("button");
-  submitBtn.type = "button";
-  submitBtn.className = "btn primary";
-  submitBtn.textContent = `Send the file${multiple ? "s" : ""}`;
-  submitBtn.addEventListener("click", () =>
-    alert("Envoi simulé !"),
-  );
-  actionsEl.appendChild(submitBtn);
 
   wrapper.appendChild(actionsEl);
 
@@ -296,6 +289,8 @@ const getFileFormControl = (
     actionsEl.style.display = "none";
   }
 
+  wrapper.getFiles = () => files.map((x) => x.file);
+
   return wrapper;
 };
 
@@ -318,12 +313,7 @@ const getFormControl = (label, inputOpts, help = null) => {
   if (type === undefined) {
     type = "text";
   } else if (type === "file") {
-    return getFileFormControl(
-      label,
-      multiple,
-      accept,
-      maxWeight,
-    );
+    return getFileFormControl(label, multiple, accept, maxWeight, id);
   }
 
   const container = document.createElement("div");
@@ -356,12 +346,6 @@ const getFormControl = (label, inputOpts, help = null) => {
       input.innerHTML =
         '<option name="null">No option available</option>';
     }
-  } else if (type === "file") {
-    input = document.createElement("input");
-    input.type = "file";
-    input.setAttribute("accept", "image/*");
-    if (required !== undefined && required === true)
-      input.setAttribute("required", "true");
   } else {
     input = document.createElement("input");
     input.type = type;

@@ -251,15 +251,19 @@ const handleFetch = (
     if (isMultipart && multipartFields) {
       const formData = new FormData();
       multipartFields.forEach((field) => {
-        const input = fetchContainer.querySelector(
+        const el = fetchContainer.querySelector(
           `#multipart-${field.name}`,
         );
-        if (!input) return;
-        if (input.type === "file") {
-          if (input.files[0])
-            formData.append(field.name, input.files[0]);
+        if (!el) return;
+        if (typeof el.getFiles === "function") {
+          el.getFiles().forEach((f) =>
+            formData.append(field.name, f),
+          );
+        } else if (el.type === "file") {
+          if (el.files[0])
+            formData.append(field.name, el.files[0]);
         } else {
-          formData.append(field.name, input.value);
+          formData.append(field.name, el.value);
         }
       });
       body = formData;
@@ -422,6 +426,8 @@ const getEndpointNode = (endpoint) => {
           type: INPUT_TYPE[field.type] ?? "text",
           id: `multipart-${field.name}`,
           required: field.required ?? false,
+          accept: field.accept,
+          maxWeight: field.maxWeight,
         };
         fetchBody.appendChild(
           getFormControl(field.label, inputOpts),
@@ -469,10 +475,17 @@ const getEndpointNode = (endpoint) => {
       multipartFields.length > 0
     ) {
       const fieldsList = document.createElement("ul");
-      fieldsList.classList.add("endpoint__body__schema");
+      fieldsList.classList.add(
+        "endpoint__body__schema",
+        "endpoint__body__schema--multipart",
+      );
       multipartFields.forEach((field) => {
         const li = document.createElement("li");
-        li.innerHTML = `<code>${field.name}</code> <span class="tag">${field.type}</span>${field.required ? ' <span class="tag">required</span>' : ""} — ${field.label}`;
+        li.classList.add("endpoint__body__element");
+        li.innerHTML = `
+	  <code><pre>${field.name}</pre></code> 
+	  <span class="tag">${field.type}</span>${field.required ? ' <span class="tag">required</span>' : ""} 
+	  <span>${field.label}</span>`;
         fieldsList.appendChild(li);
       });
       bodyContainer.appendChild(fieldsList);

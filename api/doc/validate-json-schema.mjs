@@ -232,6 +232,22 @@ function validateBodyObject(body, path, knownTableNames) {
             `"type" must be one of: ${VALID_MULTIPART_TYPES.join(", ")} — got "${field.type}"`,
           );
         }
+        if (field.type === "file") {
+          if (!Array.isArray(field.accept) || field.accept.length === 0) {
+            error(fp, `File field requires a non-empty "accept" array`);
+          } else {
+            field.accept.forEach((v, j) => {
+              if (typeof v !== "string" || v === "") {
+                error(`${fp}.accept[${j}]`, `Each "accept" entry must be a non-empty string`);
+              }
+            });
+          }
+          if (field.maxWeight === undefined || field.maxWeight === null) {
+            error(fp, `File field requires a "maxWeight" number`);
+          } else if (typeof field.maxWeight !== "number" || field.maxWeight <= 0) {
+            error(fp, `"maxWeight" must be a positive number — got "${field.maxWeight}"`);
+          }
+        }
       });
     }
   } else {

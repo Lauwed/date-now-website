@@ -354,9 +354,11 @@
               },
               {
                 "name": "file",
-                "label": "Image (JPEG, PNG, GIF, WebP, BMP, TIFF — max 5 MB)",
+                "label": "File",
                 "type": "file",
-                "required": true
+                "required": true,
+                "accept": ["image/*"],
+                "maxWeight": 10
               }
             ]
           },

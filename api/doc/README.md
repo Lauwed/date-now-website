@@ -296,6 +296,8 @@ Given a method (e.g. `POST`):
 | `label`    | `string`             | yes      | Label displayed in the form    |
 | `type`     | `"string" \| "file"` | yes      | Input type                     |
 | `required` | `boolean`            | no       | Marks the field as required    |
+| `accept` | `string[]`            | yes       | Accepted file formats for upload    |
+| `maxWeight` | `number`            | yes       | The maximum weight of files    |
 
 ---
 
