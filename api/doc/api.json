@@ -2,7 +2,10 @@
   "defaultErrors": [
     {
       "code": 400,
-      "response": { "code": 400, "message": "Invalid or missing fields" },
+      "response": {
+        "code": 400,
+        "message": "Invalid or missing fields"
+      },
       "appliesTo": ["POST", "PUT"]
     },
     {
@@ -23,13 +26,25 @@
     },
     {
       "code": 404,
-      "response": { "code": 404, "message": "Resource not found" },
+      "response": {
+        "code": 404,
+        "message": "Resource not found"
+      },
       "appliesTo": ["GET-single", "PUT", "DELETE"]
     },
     {
       "code": 500,
-      "response": { "code": 500, "message": "Internal server error" },
-      "appliesTo": ["GET-list", "GET-single", "POST", "PUT", "DELETE"]
+      "response": {
+        "code": 500,
+        "message": "Internal server error"
+      },
+      "appliesTo": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ]
     }
   ],
   "tables": [
@@ -56,11 +71,17 @@
             },
             {
               "code": 400,
-              "response": { "code": 400, "message": "Invalid email address" }
+              "response": {
+                "code": 400,
+                "message": "Invalid email address"
+              }
             },
             {
               "code": 409,
-              "response": { "code": 409, "message": "Email already subscribed" }
+              "response": {
+                "code": 409,
+                "message": "Email already subscribed"
+              }
             },
             {
               "code": 429,
@@ -89,19 +110,30 @@
           "responses": [
             {
               "code": 200,
-              "response": { "message": "User successfully subscribed" }
+              "response": {
+                "message": "User successfully subscribed"
+              }
             },
             {
               "code": 400,
-              "response": { "code": 400, "message": "Invalid or expired token" }
+              "response": {
+                "code": 400,
+                "message": "Invalid or expired token"
+              }
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "User not found" }
+              "response": {
+                "code": 404,
+                "message": "User not found"
+              }
             },
             {
               "code": 409,
-              "response": { "code": 409, "message": "User already subscribed" }
+              "response": {
+                "code": 409,
+                "message": "User already subscribed"
+              }
             },
             500
           ]
@@ -123,13 +155,19 @@
             },
             {
               "code": 400,
-              "response": { "code": 400, "message": "Invalid email address" }
+              "response": {
+                "code": 400,
+                "message": "Invalid email address"
+              }
             },
             401,
             403,
             {
               "code": 404,
-              "response": { "code": 404, "message": "Author not found" }
+              "response": {
+                "code": 404,
+                "message": "Author not found"
+              }
             },
             500
           ]
@@ -154,7 +192,10 @@
             403,
             {
               "code": 409,
-              "response": { "code": 409, "message": "Email already registered" }
+              "response": {
+                "code": 409,
+                "message": "Email already registered"
+              }
             },
             500
           ]
@@ -169,15 +210,23 @@
           "responses": [
             {
               "code": 200,
-              "response": { "message": "Magic link sent to email" }
+              "response": {
+                "message": "Magic link sent to email"
+              }
             },
             {
               "code": 400,
-              "response": { "code": 400, "message": "Invalid email address" }
+              "response": {
+                "code": 400,
+                "message": "Invalid email address"
+              }
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "Author not found" }
+              "response": {
+                "code": 404,
+                "message": "Author not found"
+              }
             },
             {
               "code": 429,
@@ -213,7 +262,10 @@
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "User not found" }
+              "response": {
+                "code": 404,
+                "message": "User not found"
+              }
             },
             {
               "code": 429,
@@ -328,7 +380,10 @@
             },
             {
               "code": 415,
-              "response": { "code": 415, "message": "Unsupported media type" }
+              "response": {
+                "code": 415,
+                "message": "Unsupported media type"
+              }
             }
           ]
         },
@@ -356,7 +411,9 @@
           "responses": [
             {
               "code": 200,
-              "response": { "message": "Media successfully deleted" }
+              "response": {
+                "message": "Media successfully deleted"
+              }
             },
             {
               "code": 409,
@@ -477,7 +534,10 @@
             },
             {
               "code": 409,
-              "response": { "code": 409, "message": "Email already registered" }
+              "response": {
+                "code": 409,
+                "message": "Email already registered"
+              }
             }
           ]
         },
@@ -511,7 +571,10 @@
             },
             {
               "code": 409,
-              "response": { "code": 409, "message": "Email already in use" }
+              "response": {
+                "code": 409,
+                "message": "Email already in use"
+              }
             }
           ]
         },
@@ -539,7 +602,13 @@
         "name": "string",
         "color": "string"
       },
-      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "includedEndpoints": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
       "endpoints": {
         "GET-list": {
           "description": "Returns all available tags."
@@ -560,7 +629,10 @@
             },
             {
               "code": 409,
-              "response": { "code": 409, "message": "Tag already exists" }
+              "response": {
+                "code": 409,
+                "message": "Tag already exists"
+              }
             }
           ]
         },
@@ -571,7 +643,10 @@
             "defaultValue": "{\n\t\"color\": \"#123456\"\n}"
           },
           "responses": [
-            { "code": 200, "response": { "name": "string", "color": "string" } }
+            {
+              "code": 200,
+              "response": { "name": "string", "color": "string" }
+            }
           ]
         },
         "DELETE": {
@@ -598,7 +673,13 @@
         "name": "string",
         "link": "string"
       },
-      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "includedEndpoints": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
       "endpoints": {
         "GET-list": {
           "description": "Returns all sponsors."
@@ -613,10 +694,16 @@
             "defaultValue": "{\n\t\"name\": \"Firefox\",\n\t\"link\": \"firefox.com\"\n}"
           },
           "responses": [
-            { "code": 201, "response": { "name": "string", "link": "string" } },
+            {
+              "code": 201,
+              "response": { "name": "string", "link": "string" }
+            },
             {
               "code": 409,
-              "response": { "code": 409, "message": "Sponsor already exists" }
+              "response": {
+                "code": 409,
+                "message": "Sponsor already exists"
+              }
             }
           ]
         },
@@ -627,7 +714,10 @@
             "defaultValue": "{\n\t\"link\": \"firefox.com\"\n}"
           },
           "responses": [
-            { "code": 200, "response": { "name": "string", "link": "string" } }
+            {
+              "code": 200,
+              "response": { "name": "string", "link": "string" }
+            }
           ]
         },
         "DELETE": {
@@ -666,7 +756,13 @@
         "status": "DRAFT | PUBLISHED | ARCHIVE",
         "openedMailCount": "integer"
       },
-      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "includedEndpoints": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
       "response": {
         "get-list": {
           "data": "array-issue",
@@ -839,13 +935,18 @@
           "responses": [
             {
               "code": 200,
-              "response": { "message": "Issue published and newsletter sent" }
+              "response": {
+                "message": "Issue published and newsletter sent"
+              }
             },
             401,
             403,
             {
               "code": 404,
-              "response": { "code": 404, "message": "Issue not found" }
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
             },
             {
               "code": 409,
@@ -886,11 +987,16 @@
           "responses": [
             {
               "code": 200,
-              "response": { "data": [{ "name": "string", "color": "string" }] }
+              "response": {
+                "data": [{ "name": "string", "color": "string" }]
+              }
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "Issue not found" }
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
             }
           ]
         },
@@ -899,11 +1005,17 @@
           "responses": [
             {
               "code": 201,
-              "response": { "tagName": "string", "issueId": "integer" }
+              "response": {
+                "tagName": "string",
+                "issueId": "integer"
+              }
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "Issue or tag not found" }
+              "response": {
+                "code": 404,
+                "message": "Issue or tag not found"
+              }
             },
             {
               "code": 409,
@@ -919,7 +1031,9 @@
           "responses": [
             {
               "code": 200,
-              "response": { "message": "Tag successfully removed from issue" }
+              "response": {
+                "message": "Tag successfully removed from issue"
+              }
             },
             {
               "code": 404,
@@ -974,7 +1088,10 @@
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "Issue not found" }
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
             }
           ]
         },
@@ -983,15 +1100,24 @@
           "responses": [
             {
               "code": 201,
-              "response": { "userId": "integer", "issueId": "integer" }
+              "response": {
+                "userId": "integer",
+                "issueId": "integer"
+              }
             },
             {
               "code": 400,
-              "response": { "code": 400, "message": "User is not an author" }
+              "response": {
+                "code": 400,
+                "message": "User is not an author"
+              }
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "Issue or user not found" }
+              "response": {
+                "code": 404,
+                "message": "Issue or user not found"
+              }
             },
             {
               "code": 409,
@@ -1062,7 +1188,10 @@
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "Issue not found" }
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
             }
           ]
         },
@@ -1153,7 +1282,11 @@
           "min": 1,
           "max": 100
         },
-        { "name": "issueId", "label": "Issue ID", "type": "integer" }
+        {
+          "name": "issueId",
+          "label": "Issue ID",
+          "type": "integer"
+        }
       ],
       "endpoints": {
         "GET-list": {
@@ -1202,7 +1335,10 @@
             },
             {
               "code": 404,
-              "response": { "code": 404, "message": "Issue not found" }
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
             }
           ]
         }
