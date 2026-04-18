@@ -2,6 +2,8 @@ name: Lint API schema
  
 on:
   push:
+    branches:
+      - main
     paths:
       - "api/doc/api.json"
       - "api/doc/validate-json-schema.mjs"
