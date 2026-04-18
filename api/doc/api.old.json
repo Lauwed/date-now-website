@@ -1,0 +1,2319 @@
+{
+  "tables": [
+    {
+      "name": {
+        "singular": "authentication",
+        "plural": "authentication"
+      },
+      "description": "Authentication flow for authors with Email link and TOTP, and subscription flow for the newsletter.",
+      "uri": "/auth",
+      "includedEndpoints": [],
+      "customEndpoints": [
+        {
+          "name": "subscribe",
+          "description": "Send a confirmation mail to the given Email to subscribe to the newsletter.",
+          "uri": "/subscribe",
+          "method": "POST",
+          "tokenRequired": false,
+          "body": {
+            "email": "string"
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": { "message": "Confirmation mail sent" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid email address"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Email already subscribed"
+              }
+            },
+            {
+              "code": 429,
+              "response": {
+                "code": 429,
+                "message": "Too many requests, please try again later"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "confirm subscribe",
+          "description": "Confirm the subscription of a user with the received token by Email. The token is unique usage and expired after a delay.",
+          "uri": "/subscribe/confirm",
+          "method": "GET",
+          "tokenRequired": false,
+          "queryParameters": [
+            {
+              "label": "Token",
+              "name": "token",
+              "type": "string",
+              "required": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "User successfully subscribed"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or expired token"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "User not found"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "User already subscribed"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "generate author totp seed",
+          "description": "Generate a TOTP seed of an existing author account. Required a valid JWT token. Used to rest TOTP access for an author.",
+          "uri": "/seed",
+          "method": "POST",
+          "tokenRequired": true,
+          "body": {
+            "email": "string"
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "TOTP seed successfully generated",
+                "totpseed": "string"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid email address"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Author not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "author registration",
+          "description": "Add a new author account (AUTHOR role) and returns the TOTP seed to configure in an authentication application.",
+          "uri": "/register",
+          "method": "POST",
+          "tokenRequired": true,
+          "body": {
+            "username": "string",
+            "email": "string"
+          },
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "message": "Author successfully registered",
+                "totpseed": "string"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Email already registered"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "author login",
+          "description": "Send a link by Email to the author. The link redirect to the TOTP step.",
+          "uri": "/login",
+          "method": "POST",
+          "tokenRequired": false,
+          "body": {
+            "email": "string"
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Magic link sent to email"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid email address"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Author not found"
+              }
+            },
+            {
+              "code": 429,
+              "response": {
+                "code": 429,
+                "message": "Too many requests, please try again later"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "TOTP login",
+          "description": "Validation of the 6 figures TOTP code and returns the JWT token to use in the Authorization header.",
+          "uri": "/login/totp",
+          "method": "POST",
+          "tokenRequired": false,
+          "body": {
+            "token": "string",
+            "code": "string"
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Successfully logged in",
+                "token": "string"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or expired TOTP code"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "User not found"
+              }
+            },
+            {
+              "code": 429,
+              "response": {
+                "code": 429,
+                "message": "Too many failed attempts, please try again later"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "media",
+        "plural": "medias"
+      },
+      "description": "Media files (images) uploaded and converted to WebP.",
+      "uri": "/media",
+      "uriParameters": [
+        {
+          "name": "id",
+          "type": "integer",
+          "defaultValue": 1,
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "id": "integer",
+        "textAlternatif": "string",
+        "url": "string",
+        "width": "double?",
+        "height": "double?"
+      },
+      "body": {
+        "post": {
+          "description": "Upload an image. The fichier will be automatically converted to WebP.",
+          "multipart": true,
+          "fields": [
+            {
+              "name": "textAlternatif",
+              "label": "Texte alternatif",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "file",
+              "label": "Image (JPEG, PNG, GIF, WebP, BMP, TIFF — max 5 Mo)",
+              "type": "file",
+              "required": true
+            }
+          ]
+        },
+        "put": {
+          "description": "Ability to edit the alternative text of the image.",
+          "body": {
+            "textAlternatif": "string"
+          }
+        }
+      },
+      "response": {
+        "get-list": {
+          "data": "array-media",
+          "total": "integer",
+          "page": "integer",
+          "pageSize": "integer"
+        },
+        "get-single": {
+          "id": "integer",
+          "textAlternatif": "string",
+          "url": "string",
+          "width": "double?",
+          "height": "double?"
+        }
+      },
+      "listParameters": [
+        {
+          "name": "page",
+          "label": "Page",
+          "type": "integer",
+          "defaultValue": 1,
+          "min": 1
+        },
+        {
+          "name": "limit",
+          "label": "Limite",
+          "type": "integer",
+          "defaultValue": 20,
+          "min": 1,
+          "max": 100
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "user",
+        "plural": "users"
+      },
+      "description": "Abonnés et auteurs de la newsletter. Les auteurs peuvent se connecter et gérer les issues, les abonnés reçoivent la newsletter.",
+      "uri": "/user",
+      "uriParameters": [
+        {
+          "name": "id",
+          "type": "integer",
+          "defaultValue": 1,
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "id": "integer",
+        "username": "string?",
+        "email": "string",
+        "role": "USER | AUTHOR",
+        "link": "string?",
+        "picture": "foreignKey-media",
+        "subscribedAt": "timestamp?",
+        "isSupporter": "boolean",
+        "createdAt": "timestamp"
+      },
+      "response": {
+        "get-list": {
+          "data": "array-user",
+          "total": "integer",
+          "page": "integer",
+          "pageSize": "integer"
+        },
+        "get-single": {
+          "id": "integer",
+          "username": "string?",
+          "email": "string",
+          "role": "USER | AUTHOR",
+          "link": "string?",
+          "picture": "foreignKey-media",
+          "subscribedAt": "timestamp?",
+          "isSupporter": "boolean",
+          "createdAt": "timestamp"
+        }
+      },
+      "listParameters": [
+        {
+          "name": "page",
+          "label": "Page",
+          "type": "integer",
+          "defaultValue": 1,
+          "min": 1
+        },
+        {
+          "name": "limit",
+          "label": "Limite",
+          "type": "integer",
+          "defaultValue": 20,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "name": "role",
+          "label": "Rôle",
+          "type": "select",
+          "options": [
+            { "name": "USER", "label": "Abonné" },
+            { "name": "AUTHOR", "label": "Auteur" }
+          ]
+        }
+      ],
+      "body": {
+        "post": {
+          "description": "Crée un nouvel utilisateur. Pour créer un auteur avec TOTP, utilisez l'endpoint /auth/register.",
+          "schema": {
+            "username": "string?",
+            "email": "string",
+            "role": "USER | AUTHOR",
+            "link": "string?",
+            "picture": "integer?"
+          },
+          "defaultValue": "{\n\t\"username\": \"DevGirl_\",\n\t\"email\": \"contact@lauradurieux.dev\",\n\t\"role\": \"AUTHOR\",\n\t\"link\": \"hihihuhuh.com\"\n}"
+        },
+        "put": {
+          "description": "Met à jour un utilisateur existant.",
+          "schema": {
+            "username": "string?",
+            "email": "string",
+            "role": "USER | AUTHOR",
+            "link": "string?",
+            "subscribedAt": "timestamp?",
+            "isSupporter": "boolean",
+            "picture": "integer?"
+          }
+        }
+      },
+      "customEndpoints": [
+        {
+          "name": "GET-list responses",
+          "description": "Retourne la liste paginée des utilisateurs. Le champ totpSeed n'est jamais exposé.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": true,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": [
+                  {
+                    "id": "integer",
+                    "username": "string?",
+                    "email": "string",
+                    "role": "USER | AUTHOR",
+                    "link": "string?",
+                    "picture": "foreignKey-media",
+                    "subscribedAt": "timestamp?",
+                    "isSupporter": "boolean",
+                    "createdAt": "timestamp"
+                  }
+                ],
+                "total": "integer",
+                "page": "integer",
+                "pageSize": "integer"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET-single responses",
+          "description": "Retourne un utilisateur par son identifiant. Le champ totpSeed n'est jamais exposé.",
+          "uri": "/{ID}",
+          "method": "GET",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "username": "string?",
+                "email": "string",
+                "role": "USER | AUTHOR",
+                "link": "string?",
+                "picture": "foreignKey-media",
+                "subscribedAt": "timestamp?",
+                "isSupporter": "boolean",
+                "createdAt": "timestamp"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "User not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST responses",
+          "description": "Crée un nouvel utilisateur.",
+          "uri": "",
+          "method": "POST",
+          "tokenRequired": true,
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "id": "integer",
+                "username": "string?",
+                "email": "string",
+                "role": "USER | AUTHOR",
+                "link": "string?",
+                "picture": "foreignKey-media",
+                "subscribedAt": "timestamp?",
+                "isSupporter": "boolean",
+                "createdAt": "timestamp"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Email already registered"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT responses",
+          "description": "Met à jour un utilisateur existant.",
+          "uri": "/{ID}",
+          "method": "PUT",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "username": "string?",
+                "email": "string",
+                "role": "USER | AUTHOR",
+                "link": "string?",
+                "picture": "foreignKey-media",
+                "subscribedAt": "timestamp?",
+                "isSupporter": "boolean",
+                "createdAt": "timestamp"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "User not found"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Email already in use"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE responses",
+          "description": "Supprime un utilisateur. Les associations IssueAuthor sont supprimées en cascade.",
+          "uri": "/{ID}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "User successfully deleted"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "User not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "tag",
+        "plural": "tags"
+      },
+      "description": "Tags utilisés pour catégoriser les issues de la newsletter. Identifiés par leur nom (clé primaire, max 64 caractères).",
+      "uri": "/tag",
+      "uriParameters": [
+        {
+          "name": "name",
+          "type": "string",
+          "defaultValue": "Computer Science",
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "name": "string",
+        "color": "string"
+      },
+      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "body": {
+        "post": {
+          "description": "Crée un nouveau tag. Le nom est la clé primaire (max 64 caractères) et ne peut pas être modifié après création.",
+          "schema": {
+            "name": "string",
+            "color": "string"
+          },
+          "defaultValue": "{\n\t\"name\": \"Computer Science\",\n\t\"color\": \"#6b3a9e\"\n}"
+        },
+        "put": {
+          "description": "Met à jour la couleur d'un tag existant.",
+          "schema": {
+            "color": "string"
+          },
+          "defaultValue": "{\n\t\"color\": \"#123456\"\n}"
+        }
+      },
+      "customEndpoints": [
+        {
+          "name": "GET-list responses",
+          "description": "Retourne tous les tags disponibles.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": [{ "name": "string", "color": "string" }],
+                "total": "integer"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET-single responses",
+          "description": "Retourne un tag par son nom.",
+          "uri": "/{NAME}",
+          "method": "GET",
+          "tokenRequired": false,
+          "uriParameters": [
+            {
+              "name": "name",
+              "type": "string",
+              "defaultValue": "Computer Science",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": { "name": "string", "color": "string" }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Tag not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST responses",
+          "description": "Crée un nouveau tag.",
+          "uri": "",
+          "method": "POST",
+          "tokenRequired": true,
+          "responses": [
+            {
+              "code": 201,
+              "response": { "name": "string", "color": "string" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Tag already exists"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT responses",
+          "description": "Met à jour la couleur d'un tag.",
+          "uri": "/{NAME}",
+          "method": "PUT",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "name",
+              "type": "string",
+              "defaultValue": "Computer Science",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": { "name": "string", "color": "string" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Tag not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE responses",
+          "description": "Supprime un tag. Les associations IssueTag sont supprimées en cascade.",
+          "uri": "/{NAME}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "name",
+              "type": "string",
+              "defaultValue": "Computer Science",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Tag successfully deleted"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Tag not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "sponsor",
+        "plural": "sponsors"
+      },
+      "description": "Sponsors associés aux issues de la newsletter. Identifiés par leur nom (clé primaire). Le lien associé à une issue spécifique est stocké dans la table IssueSponsor.",
+      "uri": "/sponsor",
+      "uriParameters": [
+        {
+          "name": "name",
+          "type": "string",
+          "defaultValue": "Firefox",
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "name": "string",
+        "link": "string"
+      },
+      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "body": {
+        "post": {
+          "description": "Crée un nouveau sponsor. Le nom est la clé primaire et ne peut pas être modifié après création.",
+          "schema": {
+            "name": "string",
+            "link": "string"
+          },
+          "defaultValue": "{\n\t\"name\": \"Firefox\",\n\t\"link\": \"firefox.com\"\n}"
+        },
+        "put": {
+          "description": "Met à jour le lien par défaut d'un sponsor existant.",
+          "schema": {
+            "link": "string"
+          },
+          "defaultValue": "{\n\t\"link\": \"firefox.com\"\n}"
+        }
+      },
+      "customEndpoints": [
+        {
+          "name": "GET-list responses",
+          "description": "Retourne tous les sponsors.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": [{ "name": "string", "link": "string" }],
+                "total": "integer"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET-single responses",
+          "description": "Retourne un sponsor par son nom.",
+          "uri": "/{NAME}",
+          "method": "GET",
+          "tokenRequired": false,
+          "uriParameters": [
+            {
+              "name": "name",
+              "type": "string",
+              "defaultValue": "Firefox",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": { "name": "string", "link": "string" }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Sponsor not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST responses",
+          "description": "Crée un nouveau sponsor.",
+          "uri": "",
+          "method": "POST",
+          "tokenRequired": true,
+          "responses": [
+            {
+              "code": 201,
+              "response": { "name": "string", "link": "string" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Sponsor already exists"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT responses",
+          "description": "Met à jour le lien par défaut d'un sponsor.",
+          "uri": "/{NAME}",
+          "method": "PUT",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "name",
+              "type": "string",
+              "defaultValue": "Firefox",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": { "name": "string", "link": "string" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Sponsor not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE responses",
+          "description": "Supprime un sponsor. Les associations IssueSponsor sont supprimées en cascade.",
+          "uri": "/{NAME}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "name",
+              "type": "string",
+              "defaultValue": "Firefox",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Sponsor successfully deleted"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Sponsor not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "issue",
+        "plural": "issues"
+      },
+      "description": "Issues de la newsletter — brouillons, publiées et archivées. Chaque issue possède un contenu riche, une couverture, des auteurs, des tags et des sponsors associés.",
+      "uri": "/issue",
+      "uriParameters": [
+        {
+          "name": "id",
+          "type": "integer",
+          "defaultValue": 1,
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "id": "integer",
+        "slug": "string",
+        "title": "string",
+        "subtitle": "string",
+        "cover": "foreignKey-media",
+        "createdAt": "timestamp",
+        "publishedAt": "timestamp?",
+        "updatedAt": "timestamp?",
+        "issueNumber": "integer",
+        "excerpt": "string",
+        "content": "string",
+        "isSponsored": "boolean",
+        "status": "DRAFT | PUBLISHED | ARCHIVE",
+        "openedMailCount": "integer"
+      },
+      "response": {
+        "get-list": {
+          "data": "array-issue",
+          "total": "integer",
+          "page": "integer",
+          "pageSize": "integer"
+        },
+        "get-single": {
+          "id": "integer",
+          "slug": "string",
+          "title": "string",
+          "subtitle": "string",
+          "cover": "foreignKey-media",
+          "createdAt": "timestamp",
+          "publishedAt": "timestamp?",
+          "updatedAt": "timestamp?",
+          "issueNumber": "integer",
+          "excerpt": "string",
+          "content": "string",
+          "isSponsored": "boolean",
+          "status": "DRAFT | PUBLISHED | ARCHIVE",
+          "openedMailCount": "integer",
+          "views": "integer",
+          "authors": "array-user",
+          "tags": "array-tag",
+          "sponsors": "array-sponsor"
+        }
+      },
+      "listParameters": [
+        {
+          "name": "page",
+          "label": "Page",
+          "type": "integer",
+          "defaultValue": 1,
+          "min": 1
+        },
+        {
+          "name": "limit",
+          "label": "Limite",
+          "type": "integer",
+          "defaultValue": 20,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "name": "status",
+          "label": "Statut",
+          "type": "select",
+          "options": [
+            { "name": "DRAFT", "label": "Brouillon" },
+            { "name": "PUBLISHED", "label": "Publiée" },
+            { "name": "ARCHIVE", "label": "Archivée" }
+          ]
+        }
+      ],
+      "body": {
+        "post": {
+          "description": "Crée une nouvelle issue. Le slug est auto-généré depuis le titre si non fourni. Le numéro d'issue doit être unique.",
+          "schema": {
+            "slug": "string?",
+            "title": "string",
+            "subtitle": "string",
+            "issueNumber": "integer",
+            "excerpt": "string",
+            "content": "string",
+            "isSponsored": "boolean?",
+            "status": "DRAFT | PUBLISHED | ARCHIVE",
+            "cover": "integer?"
+          },
+          "defaultValue": "{\n\t\"title\": \"Les code potes m'ont payés pour faire cette API en C\",\n\t\"subtitle\": \"c'est très rigolo\",\n\t\"issueNumber\": 80,\n\t\"excerpt\": \"La lecture va vous étonner\",\n\t\"content\": \"Ahbahdakor\",\n\t\"status\": \"DRAFT\"\n}"
+        },
+        "put": {
+          "description": "Met à jour une issue existante. Tous les champs sont requis.",
+          "schema": {
+            "slug": "string?",
+            "title": "string",
+            "subtitle": "string",
+            "issueNumber": "integer",
+            "excerpt": "string",
+            "content": "string",
+            "isSponsored": "boolean?",
+            "status": "DRAFT | PUBLISHED | ARCHIVE",
+            "cover": "integer?"
+          },
+          "defaultValue": "{\n\t\"title\": \"Les code potes m'ont payés pour faire cette API en C\",\n\t\"subtitle\": \"c'est très rigolo\",\n\t\"issueNumber\": 80,\n\t\"excerpt\": \"La lecture va vous étonner\",\n\t\"content\": \"Ahbahdakor\",\n\t\"status\": \"DRAFT\"\n}"
+        }
+      },
+      "customEndpoints": [
+        {
+          "name": "GET-list responses",
+          "description": "Retourne la liste paginée des issues, filtrée optionnellement par statut.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": "array-issue",
+                "total": "integer",
+                "page": "integer",
+                "pageSize": "integer"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET-single responses",
+          "description": "Retourne une issue par son identifiant, avec ses auteurs, tags et sponsors associés.",
+          "uri": "/{ID}",
+          "method": "GET",
+          "tokenRequired": false,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "slug": "string",
+                "title": "string",
+                "subtitle": "string",
+                "cover": "foreignKey-media",
+                "createdAt": "timestamp",
+                "publishedAt": "timestamp?",
+                "updatedAt": "timestamp?",
+                "issueNumber": "integer",
+                "excerpt": "string",
+                "content": "string",
+                "isSponsored": "boolean",
+                "status": "DRAFT | PUBLISHED | ARCHIVE",
+                "openedMailCount": "integer",
+                "views": "integer",
+                "authors": "array-user",
+                "tags": "array-tag",
+                "sponsors": "array-sponsor"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST responses",
+          "description": "Crée une nouvelle issue.",
+          "uri": "",
+          "method": "POST",
+          "tokenRequired": true,
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "id": "integer",
+                "slug": "string",
+                "title": "string",
+                "subtitle": "string",
+                "cover": "foreignKey-media",
+                "createdAt": "timestamp",
+                "issueNumber": "integer",
+                "excerpt": "string",
+                "content": "string",
+                "isSponsored": "boolean",
+                "status": "DRAFT | PUBLISHED | ARCHIVE",
+                "openedMailCount": "integer"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Issue number already exists"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT responses",
+          "description": "Met à jour une issue existante.",
+          "uri": "/{ID}",
+          "method": "PUT",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "slug": "string",
+                "title": "string",
+                "subtitle": "string",
+                "cover": "foreignKey-media",
+                "createdAt": "timestamp",
+                "publishedAt": "timestamp?",
+                "updatedAt": "timestamp?",
+                "issueNumber": "integer",
+                "excerpt": "string",
+                "content": "string",
+                "isSponsored": "boolean",
+                "status": "DRAFT | PUBLISHED | ARCHIVE",
+                "openedMailCount": "integer"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing fields"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Issue number already in use by another issue"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE responses",
+          "description": "Supprime une issue. Les associations IssueTag, IssueAuthor et IssueSponsor sont supprimées en cascade.",
+          "uri": "/{ID}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Issue successfully deleted"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "publish",
+          "description": "Publie une issue et envoie la newsletter aux abonnés actifs. Passe le statut à PUBLISHED et enregistre publishedAt.",
+          "uri": "/{ID}/publish",
+          "method": "POST",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Issue published and newsletter sent"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 403,
+              "response": {
+                "code": 403,
+                "message": "Forbidden, insufficient permissions"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Issue is already published"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "issue tag",
+        "plural": "issue tags"
+      },
+      "description": "Association entre une issue et un tag (table IssueTag). URI : /issue/{id}/tag. Les suppressions sont en cascade.",
+      "uri": "/issue/{ID}/tag",
+      "uriParameters": [
+        {
+          "name": "tagName",
+          "type": "string",
+          "defaultValue": "Software",
+          "isPrimary": true
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "defaultValue": 1
+        }
+      ],
+      "schema": {
+        "tagName": "string",
+        "issueId": "integer"
+      },
+      "includedEndpoints": ["GET-list", "POST", "DELETE"],
+      "customEndpoints": [
+        {
+          "name": "GET-list responses",
+          "description": "Retourne tous les tags associés à l'issue.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": [{ "name": "string", "color": "string" }]
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST responses",
+          "description": "Associe un tag existant à l'issue.",
+          "uri": "/{tagName}",
+          "method": "POST",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "tagName",
+              "type": "string",
+              "defaultValue": "Software",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "tagName": "string",
+                "issueId": "integer"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue or tag not found"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Tag already associated with this issue"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE responses",
+          "description": "Retire un tag de l'issue.",
+          "uri": "/{tagName}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "tagName",
+              "type": "string",
+              "defaultValue": "Software",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Tag successfully removed from issue"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue, tag or association not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "issue author",
+        "plural": "issue authors"
+      },
+      "description": "Association entre une issue et un auteur (table IssueAuthor). URI : /issue/{id}/author. Les suppressions sont en cascade.",
+      "uri": "/issue/{ID}/author",
+      "uriParameters": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "defaultValue": 1,
+          "isPrimary": true
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "defaultValue": 1
+        }
+      ],
+      "schema": {
+        "userId": "integer",
+        "issueId": "integer"
+      },
+      "includedEndpoints": ["GET-list", "POST", "DELETE"],
+      "customEndpoints": [
+        {
+          "name": "GET-list responses",
+          "description": "Retourne tous les auteurs associés à l'issue.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": [
+                  {
+                    "id": "integer",
+                    "username": "string?",
+                    "email": "string",
+                    "role": "USER | AUTHOR",
+                    "link": "string?",
+                    "picture": "foreignKey-media"
+                  }
+                ]
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST responses",
+          "description": "Associe un auteur à l'issue. L'utilisateur doit avoir le rôle AUTHOR.",
+          "uri": "/{userId}",
+          "method": "POST",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "userId",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "userId": "integer",
+                "issueId": "integer"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "User is not an author"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue or user not found"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Author already associated with this issue"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE responses",
+          "description": "Retire un auteur de l'issue.",
+          "uri": "/{userId}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "userId",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Author successfully removed from issue"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue, user or association not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "issue sponsor",
+        "plural": "issue sponsors"
+      },
+      "description": "Association entre une issue et un sponsor (table IssueSponsor). Chaque association possède son propre lien publicitaire, distinct du lien par défaut du sponsor. URI : /issue/{id}/sponsor.",
+      "uri": "/issue/{ID}/sponsor",
+      "uriParameters": [
+        {
+          "name": "sponsorName",
+          "type": "string",
+          "defaultValue": "Lilymonad",
+          "isPrimary": true
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "defaultValue": 1
+        }
+      ],
+      "schema": {
+        "sponsorName": "string",
+        "issueId": "integer",
+        "link": "string"
+      },
+      "includedEndpoints": ["GET-list", "POST", "DELETE"],
+      "customEndpoints": [
+        {
+          "name": "GET-list responses",
+          "description": "Retourne tous les sponsors associés à l'issue, avec leur lien spécifique à l'issue.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": [
+                  {
+                    "sponsorName": "string",
+                    "issueId": "integer",
+                    "link": "string"
+                  }
+                ]
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST responses",
+          "description": "Associe un sponsor à l'issue avec un lien publicitaire spécifique à cette issue.",
+          "uri": "/{sponsorName}",
+          "method": "POST",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "sponsorName",
+              "type": "string",
+              "defaultValue": "Lilymonad",
+              "isPrimary": true
+            }
+          ],
+          "body": {
+            "link": "string"
+          },
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "sponsorName": "string",
+                "issueId": "integer",
+                "link": "string"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Missing or invalid link"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue or sponsor not found"
+              }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Sponsor already associated with this issue"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE responses",
+          "description": "Retire un sponsor de l'issue.",
+          "uri": "/{sponsorName}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "sponsorName",
+              "type": "string",
+              "defaultValue": "Lilymonad",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Sponsor successfully removed from issue"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue, sponsor or association not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "view",
+        "plural": "views"
+      },
+      "description": "Suivi des vues de pages par issue, identifiées par IP hashée pour respecter la vie privée des lecteurs.",
+      "uri": "/view",
+      "uriParameters": [
+        {
+          "name": "id",
+          "type": "integer",
+          "defaultValue": 1,
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "id": "integer",
+        "time": "timestamp",
+        "hashedIp": "string",
+        "issueId": "integer"
+      },
+      "includedEndpoints": ["GET-list", "POST"],
+      "tokenRequired": {
+        "post": false
+      },
+      "listParameters": [
+        {
+          "name": "page",
+          "label": "Page",
+          "type": "integer",
+          "defaultValue": 1,
+          "min": 1
+        },
+        {
+          "name": "limit",
+          "label": "Limite",
+          "type": "integer",
+          "defaultValue": 20,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "name": "issueId",
+          "label": "Issue ID",
+          "type": "integer"
+        }
+      ],
+      "body": {
+        "post": {
+          "description": "Enregistre une vue pour une issue donnée. L'IP est hashée côté serveur, aucune donnée personnelle n'est stockée.",
+          "schema": {
+            "issueId": "integer"
+          },
+          "defaultValue": "{\n\t\"issueId\": 1\n}"
+        }
+      },
+      "customEndpoints": [
+        {
+          "name": "GET-list responses",
+          "description": "Retourne la liste paginée des vues, filtrée optionnellement par issue.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": true,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": [
+                  {
+                    "id": "integer",
+                    "time": "timestamp",
+                    "hashedIp": "string",
+                    "issueId": "integer"
+                  }
+                ],
+                "total": "integer",
+                "page": "integer",
+                "pageSize": "integer"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized, valid token required"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST responses",
+          "description": "Enregistre une vue pour une issue.",
+          "uri": "",
+          "method": "POST",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "id": "integer",
+                "time": "timestamp",
+                "issueId": "integer"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or missing issueId"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            },
+            {
+              "code": 500,
+              "response": {
+                "code": 500,
+                "message": "Internal server error"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

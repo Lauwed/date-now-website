@@ -17,7 +17,7 @@ window.addEventListener("load", async () => {
 	displayAuthForm(authContainer);
 
 	// Init endpoints
-	const tables = generateTablesEndpoints(data.tables);
+	const tables = generateTablesEndpoints(data);
 	appendCategories(endpointsContainer, tables);
 
 	expandAllButton = document.querySelector("button#expand-all");
@@ -298,7 +298,7 @@ const handleFetch = (
 	}
 
 	let body;
-	let headers = {};
+	const headers = {};
 
 	if (tokenRequired) {
 		headers.Authorization = `Bearer ${token}`;
@@ -308,7 +308,9 @@ const handleFetch = (
 		if (isMultipart && multipartFields) {
 			const formData = new FormData();
 			multipartFields.forEach((field) => {
-				const input = fetchContainer.querySelector(`#multipart-${field.name}`);
+				const input = fetchContainer.querySelector(
+					`#multipart-${field.name}`,
+				);
 				if (!input) return;
 				if (input.type === "file") {
 					if (input.files[0]) formData.append(field.name, input.files[0]);
@@ -318,8 +320,11 @@ const handleFetch = (
 			});
 			body = formData;
 		} else {
-			headers["Content-Type"] = "application/json";
-			body = fetchContainer.querySelector("textarea").value || "";
+			const textarea = fetchContainer.querySelector("textarea");
+			if (textarea) {
+				headers["Content-Type"] = "application/json";
+				body = textarea.value || "";
+			}
 		}
 	}
 
@@ -334,6 +339,7 @@ const getEndpointNode = (endpoint) => {
 		name,
 		method,
 		uri,
+		description,
 		tokenRequired,
 		responses,
 		uriParameters,
@@ -382,6 +388,11 @@ const getEndpointNode = (endpoint) => {
 	const content = document.createElement("div");
 	content.classList.add("endpoint__content");
 	container.appendChild(content);
+
+	const descriptionNode = document.createElement("p");
+	descriptionNode.classList.add("endpoint__description");
+	descriptionNode.innerHTML = description;
+	content.appendChild(descriptionNode);
 
 	const fetchContainer = document.createElement("form");
 	fetchContainer.classList.add("endpoint__fetch-container");
@@ -436,13 +447,14 @@ const getEndpointNode = (endpoint) => {
 	}
 
 	if (method === "POST" || method === "PUT") {
-		const fetchBody = document.createElement("div");
-		fetchBody.classList.add("endpoint__body-value");
-		fetchContainer.appendChild(fetchBody);
-
 		if (multipart && multipartFields && multipartFields.length > 0) {
+			const fetchBody = document.createElement("div");
+			fetchBody.classList.add("endpoint__body-value");
+			fetchContainer.appendChild(fetchBody);
+
 			const multipartTitle = document.createElement("h4");
-			multipartTitle.innerHTML = "Body <span class=\"tag\">multipart/form-data</span>";
+			multipartTitle.innerHTML =
+				'Body <span class="tag">multipart/form-data</span>';
 			fetchBody.appendChild(multipartTitle);
 
 			multipartFields.forEach((field) => {
@@ -453,7 +465,11 @@ const getEndpointNode = (endpoint) => {
 				};
 				fetchBody.appendChild(getFormControl(field.label, inputOpts));
 			});
-		} else {
+		} else if (body != null) {
+			const fetchBody = document.createElement("div");
+			fetchBody.classList.add("endpoint__body-value");
+			fetchContainer.appendChild(fetchBody);
+
 			const label = `Body`;
 			const inputOpts = {
 				type: "textarea",
@@ -477,7 +493,7 @@ const getEndpointNode = (endpoint) => {
 	schemasContainer.classList.add("endpoint__schemas");
 	content.appendChild(schemasContainer);
 
-	if (method === "POST" || method === "PUT") {
+	if ((method === "POST" || method === "PUT") && (body != null || multipart)) {
 		const bodyContainer = document.createElement("div");
 		bodyContainer.classList.add("endpoint__body");
 		schemasContainer.appendChild(bodyContainer);
