@@ -8,6 +8,7 @@ This file documents the structure of `api.json`, which drives the interactive AP
 
 - [Validation](#validation)
 - [Top-level structure](#top-level-structure)
+- [Settings object](#settings-object)
 - [defaultErrors object](#defaulterrors-object)
 - [Table object](#table-object)
 - [UriParameter object](#uriparameter-object)
@@ -94,6 +95,90 @@ The job exits with code `1` on any error, blocking the merge. Warnings do not fa
   "tables": [
     /* array of Table objects */
   ]
+}
+```
+
+---
+
+## Settings object
+
+The optional `settings` key at the root of `api.json` controls the branding and appearance of the documentation UI. All fields are optional unless otherwise noted.
+
+| Field        | Type              | Required | Description                                                          |
+| ------------ | ----------------- | -------- | -------------------------------------------------------------------- |
+| `title`      | `string`          | yes      | Brand name — sets `<title>` and the header `<h1>`                   |
+| `description`| `string`          | no       | Subtitle shown below the title in the header                        |
+| `version`    | `string`          | no       | API version string (semver recommended, e.g. `"1.0.0"`)             |
+| `baseUrl`    | `string`          | no       | Base path prepended to every API request (default: `"/api"`)        |
+| `logo`       | `string`          | no       | URL or path to a logo image displayed in the header                 |
+| `favicon`    | `string`          | no       | URL or path to the browser favicon                                  |
+| `links`      | `Link[]`          | no       | External navigation links rendered in the header nav                |
+| `theme`      | `ThemeColors`     | no       | Light-mode CSS variable overrides                                   |
+| `darkTheme`  | `DarkThemeColors` | no       | Dark-mode CSS variable overrides (applied inside `prefers-color-scheme: dark`) |
+
+### Link object
+
+| Field   | Type     | Required | Description          |
+| ------- | -------- | -------- | -------------------- |
+| `label` | `string` | yes      | Link text            |
+| `url`   | `string` | yes      | Absolute or relative URL |
+
+### ThemeColors object
+
+All values are hex color codes (`"#rrggbb"`) except the font fields which are CSS font-family strings. Only include the keys you want to override.
+
+| Field         | CSS variable      | Description                            |
+| ------------- | ----------------- | -------------------------------------- |
+| `accent`      | `--accent`        | Primary brand color (buttons, badges)  |
+| `accentLight` | `--accent-light`  | Light tint of the accent               |
+| `accentDark`  | `--accent-dark`   | Dark shade of the accent               |
+| `colorGet`    | `--blue`          | Color for GET method indicators        |
+| `colorPost`   | `--purple`        | Color for POST method indicators       |
+| `colorPut`    | `--orange`        | Color for PUT method indicators        |
+| `colorDelete` | `--red`           | Color for DELETE method indicators     |
+| `fontBody`    | `--font-body`     | CSS font-family string for body text   |
+| `fontMono`    | `--font-mono`     | CSS font-family string for code blocks |
+
+> **Note** — Method background colors (e.g. the tinted endpoint headers) are derived automatically using `rgb(from var(--blue) r g b / 0.15)`. Changing `colorGet` / `colorPost` / `colorPut` / `colorDelete` updates both the solid and transparent variants.
+
+### DarkThemeColors object
+
+Same as `ThemeColors` but without the font fields (font families are not mode-specific). Accepts the same color keys: `accent`, `accentLight`, `accentDark`, `colorGet`, `colorPost`, `colorPut`, `colorDelete`.
+
+### Full example
+
+```json
+"settings": {
+  "title": "Acme API",
+  "description": "Internal REST API for the Acme platform",
+  "version": "2.3.1",
+  "baseUrl": "/api",
+  "logo": "/assets/logo.svg",
+  "favicon": "/assets/favicon.ico",
+  "links": [
+    { "label": "GitHub", "url": "https://github.com/acme/api" },
+    { "label": "Status", "url": "https://status.acme.com" }
+  ],
+  "theme": {
+    "accent": "#e85d04",
+    "accentLight": "#fff0e0",
+    "accentDark": "#7c2900",
+    "colorGet": "#0077b6",
+    "colorPost": "#7b2d8b",
+    "colorPut": "#c77a00",
+    "colorDelete": "#c1121f",
+    "fontBody": "\"Inter\", sans-serif",
+    "fontMono": "\"Fira Code\", monospace"
+  },
+  "darkTheme": {
+    "accent": "#ff9f1c",
+    "accentLight": "#2a1800",
+    "accentDark": "#ffd166",
+    "colorGet": "#48cae4",
+    "colorPost": "#c77dff",
+    "colorPut": "#f4a261",
+    "colorDelete": "#e63946"
+  }
 }
 ```
 
@@ -569,6 +654,11 @@ Override per endpoint using `tokenRequired` on a `CustomEndpoint`, or per method
 
 **Caught by the linter**
 
+- [ ] `settings.title` is a non-empty string
+- [ ] `settings.version` follows semver format
+- [ ] `settings.baseUrl` starts with `/` or `http(s)://`
+- [ ] `settings.theme` / `settings.darkTheme` color values are valid hex codes
+- [ ] `settings.links` entries have both `label` and `url`
 - [ ] `name.singular` is unique across all tables
 - [ ] All `foreignKey-X` / `array-X` references point to an existing `name.singular`
 - [ ] `includedEndpoints` contains only recognized values

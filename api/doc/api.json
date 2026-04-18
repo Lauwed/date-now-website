@@ -1,4 +1,30 @@
 {
+  "settings": {
+    "title": "Date.now()",
+    "description": "API for the blog and CMS of Date.now()",
+    "version": "1.0.0",
+    "baseUrl": "/api",
+    "theme": {
+      "accent": "#1d9e75",
+      "accentLight": "#e1f5ee",
+      "accentDark": "#085041",
+      "colorGet": "#1a5fa8",
+      "colorPost": "#6b3a9e",
+      "colorPut": "#b84a0e",
+      "colorDelete": "#a8192e",
+      "fontBody": "\"General Sans\", sans-serif",
+      "fontMono": "\"JetBrainsMono Nerd\", monospace"
+    },
+    "darkTheme": {
+      "accent": "#2ec48f",
+      "accentLight": "#04342c",
+      "accentDark": "#a8f0d4",
+      "colorGet": "#5b9fd6",
+      "colorPost": "#a67dd4",
+      "colorPut": "#e07a45",
+      "colorDelete": "#d95f72"
+    }
+  },
   "defaultErrors": [
     {
       "code": 400,

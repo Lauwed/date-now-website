@@ -1,12 +1,13 @@
 let expandAllButton, collapseAllButton;
 let authContainer, errorAuth;
 let token;
+let apiBaseUrl = "/api";
 
 window.addEventListener("load", async () => {
   const res = await fetch("/doc/api.json");
   const data = await res.json();
 
-  console.log(data);
+  if (data.settings) applySettings(data.settings);
 
   const apiContainer = document.querySelector("#main");
   authContainer = apiContainer.querySelector("#auth");
@@ -102,13 +103,115 @@ const handleCollapseAll = () => {
   });
 };
 
+const applySettings = (settings) => {
+  // Title
+  const titleText = settings.title ?? "API Doc";
+  document.title = `${titleText} — API Doc`;
+  const h1 = document.querySelector(".header__title");
+  if (h1) h1.textContent = titleText;
+
+  // Description
+  if (settings.description) {
+    const desc = document.querySelector(".header__description");
+    if (desc) {
+      desc.textContent = settings.description;
+      desc.hidden = false;
+    }
+  }
+
+  // Version badge
+  if (settings.version) {
+    const versionEl = document.querySelector(".header__version");
+    if (versionEl) {
+      versionEl.textContent = `v${settings.version}`;
+      versionEl.hidden = false;
+    }
+  }
+
+  // Logo
+  if (settings.logo) {
+    const logoEl = document.querySelector(".header__logo");
+    if (logoEl) {
+      logoEl.src = settings.logo;
+      logoEl.alt = titleText;
+      logoEl.hidden = false;
+    }
+  }
+
+  // Favicon
+  if (settings.favicon) {
+    let link = document.querySelector('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = settings.favicon;
+  }
+
+  // External links
+  if (Array.isArray(settings.links) && settings.links.length > 0) {
+    const linksEl = document.querySelector(".header__links");
+    if (linksEl) {
+      settings.links.forEach(({ label, url }) => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.textContent = label;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.classList.add("header__link");
+        linksEl.appendChild(a);
+      });
+      linksEl.hidden = false;
+    }
+  }
+
+  // Base URL
+  if (settings.baseUrl) apiBaseUrl = settings.baseUrl;
+
+  // Theme (CSS custom properties)
+  const cssVars = buildThemeVars(settings.theme);
+  const darkCssVars = buildThemeVars(settings.darkTheme);
+
+  if (cssVars.length > 0 || darkCssVars.length > 0) {
+    const style = document.createElement("style");
+    let css = "";
+    if (cssVars.length > 0)
+      css += `:root { ${cssVars.join("; ")}; }\n`;
+    if (darkCssVars.length > 0)
+      css += `@media (prefers-color-scheme: dark) { :root { ${darkCssVars.join("; ")}; } }\n`;
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+};
+
+const buildThemeVars = (theme) => {
+  if (!theme) return [];
+  const vars = [];
+  const map = {
+    accent: "--accent",
+    accentLight: "--accent-light",
+    accentDark: "--accent-dark",
+    colorGet: "--blue",
+    colorPost: "--purple",
+    colorPut: "--orange",
+    colorDelete: "--red",
+    fontBody: "--font-body",
+    fontMono: "--font-mono",
+  };
+  for (const [key, cssVar] of Object.entries(map)) {
+    if (theme[key]) vars.push(`${cssVar}: ${theme[key]}`);
+  }
+  return vars;
+};
+
 const appendFetchedEndpointData = (
   parentNode,
   uri,
   method,
   opts,
 ) => {
-  const apiURI = `/api${uri}`;
+  const apiURI = `${apiBaseUrl}${uri}`;
 
   const fetchOpts = { method };
   if (opts !== undefined) {

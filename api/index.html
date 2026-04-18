@@ -4,7 +4,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Date.now() API Doc</title>
+	<title>API Doc</title>
 
 	<link rel=stylesheet href=https://cdn.jsdelivr.net/npm/pretty-print-json@3.0/dist/css/pretty-print-json.css>
 	<script src=https://cdn.jsdelivr.net/npm/pretty-print-json@3.0/dist/pretty-print-json.min.js></script>
@@ -13,10 +13,18 @@
 
 <body>
 	<header class="header">
-		<h1 class="header__title">Date.now() API Doc</h1>
+		<div class="header__brand">
+			<img class="header__logo" src="" alt="" hidden>
+			<div class="header__brand-text">
+				<h1 class="header__title"></h1>
+				<p class="header__description" hidden></p>
+			</div>
+		</div>
 
 		<nav class="header__nav">
-			<button type="submit" id="expand-all">Expand all</button>
+			<div class="header__links" hidden></div>
+			<span class="header__version" hidden></span>
+			<button type="button" id="expand-all">Expand all</button>
 			<button type="button" id="collapse-all">Collapse all</button>
 		</nav>
 	</header>

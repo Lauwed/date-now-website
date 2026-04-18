@@ -99,7 +99,136 @@ function isValidJson(str) {
   }
 }
 
+const VALID_THEME_KEYS = [
+  "accent",
+  "accentLight",
+  "accentDark",
+  "colorGet",
+  "colorPost",
+  "colorPut",
+  "colorDelete",
+  "fontBody",
+  "fontMono",
+];
+
+const VALID_DARK_THEME_KEYS = [
+  "accent",
+  "accentLight",
+  "accentDark",
+  "colorGet",
+  "colorPost",
+  "colorPut",
+  "colorDelete",
+];
+
 // ─── Validators ──────────────────────────────────────────────────────────────
+
+function isHexColor(value) {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value);
+}
+
+function validateThemeObject(theme, path, allowedKeys) {
+  if (typeof theme !== "object" || Array.isArray(theme) || theme === null) {
+    error(path, `must be a plain object`);
+    return;
+  }
+
+  for (const key of Object.keys(theme)) {
+    if (!allowedKeys.includes(key)) {
+      warn(path, `Unknown theme key "${key}" — valid keys: ${allowedKeys.join(", ")}`);
+    }
+  }
+
+  const colorKeys = ["accent", "accentLight", "accentDark", "colorGet", "colorPost", "colorPut", "colorDelete"];
+  for (const key of colorKeys) {
+    if (theme[key] === undefined) continue;
+    if (typeof theme[key] !== "string") {
+      error(`${path}.${key}`, `must be a string`);
+    } else if (!isHexColor(theme[key])) {
+      error(`${path}.${key}`, `must be a valid hex color (e.g. "#1d9e75") — got "${theme[key]}"`);
+    }
+  }
+
+  for (const key of ["fontBody", "fontMono"]) {
+    if (theme[key] === undefined) continue;
+    if (typeof theme[key] !== "string" || theme[key] === "") {
+      error(`${path}.${key}`, `must be a non-empty string`);
+    }
+  }
+}
+
+function validateSettings(settings, path) {
+  if (typeof settings !== "object" || Array.isArray(settings) || settings === null) {
+    error(path, `"settings" must be a plain object`);
+    return;
+  }
+
+  if (settings.title !== undefined) {
+    if (typeof settings.title !== "string" || settings.title === "") {
+      error(path, `"title" must be a non-empty string`);
+    }
+  }
+
+  if (settings.description !== undefined) {
+    if (typeof settings.description !== "string") {
+      error(path, `"description" must be a string`);
+    }
+  }
+
+  if (settings.version !== undefined) {
+    if (typeof settings.version !== "string" || settings.version === "") {
+      error(path, `"version" must be a non-empty string`);
+    } else if (!/^\d+\.\d+\.\d+/.test(settings.version)) {
+      warn(path, `"version" should follow semver format (e.g. "1.0.0") — got "${settings.version}"`);
+    }
+  }
+
+  if (settings.baseUrl !== undefined) {
+    if (typeof settings.baseUrl !== "string" || settings.baseUrl === "") {
+      error(path, `"baseUrl" must be a non-empty string`);
+    } else if (!settings.baseUrl.startsWith("/") && !/^https?:\/\//.test(settings.baseUrl)) {
+      warn(path, `"baseUrl" should start with "/" or "http(s)://" — got "${settings.baseUrl}"`);
+    }
+  }
+
+  if (settings.logo !== undefined && settings.logo !== null) {
+    if (typeof settings.logo !== "string" || settings.logo === "") {
+      error(path, `"logo" must be a non-empty string (URL or path)`);
+    }
+  }
+
+  if (settings.favicon !== undefined && settings.favicon !== null) {
+    if (typeof settings.favicon !== "string" || settings.favicon === "") {
+      error(path, `"favicon" must be a non-empty string (URL or path)`);
+    }
+  }
+
+  if (settings.links !== undefined) {
+    if (!Array.isArray(settings.links)) {
+      error(path, `"links" must be an array`);
+    } else if (settings.links.length === 0) {
+      warn(path, `"links" is empty — omit it if unused`);
+    } else {
+      settings.links.forEach((link, i) => {
+        const lp = `${path}.links[${i}]`;
+        if (!link.label || typeof link.label !== "string") {
+          error(lp, `Missing or invalid "label"`);
+        }
+        if (!link.url || typeof link.url !== "string") {
+          error(lp, `Missing or invalid "url"`);
+        }
+      });
+    }
+  }
+
+  if (settings.theme !== undefined) {
+    validateThemeObject(settings.theme, `${path}.theme`, VALID_THEME_KEYS);
+  }
+
+  if (settings.darkTheme !== undefined) {
+    validateThemeObject(settings.darkTheme, `${path}.darkTheme`, VALID_DARK_THEME_KEYS);
+  }
+}
 
 function validateUriParameters(params, path, { needsPrimary = false } = {}) {
   if (!Array.isArray(params)) {
@@ -826,6 +955,11 @@ try {
 if (!json.tables || !Array.isArray(json.tables)) {
   console.error(`  ❌  Root "tables" key is missing or not an array`);
   process.exit(1);
+}
+
+// Validate settings
+if (json.settings !== undefined) {
+  validateSettings(json.settings, "settings");
 }
 
 // Validate defaultErrors and collect known codes for cross-reference
