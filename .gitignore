@@ -2,5 +2,8 @@
 api/bin/*
 !api/bin/.gitkeep
 .env
+*.db
+*.swp
+compile_commands.json
 
 .claude/
