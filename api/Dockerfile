@@ -18,13 +18,16 @@ RUN apk add --no-cache \
     curl-dev \
     imagemagick-dev \
     pkgconfig \
-    bear
+    bear \
+    nodejs
 
 WORKDIR /app
 
 RUN mkdir -p bin obj/lib obj/endpoints obj/sql /var/www/uploads/media
 
 COPY . .
+
+RUN node doc/validate-json-schema.mjs doc/api.json
 
 RUN bear -- make
 

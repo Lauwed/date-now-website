@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <structs.h>
 #include <utils.h>
-#include <wand/MagickWand.h>
+#include <MagickWand/MagickWand.h>
 
 sqlite3 *db;
 

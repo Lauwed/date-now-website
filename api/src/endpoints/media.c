@@ -15,7 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <utils.h>
-#include <wand/MagickWand.h>
+#include <MagickWand/MagickWand.h>
 
 #define TEXT_ALT_REQUIRED_MESSAGE "textAlternatif is required and must not be empty."
 #define FILE_REQUIRED_MESSAGE "file is required."

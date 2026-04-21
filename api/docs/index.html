@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>API Doc</title>
+		<link rel="stylesheet" href="assets/styles/styles.css" />
+	</head>
+	<body>
+		<header class="header">
+			<div class="header__brand">
+				<img class="header__logo" src="" alt="" hidden />
+				<div class="header__brand-text">
+					<h1 class="header__title"></h1>
+					<p class="header__description" hidden></p>
+				</div>
+			</div>
+
+			<nav class="header__nav">
+				<div class="header__links" hidden></div>
+				<span class="header__version" hidden></span>
+				<button type="button" id="expand-all">Expand all</button>
+				<button type="button" id="collapse-all">Collapse all</button>
+			</nav>
+		</header>
+
+		<main id="main">
+			<section id="auth" class="auth"></section>
+			<section id="endpoints">
+				<h2>Endpoints</h2>
+			</section>
+		</main>
+
+		<script src="assets/scripts/pretty-json.js"></script>
+		<script src="assets/scripts/constants.js"></script>
+		<script src="assets/scripts/endpoints.js"></script>
+		<script src="assets/scripts/inputs.js"></script>
+		<script src="assets/scripts/script.js"></script>
+	</body>
+</html>
