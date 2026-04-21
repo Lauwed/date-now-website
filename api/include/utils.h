@@ -60,178 +60,102 @@ int str_to_slug(char *str, size_t len);
 
 /**
  * @brief Serialises an error_reply to JSON and allocates error_reply::json.
- * @param err Structure whose @c json field will be allocated.
- * @note Allocates @c err->json — caller must free it.
+ * @note Allocates @c err->json via cJSON — caller must free it.
  */
 void error_reply_to_json(struct error_reply *err);
 
 /**
  * @brief Serialises a list_reply to its JSON envelope and allocates list_reply::json.
- * @param reply Structure whose @c json field will be allocated.
- * @note Allocates @c reply->json — caller must free it.
+ * @note Allocates @c reply->json via cJSON — caller must free it.
+ *       @c reply->data must be a valid JSON array string (or NULL).
  */
 void list_reply_to_json(struct list_reply *reply);
 
-/** @brief Returns the size needed to serialise a media to JSON. */
-size_t media_to_json_len(struct media *media);
-
 /**
  * @brief Serialises a media to JSON.
- * @param media Media to serialise (NULL → returns the static literal "null").
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when media != NULL — caller must free.
+ * @note Caller must free the returned string when it is not "null".
  */
 char *media_to_json(struct media *media);
 
-/**
- * @brief Serialises an array of media objects to a JSON array.
- * @param medias Array of pointers (may be NULL when len == 0).
- * @param len    Number of elements.
- * @return Dynamically allocated JSON string (e.g. "[{...},{...}]" or "[]").
- * @note Allocates the returned string — caller must free (except for the
- *       static literal "[]" returned when len == 0).
- */
+/** @brief Serialises an array of media to a JSON array. */
 char *medias_to_json(struct media **medias, size_t len);
-
-/** @brief Returns the size needed to serialise a user to JSON. */
-size_t user_to_json_len(struct user *user);
 
 /**
  * @brief Serialises a user to JSON.
- * @param user User to serialise (NULL → returns the static literal "null").
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when user != NULL — caller must free.
+ * @note Caller must free the returned string when it is not "null".
  */
 char *user_to_json(struct user *user);
 
-/**
- * @brief Serialises an array of users to a JSON array.
- * @return Dynamically allocated JSON string, or the static literal "[]".
- * @note Allocates the returned string (except "[]") — caller must free.
- */
+/** @brief Serialises an array of users to a JSON array. */
 char *users_to_json(struct user **users, size_t len);
-
-/** @brief Returns the size needed to serialise a view to JSON. */
-size_t view_to_json_len(struct view *view);
 
 /**
  * @brief Serialises a view to JSON.
- * @param view View to serialise (NULL → returns the static literal "null").
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when view != NULL — caller must free.
+ * @note Caller must free the returned string when it is not "null".
  */
 char *view_to_json(struct view *view);
 
-/**
- * @brief Serialises an array of views to a JSON array.
- * @return Dynamically allocated JSON string, or the static literal "[]".
- * @note Allocates the returned string (except "[]") — caller must free.
- */
+/** @brief Serialises an array of views to a JSON array. */
 char *views_to_json(struct view **views, size_t len);
-
-/** @brief Returns the size needed to serialise a tag to JSON. */
-size_t tag_to_json_len(struct tag *tag);
 
 /**
  * @brief Serialises a tag to JSON.
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when tag != NULL — caller must free.
+ * @note Caller must free the returned string when it is not "null".
  */
 char *tag_to_json(struct tag *tag);
 
-/**
- * @brief Serialises an array of tags to a JSON array.
- * @return Dynamically allocated JSON string, or the static literal "[]".
- * @note Allocates the returned string (except "[]") — caller must free.
- */
+/** @brief Serialises an array of tags to a JSON array. */
 char *tags_to_json(struct tag **tags, size_t len);
-
-/** @brief Returns the size needed to serialise a sponsor to JSON. */
-size_t sponsor_to_json_len(struct sponsor *sponsor);
 
 /**
  * @brief Serialises a sponsor to JSON.
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when sponsor != NULL — caller must free.
+ * @note Caller must free the returned string when it is not "null".
  */
 char *sponsor_to_json(struct sponsor *sponsor);
 
-/**
- * @brief Serialises an array of sponsors to a JSON array.
- * @return Dynamically allocated JSON string, or the static literal "[]".
- * @note Allocates the returned string (except "[]") — caller must free.
- */
+/** @brief Serialises an array of sponsors to a JSON array. */
 char *sponsors_to_json(struct sponsor **sponsors, size_t len);
-
-/** @brief Returns the size needed to serialise an issue to JSON. */
-size_t issue_to_json_len(struct issue *issue);
 
 /**
  * @brief Serialises an issue to JSON (including cover, tags, authors, sponsors).
- * @param issue Issue to serialise (NULL → returns the static literal "null").
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when issue != NULL — caller must free.
- *       Internal sub-serialisations (cover, tags, etc.) are allocated and
- *       freed internally.
+ * @note Caller must free the returned string when it is not "null".
  */
 char *issue_to_json(struct issue *issue);
 
-/**
- * @brief Serialises an array of issues to a JSON array.
- * @return Dynamically allocated JSON string, or the static literal "[]".
- * @note Allocates the returned string (except "[]") — caller must free.
- */
+/** @brief Serialises an array of issues to a JSON array. */
 char *issues_to_json(struct issue **issues, size_t len);
-
-/** @brief Returns the size needed to serialise an issue_author to JSON. */
-size_t issue_author_to_json_len(struct issue_author *issue);
 
 /**
  * @brief Serialises an issue_author association to JSON.
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when issue != NULL — caller must free.
  */
 char *issue_author_to_json(struct issue_author *issue);
 
-/**
- * @brief Serialises an array of issue_author associations to a JSON array.
- * @return Dynamically allocated JSON string, or the static literal "[]".
- * @note Allocates the returned string (except "[]") — caller must free.
- */
+/** @brief Serialises an array of issue_author associations to a JSON array. */
 char *issue_authors_to_json(struct issue_author **issues, size_t len);
-
-/** @brief Returns the size needed to serialise an issue_sponsor to JSON. */
-size_t issue_sponsor_to_json_len(struct issue_sponsor *issue);
 
 /**
  * @brief Serialises an issue_sponsor association to JSON.
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when issue != NULL — caller must free.
  */
 char *issue_sponsor_to_json(struct issue_sponsor *issue);
 
-/**
- * @brief Serialises an array of issue_sponsor associations to a JSON array.
- * @return Dynamically allocated JSON string, or the static literal "[]".
- * @note Allocates the returned string (except "[]") — caller must free.
- */
+/** @brief Serialises an array of issue_sponsor associations to a JSON array. */
 char *issue_sponsors_to_json(struct issue_sponsor **issues, size_t len);
-
-/** @brief Returns the size needed to serialise an issue_tag to JSON. */
-size_t issue_tag_to_json_len(struct issue_tag *issue);
 
 /**
  * @brief Serialises an issue_tag association to JSON.
  * @return Dynamically allocated JSON string, or the static literal "null".
- * @note Allocates the returned string when issue != NULL — caller must free.
  */
 char *issue_tag_to_json(struct issue_tag *issue);
 
-/**
- * @brief Serialises an array of issue_tag associations to a JSON array.
- * @return Dynamically allocated JSON string, or the static literal "[]".
- * @note Allocates the returned string (except "[]") — caller must free.
- */
+/** @brief Serialises an array of issue_tag associations to a JSON array. */
 char *issue_tags_to_json(struct issue_tag **issues, size_t len);
 
 

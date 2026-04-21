@@ -10,7 +10,8 @@
  * contains:
  * - @c c           — a `struct mg_connection *`
  * - @c error_reply — a `struct error_reply *`  (ERROR_REPLY_* only)
- * - @c query_code  — an `int`                   (HANDLE_QUERY_CODE / ERROR_REPLY_SQL only)
+ * - @c query_code  — an `int`                   (HANDLE_QUERY_CODE /
+ * ERROR_REPLY_SQL only)
  * - @c msg         — a `struct mg_http_message *` (REQUIRED_BODY_PROPERTY only)
  *
  * Memory contract for ERROR_REPLY_* macros:
@@ -19,60 +20,62 @@
  *   write buffer before returning.
  */
 
-#define JSON_HEADER "Content-Type: application/json\r\n"
+extern char g_json_header[]; // défini dans main.c
+#define JSON_HEADER g_json_header
 
 /* Generic request errors */
-#define BODY_REQUIRED_MESSAGE        "BODY IS REQUIRED"
-#define JSON_ERROR_MESSAGE           "JSON IS NOT VALID"
-#define BAD_REQUEST_MESSAGE          "Bad request."
-#define UNAUTHORIZED_MESSAGE         "Not authorized"
+#define BODY_REQUIRED_MESSAGE "BODY IS REQUIRED"
+#define JSON_ERROR_MESSAGE "JSON IS NOT VALID"
+#define BAD_REQUEST_MESSAGE "Bad request."
+#define UNAUTHORIZED_MESSAGE "Not authorized"
 
 /* Auth / JWT errors */
-#define EMAIL_ERROR_MESSAGE          "ERROR WHILE SENDING EMAIL"
+#define EMAIL_ERROR_MESSAGE "ERROR WHILE SENDING EMAIL"
 #define EMAIL_VALIDITY_ERROR_MESSAGE "EMAIL IS NOT VALID"
-#define JWT_EXPIRED_MESSAGE          "JWT expired"
-#define BAD_JWT_MESSAGE              "Wrong signature or token invalid"
-#define WRONG_JWT_TYPE_MESSAGE       "Wrong type of JWT"
+#define JWT_EXPIRED_MESSAGE "JWT expired"
+#define BAD_JWT_MESSAGE "Wrong signature or token invalid"
+#define WRONG_JWT_TYPE_MESSAGE "Wrong type of JWT"
 
 /* Shared resource validation messages */
-#define USER_EXISTS_MESSAGE          "The user already exists."
-#define EMAIL_REQUIRED_MESSAGE       "Email is required."
-#define NAME_REQUIRED_MESSAGE        "The name is required."
-#define LINK_REQUIRED_MESSAGE        "The link is required."
+#define USER_EXISTS_MESSAGE "The user already exists."
+#define EMAIL_REQUIRED_MESSAGE "Email is required."
+#define NAME_REQUIRED_MESSAGE "The name is required."
+#define LINK_REQUIRED_MESSAGE "The link is required."
 
 /* Auth endpoint messages */
-#define NO_TOKEN_MESSAGE              "No token given."
-#define USERNAME_REQUIRED_MESSAGE     "Username is required."
-#define TOKEN_REQUIRED_MESSAGE        "Token is required."
-#define CODE_REQUIRED_MESSAGE         "Code is required."
+#define NO_TOKEN_MESSAGE "No token given."
+#define USERNAME_REQUIRED_MESSAGE "Username is required."
+#define TOKEN_REQUIRED_MESSAGE "Token is required."
+#define CODE_REQUIRED_MESSAGE "Code is required."
 
 /* Issue endpoint messages */
-#define ISSUE_EXISTS_MESSAGE             "The issue already exists."
-#define ISSUE_ALREADY_PUBLISHED_MESSAGE  "Issue is already published."
-#define TITLE_REQUIRED_MESSAGE           "Title is required."
-#define ISSUE_NUMBER_REQUIRED_MESSAGE    "Issue number is required."
-#define STATUS_FORMAT_MESSAGE            \
+#define ISSUE_EXISTS_MESSAGE "The issue already exists."
+#define ISSUE_ALREADY_PUBLISHED_MESSAGE "Issue is already published."
+#define TITLE_REQUIRED_MESSAGE "Title is required."
+#define ISSUE_NUMBER_REQUIRED_MESSAGE "Issue number is required."
+#define STATUS_FORMAT_MESSAGE                                                  \
   "Value of 'status' should be 'DRAFT', 'PUBLISHED' or 'ARCHIVE'."
 
 /* User endpoint messages */
-#define ROLE_FORMAT_MESSAGE  "Value of 'role' should be 'USER' or 'AUTHOR'."
+#define ROLE_FORMAT_MESSAGE "Value of 'role' should be 'USER' or 'AUTHOR'."
 
 /* Tag endpoint messages */
-#define TAG_EXISTS_MESSAGE     "The tag already exists."
+#define TAG_EXISTS_MESSAGE "The tag already exists."
 #define COLOR_REQUIRED_MESSAGE "The color is required."
 
 /* Sponsor endpoint messages */
 #define SPONSOR_EXISTS_MESSAGE "The sponsor already exists."
 
 /* Media endpoint messages */
-#define TEXT_ALT_REQUIRED_MESSAGE "textAlternatif is required and must not be empty."
-#define FILE_REQUIRED_MESSAGE     "file is required."
-#define FILE_TOO_LARGE_MESSAGE    "File must not exceed 5MB."
-#define FILE_NOT_IMAGE_MESSAGE    "File must be an image."
+#define TEXT_ALT_REQUIRED_MESSAGE                                              \
+  "textAlternatif is required and must not be empty."
+#define FILE_REQUIRED_MESSAGE "file is required."
+#define FILE_TOO_LARGE_MESSAGE "File must not exceed 5MB."
+#define FILE_NOT_IMAGE_MESSAGE "File must be an image."
 
 /* View endpoint messages */
 #define HASHED_IP_REQUIRED_MESSAGE "The hashed IP is required."
-#define ISSUE_REQUIRED_MESSAGE     "The issue ID is required."
+#define ISSUE_REQUIRED_MESSAGE "The issue ID is required."
 
 /* -------------------------------------------------------------------------
  * Error reply macros
@@ -83,51 +86,51 @@
 #define ERROR_REPLY_500                                                        \
   error_reply_map(error_reply, 500, "Internal error", 500);                    \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
+  free(error_reply->json);                                                     \
   error_reply->json = NULL;
 
 /** @brief Reply with HTTP 500 and a SQL query error JSON body. */
 #define ERROR_REPLY_SQL                                                        \
   error_reply_map(error_reply, query_code, "Error SQL Query.", 500);           \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
+  free(error_reply->json);                                                     \
   error_reply->json = NULL;
 
 /** @brief Reply with HTTP 405 Method Not Allowed. */
 #define ERROR_REPLY_405                                                        \
   error_reply_map(error_reply, 405, "Method not allowed", 405);                \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
+  free(error_reply->json);                                                     \
   error_reply->json = NULL;
 
 /** @brief Reply with HTTP 400 Bad Request and the given @p message. */
 #define ERROR_REPLY_400(message)                                               \
   error_reply_map(error_reply, 400, message, 400);                             \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
-  error_reply->json = NULL;                                                     \
+  free(error_reply->json);                                                     \
+  error_reply->json = NULL;                                                    \
   fprintf(stderr, TERMINAL_ERROR_MESSAGE(message));
 
 /** @brief Reply with HTTP 404 Not Found. */
 #define ERROR_REPLY_404                                                        \
   error_reply_map(error_reply, 404, "Not found", 404);                         \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
+  free(error_reply->json);                                                     \
   error_reply->json = NULL;
 
 /** @brief Reply with HTTP 401 Unauthorized. */
 #define ERROR_REPLY_401                                                        \
   error_reply_map(error_reply, 401, "Not authorized", 401);                    \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
+  free(error_reply->json);                                                     \
   error_reply->json = NULL;
 
 /** @brief Reply with HTTP 409 Conflict and the given @p message. */
 #define ERROR_REPLY_409(message)                                               \
   error_reply_map(error_reply, 409, message, 409);                             \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
-  error_reply->json = NULL;                                                     \
+  free(error_reply->json);                                                     \
+  error_reply->json = NULL;                                                    \
   fprintf(stderr, TERMINAL_ERROR_MESSAGE(message));
 
 /** @brief Reply with HTTP 429 Too Many Requests. */
@@ -139,16 +142,17 @@
 #define ERROR_REPLY_413(message)                                               \
   error_reply_map(error_reply, 413, message, 413);                             \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
-  error_reply->json = NULL;                                                     \
+  free(error_reply->json);                                                     \
+  error_reply->json = NULL;                                                    \
   fprintf(stderr, TERMINAL_ERROR_MESSAGE(message));
 
-/** @brief Reply with HTTP 415 Unsupported Media Type and the given @p message. */
+/** @brief Reply with HTTP 415 Unsupported Media Type and the given @p message.
+ */
 #define ERROR_REPLY_415(message)                                               \
   error_reply_map(error_reply, 415, message, 415);                             \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
-  free(error_reply->json);                                                      \
-  error_reply->json = NULL;                                                     \
+  free(error_reply->json);                                                     \
+  error_reply->json = NULL;                                                    \
   fprintf(stderr, TERMINAL_ERROR_MESSAGE(message));
 
 /* -------------------------------------------------------------------------

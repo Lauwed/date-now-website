@@ -132,8 +132,8 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     if (reply->count > 0) {
       free_issues(issues, reply->count);
       free(reply->data);
-      free(reply->json);
     }
+    free(reply->json);
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
@@ -194,8 +194,9 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
 
     offset = mg_json_get(msg->body, "$.slug", &length);
     if (offset > 0) {
-      char *slug = malloc(length);
+      slug = malloc(length);
       strncpy(slug, msg->body.buf + offset + 1, length - 2);
+      slug[length - 2] = '\0';
     } else {
       slug = strdup(title);
       str_to_slug(slug, strlen(slug));
@@ -366,8 +367,9 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
 
     offset = mg_json_get(msg->body, "$.slug", &length);
     if (offset >= 0) {
-      char *slug = malloc(length);
+      slug = malloc(length);
       strncpy(slug, msg->body.buf + offset + 1, length - 2);
+      slug[length - 2] = '\0';
     }
 
     if (title != NULL || issue_number > 0 || slug != NULL) {

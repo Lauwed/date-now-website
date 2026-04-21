@@ -126,8 +126,8 @@ void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     if (reply->count > 0) {
       free_issue_tags(issues, reply->count);
       free(reply->data);
-      free(reply->json);
     }
+    free(reply->json);
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged

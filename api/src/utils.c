@@ -5,6 +5,7 @@
  *        structure initialisation, and memory management.
  */
 
+#include <cjson/cJSON.h>
 #include <lib/mongoose.h>
 #include <macros/colors.h>
 #include <macros/utils.h>
@@ -49,30 +50,6 @@
     dest = 0;                                                                  \
   }
 
-#define ERROR_REPLY_JSON "{\"code\":%d,\"message\":\"%s\"}"
-#define LIST_REPLY_JSON                                                        \
-  "{\"data\":%s,\"count\":%d,\"total\":%d,\"totalPages\":%d}"
-#define MEDIA_JSON                                                             \
-  "{\"id\":%d,\"alt\":\"%s\",\"url\":\"%s\",\"width\":%f,\"height\":%f}"
-#define USER_JSON                                                              \
-  "{\"id\":%d,\"username\":%s,\"email\":\"%s\",\"role\":\"%s\",\"link\":%"     \
-  "s,\"picture\":%s,\"subscribedAt\":%d,\"isSupporter\":%d,\"createdAt\":%d}"
-#define ISSUE_JSON                                                             \
-  "{\"id\":%d,\"slug\":\"%s\",\"title\":\"%s\",\"subtitle\":\"%s\",\"cover\":" \
-  "%s,\"createdAt\":%d,\"publishedAt\":%d,\"updatedAt\":%d,\"issueNumber\":"   \
-  "%d,\"excerpt\":\"%s\",\"content\":\"%s\",\"isSponsored\":%d,\"status\":\"%" \
-  "s\",\"openedMailCount\":%d,\"tags\":%s,\"authors\":%s,\"sponsors\":%s}"
-#define TAG_JSON "{\"name\":\"%s\",\"color\":\"%s\"}"
-#define SPONSOR_JSON "{\"name\":\"%s\",\"link\":\"%s\"}"
-#define ISSUE_AUTHOR_JSON "{\"userId\":%d,\"issueId\":%d}"
-#define ISSUE_SPONSOR_JSON                                                     \
-  "{\"sponsorName\":\"%s\",\"issueId\":%d,\"link\":\"%s\"}"
-#define ISSUE_TAG_JSON "{\"tagName\":\"%s\",\"issueId\":%d}"
-#define VIEW_JSON "{\"id\":%d,\"time\":%d,\"hashedIp\":\"%s\",\"issueId\":%d}"
-
-const size_t NULL_SIZE = strlen("null") * sizeof(char);
-const size_t DOUBLE_QUOTES_SIZE = strlen("\"\"") * sizeof(char);
-const size_t COMMA_SIZE = strlen(",") * sizeof(char);
 
 static void trim(char *str) {
   int len = strlen(str);
@@ -171,633 +148,304 @@ int str_to_slug(char *str, size_t len) {
   return 0;
 }
 
-/** JSON PARSE UTILS */
-void error_reply_to_json(struct error_reply *err) {
-  size_t len = snprintf(NULL, 0, ERROR_REPLY_JSON, err->code, err->message) + 1;
+/** JSON SERIALISATION */
 
-  err->json = malloc(len);
-  sprintf(err->json, ERROR_REPLY_JSON, err->code, err->message);
+void error_reply_to_json(struct error_reply *err) {
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "code", err->code);
+  cJSON_AddStringToObject(obj, "message", err->message);
+  err->json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
 }
 
 void list_reply_to_json(struct list_reply *reply) {
-  size_t len = snprintf(NULL, 0, LIST_REPLY_JSON, reply->data, reply->count,
-                        reply->total, reply->total_pages) +
-               1;
-
-  reply->json = malloc(len);
-  sprintf(reply->json, LIST_REPLY_JSON, reply->data, reply->count, reply->total,
-          reply->total_pages);
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddRawToObject(obj, "data", reply->data ? reply->data : "[]");
+  cJSON_AddNumberToObject(obj, "count", reply->count);
+  cJSON_AddNumberToObject(obj, "total", reply->total);
+  cJSON_AddNumberToObject(obj, "totalPages", reply->total_pages);
+  reply->json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
 }
 
-size_t media_to_json_len(struct media *media) {
-  if (media == NULL) {
-    return NULL_SIZE;
-  }
-
-  return snprintf(NULL, 0, MEDIA_JSON, media->id, media->alternative_text,
-                  media->url, media->width, media->height) +
-         1;
+static cJSON *media_to_cjson(struct media *media) {
+  if (media == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "id", media->id);
+  cJSON_AddStringToObject(obj, "alt", media->alternative_text);
+  cJSON_AddStringToObject(obj, "url", media->url);
+  cJSON_AddNumberToObject(obj, "width", media->width);
+  cJSON_AddNumberToObject(obj, "height", media->height);
+  return obj;
 }
 
 char *media_to_json(struct media *media) {
-  if (media == NULL) {
-    return "null";
-  }
-
-  char *json = NULL;
-  json = malloc(media_to_json_len(media));
-
-  int len = sprintf(json, MEDIA_JSON, media->id, media->alternative_text,
-                    media->url, media->width, media->height);
-
+  if (media == NULL) return "null";
+  cJSON *obj = media_to_cjson(media);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
   return json;
 }
 
 char *medias_to_json(struct media **medias, size_t len) {
-  size_t json_len = 0;
-  for (size_t i = 0; i < len; i += 1) {
-    json_len += media_to_json_len(medias[i]);
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *medias_json = malloc(json_len + 1);
-  medias_json[0] = '\0';
-  for (size_t i = 0; i < len; i += 1) {
-    char *m = media_to_json(medias[i]);
-    strcat(medias_json, m);
-    if (i < len - 1)
-      strcat(medias_json, ",");
-    if (strcmp(m, "null") != 0)
-      free(m);
-  }
-
-  char *json;
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", medias_json) + 1);
-    sprintf(json, "[%s]", medias_json);
-  } else {
-    json = "[]";
-  }
-
-  free(medias_json);
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, media_to_cjson(medias[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
   return json;
 }
 
-size_t user_to_json_len(struct user *user) {
-  if (user == NULL) {
-    return NULL_SIZE;
-  }
-
-  char *username = "null";
-  if (user->username != NULL) {
-    username = malloc(snprintf(NULL, 0, "\"%s\"", user->username) + 1);
-    sprintf(username, "\"%s\"", user->username);
-  }
-
-  char *link = "null";
-  if (user->link != NULL) {
-    link = malloc(snprintf(NULL, 0, "\"%s\"", user->link) + 1);
-    sprintf(link, "\"%s\"", user->link);
-  }
-
-  int len =
-      snprintf(NULL, 0, USER_JSON, user->id, username, user->email, user->role,
-               link, media_to_json(user->picture), user->subscribed_at,
-               user->is_supporter, user->created_at) +
-      1;
-
-  if (strcmp(link, "null") != 0)
-    free(link);
-
-  if (strcmp(username, "null") != 0)
-    free(username);
-
-  return len;
+static cJSON *user_to_cjson(struct user *user) {
+  if (user == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "id", user->id);
+  if (user->username != NULL)
+    cJSON_AddStringToObject(obj, "username", user->username);
+  else
+    cJSON_AddNullToObject(obj, "username");
+  cJSON_AddStringToObject(obj, "email", user->email);
+  cJSON_AddStringToObject(obj, "role", user->role);
+  if (user->link != NULL)
+    cJSON_AddStringToObject(obj, "link", user->link);
+  else
+    cJSON_AddNullToObject(obj, "link");
+  cJSON_AddItemToObject(obj, "picture", media_to_cjson(user->picture));
+  cJSON_AddNumberToObject(obj, "subscribedAt", user->subscribed_at);
+  cJSON_AddNumberToObject(obj, "isSupporter", user->is_supporter);
+  cJSON_AddNumberToObject(obj, "createdAt", user->created_at);
+  return obj;
 }
 
 char *user_to_json(struct user *user) {
-  if (user == NULL) {
-    return "null";
-  }
-
-  char *username = "null";
-  if (user->username != NULL) {
-    username = malloc(snprintf(NULL, 0, "\"%s\"", user->username) + 1);
-    sprintf(username, "\"%s\"", user->username);
-  }
-
-  char *link = "null";
-  if (user->link != NULL) {
-    link = malloc(snprintf(NULL, 0, "\"%s\"", user->link) + 1);
-    sprintf(link, "\"%s\"", user->link);
-  }
-
-  char *json = NULL;
-  json = malloc(user_to_json_len(user));
-
-  sprintf(json, USER_JSON, user->id, username, user->email, user->role, link,
-          media_to_json(user->picture), user->subscribed_at, user->is_supporter,
-          user->created_at);
-
-  if (strcmp(link, "null") != 0)
-    free(link);
-
-  if (strcmp(username, "null") != 0)
-    free(username);
-
+  if (user == NULL) return "null";
+  cJSON *obj = user_to_cjson(user);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
   return json;
 }
 
 char *users_to_json(struct user **users, size_t len) {
-  char *json = NULL;
-
-  size_t json_len = 0;
-  for (int i = 0; i < len; i += 1) {
-    json_len += user_to_json_len(users[i]);
-
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *users_json = malloc(json_len + 1);
-  users_json[0] = '\0';
-  for (int i = 0; i < len; i += 1) {
-    char *user = user_to_json(users[i]);
-
-    strcat(users_json, user);
-    if (i < len - 1)
-      strcat(users_json, ",");
-
-    if (strcmp(user, "null"))
-      free(user);
-  }
-
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", users_json) + 1);
-    sprintf(json, "[%s]", users_json);
-  } else {
-    json = "[]";
-  }
-
-  free(users_json);
-
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, user_to_cjson(users[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
   return json;
 }
 
-size_t view_to_json_len(struct view *view) {
-  if (view == NULL) {
-    return NULL_SIZE;
-  }
-
-  int len = snprintf(NULL, 0, VIEW_JSON, view->id, view->time, view->hashed_ip,
-                     view->issue_id) +
-            1;
-
-  return len;
+static cJSON *view_to_cjson(struct view *view) {
+  if (view == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "id", view->id);
+  cJSON_AddNumberToObject(obj, "time", view->time);
+  cJSON_AddStringToObject(obj, "hashedIp", view->hashed_ip);
+  cJSON_AddNumberToObject(obj, "issueId", view->issue_id);
+  return obj;
 }
 
 char *view_to_json(struct view *view) {
-  if (view == NULL) {
-    return "null";
-  }
-
-  char *json = NULL;
-  json = malloc(view_to_json_len(view));
-
-  sprintf(json, VIEW_JSON, view->id, view->time, view->hashed_ip,
-          view->issue_id);
-
+  if (view == NULL) return "null";
+  cJSON *obj = view_to_cjson(view);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
   return json;
 }
 
 char *views_to_json(struct view **views, size_t len) {
-  char *json = NULL;
-
-  size_t json_len = 0;
-  for (int i = 0; i < len; i += 1) {
-    json_len += view_to_json_len(views[i]);
-
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *views_json = malloc(json_len + 1);
-  views_json[0] = '\0';
-  for (int i = 0; i < len; i += 1) {
-    char *view = view_to_json(views[i]);
-
-    strcat(views_json, view);
-    if (i < len - 1)
-      strcat(views_json, ",");
-
-    if (strcmp(view, "null"))
-      free(view);
-  }
-
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", views_json) + 1);
-    sprintf(json, "[%s]", views_json);
-  } else {
-    json = "[]";
-  }
-
-  free(views_json);
-
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, view_to_cjson(views[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
   return json;
 }
 
-size_t tag_to_json_len(struct tag *tag) {
-  if (tag == NULL) {
-    return NULL_SIZE;
-  }
-
-  int len = snprintf(NULL, 0, TAG_JSON, tag->name, tag->color) + 1;
-
-  return len;
+static cJSON *tag_to_cjson(struct tag *tag) {
+  if (tag == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddStringToObject(obj, "name", tag->name);
+  cJSON_AddStringToObject(obj, "color", tag->color);
+  return obj;
 }
 
 char *tag_to_json(struct tag *tag) {
-  if (tag == NULL) {
-    return "null";
-  }
-
-  char *json = NULL;
-  json = malloc(tag_to_json_len(tag));
-
-  sprintf(json, TAG_JSON, tag->name, tag->color);
-
+  if (tag == NULL) return "null";
+  cJSON *obj = tag_to_cjson(tag);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
   return json;
 }
 
 char *tags_to_json(struct tag **tags, size_t len) {
-  char *json = NULL;
-
-  size_t json_len = 0;
-  for (int i = 0; i < len; i += 1) {
-    json_len += tag_to_json_len(tags[i]);
-
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *tags_json = malloc(json_len + 1);
-  tags_json[0] = '\0';
-  for (int i = 0; i < len; i += 1) {
-    char *tag = tag_to_json(tags[i]);
-
-    strcat(tags_json, tag);
-    if (i < len - 1)
-      strcat(tags_json, ",");
-
-    if (strcmp(tag, "null"))
-      free(tag);
-  }
-
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", tags_json) + 1);
-    sprintf(json, "[%s]", tags_json);
-  } else {
-    json = "[]";
-  }
-
-  free(tags_json);
-
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, tag_to_cjson(tags[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
   return json;
 }
 
-size_t sponsor_to_json_len(struct sponsor *sponsor) {
-  if (sponsor == NULL) {
-    return NULL_SIZE;
-  }
-
-  int len = snprintf(NULL, 0, SPONSOR_JSON, sponsor->name, sponsor->link) + 1;
-
-  return len;
+static cJSON *sponsor_to_cjson(struct sponsor *sponsor) {
+  if (sponsor == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddStringToObject(obj, "name", sponsor->name);
+  cJSON_AddStringToObject(obj, "link", sponsor->link);
+  return obj;
 }
 
 char *sponsor_to_json(struct sponsor *sponsor) {
-  if (sponsor == NULL) {
-    return "null";
-  }
-
-  char *json = NULL;
-  json = malloc(sponsor_to_json_len(sponsor));
-
-  sprintf(json, SPONSOR_JSON, sponsor->name, sponsor->link);
-
+  if (sponsor == NULL) return "null";
+  cJSON *obj = sponsor_to_cjson(sponsor);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
   return json;
 }
 
 char *sponsors_to_json(struct sponsor **sponsors, size_t len) {
-  char *json = NULL;
-
-  size_t json_len = 0;
-  for (int i = 0; i < len; i += 1) {
-    json_len += sponsor_to_json_len(sponsors[i]);
-
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *sponsors_json = malloc(json_len + 1);
-  sponsors_json[0] = '\0';
-  for (int i = 0; i < len; i += 1) {
-    char *sponsor = sponsor_to_json(sponsors[i]);
-
-    strcat(sponsors_json, sponsor);
-    if (i < len - 1)
-      strcat(sponsors_json, ",");
-
-    if (strcmp(sponsor, "null"))
-      free(sponsor);
-  }
-
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", sponsors_json) + 1);
-    sprintf(json, "[%s]", sponsors_json);
-  } else {
-    json = "[]";
-  }
-
-  free(sponsors_json);
-
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, sponsor_to_cjson(sponsors[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
   return json;
 }
 
-size_t issue_to_json_len(struct issue *issue) {
-  if (issue == NULL) {
-    return NULL_SIZE;
-  }
+static cJSON *issue_tag_to_cjson(struct issue_tag *it) {
+  if (it == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddStringToObject(obj, "tagName", it->tag_name);
+  cJSON_AddNumberToObject(obj, "issueId", it->issue_id);
+  return obj;
+}
 
-  int len =
-      snprintf(NULL, 0, ISSUE_JSON, issue->id, issue->slug, issue->title,
-               issue->subtitle, media_to_json(issue->cover), issue->created_at,
-               issue->published_at, issue->updated_at, issue->issue_number,
-               issue->excerpt, issue->content, issue->is_sponsored,
-               issue->status, issue->opened_mail_count,
-               issue_tags_to_json(issue->tags, issue->tags_count),
-               users_to_json(issue->authors, issue->authors_count),
-               issue_sponsors_to_json(issue->sponsors, issue->sponsors_count)) +
-      1;
+char *issue_tag_to_json(struct issue_tag *it) {
+  if (it == NULL) return "null";
+  cJSON *obj = issue_tag_to_cjson(it);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+  return json;
+}
 
-  return len;
+char *issue_tags_to_json(struct issue_tag **its, size_t len) {
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, issue_tag_to_cjson(its[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+  return json;
+}
+
+static cJSON *issue_author_to_cjson(struct issue_author *ia) {
+  if (ia == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "userId", ia->user_id);
+  cJSON_AddNumberToObject(obj, "issueId", ia->issue_id);
+  return obj;
+}
+
+char *issue_author_to_json(struct issue_author *ia) {
+  if (ia == NULL) return "null";
+  cJSON *obj = issue_author_to_cjson(ia);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+  return json;
+}
+
+char *issue_authors_to_json(struct issue_author **ias, size_t len) {
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, issue_author_to_cjson(ias[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+  return json;
+}
+
+static cJSON *issue_sponsor_to_cjson(struct issue_sponsor *is) {
+  if (is == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddStringToObject(obj, "sponsorName", is->sponsor_name);
+  cJSON_AddNumberToObject(obj, "issueId", is->issue_id);
+  cJSON_AddStringToObject(obj, "link", is->link);
+  return obj;
+}
+
+char *issue_sponsor_to_json(struct issue_sponsor *is) {
+  if (is == NULL) return "null";
+  cJSON *obj = issue_sponsor_to_cjson(is);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+  return json;
+}
+
+char *issue_sponsors_to_json(struct issue_sponsor **iss, size_t len) {
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, issue_sponsor_to_cjson(iss[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+  return json;
+}
+
+static cJSON *issue_to_cjson(struct issue *issue) {
+  if (issue == NULL) return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "id", issue->id);
+  cJSON_AddStringToObject(obj, "slug", issue->slug);
+  cJSON_AddStringToObject(obj, "title", issue->title);
+  cJSON_AddStringToObject(obj, "subtitle", issue->subtitle);
+  cJSON_AddItemToObject(obj, "cover", media_to_cjson(issue->cover));
+  cJSON_AddNumberToObject(obj, "createdAt", issue->created_at);
+  cJSON_AddNumberToObject(obj, "publishedAt", issue->published_at);
+  cJSON_AddNumberToObject(obj, "updatedAt", issue->updated_at);
+  cJSON_AddNumberToObject(obj, "issueNumber", issue->issue_number);
+  cJSON_AddStringToObject(obj, "excerpt", issue->excerpt);
+  cJSON_AddStringToObject(obj, "content", issue->content);
+  cJSON_AddNumberToObject(obj, "isSponsored", issue->is_sponsored);
+  cJSON_AddStringToObject(obj, "status", issue->status);
+  cJSON_AddNumberToObject(obj, "openedMailCount", issue->opened_mail_count);
+
+  cJSON *tags_arr = cJSON_CreateArray();
+  for (size_t i = 0; i < issue->tags_count; i++)
+    cJSON_AddItemToArray(tags_arr, issue_tag_to_cjson(issue->tags[i]));
+  cJSON_AddItemToObject(obj, "tags", tags_arr);
+
+  cJSON *authors_arr = cJSON_CreateArray();
+  for (size_t i = 0; i < issue->authors_count; i++)
+    cJSON_AddItemToArray(authors_arr, user_to_cjson(issue->authors[i]));
+  cJSON_AddItemToObject(obj, "authors", authors_arr);
+
+  cJSON *sponsors_arr = cJSON_CreateArray();
+  for (size_t i = 0; i < issue->sponsors_count; i++)
+    cJSON_AddItemToArray(sponsors_arr, issue_sponsor_to_cjson(issue->sponsors[i]));
+  cJSON_AddItemToObject(obj, "sponsors", sponsors_arr);
+
+  return obj;
 }
 
 char *issue_to_json(struct issue *issue) {
-  if (issue == NULL) {
-    return "null";
-  }
-
-  char *cover_json = media_to_json(issue->cover);
-  char *tags_json = issue_tags_to_json(issue->tags, issue->tags_count);
-  char *authors_json = users_to_json(issue->authors, issue->authors_count);
-  char *sponsors_json = issue_sponsors_to_json(issue->sponsors, issue->sponsors_count);
-
-  char *json = malloc(snprintf(NULL, 0, ISSUE_JSON, issue->id, issue->slug,
-      issue->title, issue->subtitle, cover_json, issue->created_at,
-      issue->published_at, issue->updated_at, issue->issue_number,
-      issue->excerpt, issue->content, issue->is_sponsored, issue->status,
-      issue->opened_mail_count, tags_json, authors_json, sponsors_json) + 1);
-
-  sprintf(json, ISSUE_JSON, issue->id, issue->slug, issue->title,
-      issue->subtitle, cover_json, issue->created_at,
-      issue->published_at, issue->updated_at, issue->issue_number,
-      issue->excerpt, issue->content, issue->is_sponsored, issue->status,
-      issue->opened_mail_count, tags_json, authors_json, sponsors_json);
-
-  if (issue->cover != NULL) free(cover_json);
-  if (issue->tags_count > 0) free(tags_json);
-  if (issue->authors_count > 0) free(authors_json);
-  if (issue->sponsors_count > 0) free(sponsors_json);
-
+  if (issue == NULL) return "null";
+  cJSON *obj = issue_to_cjson(issue);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
   return json;
 }
 
 char *issues_to_json(struct issue **issues, size_t len) {
-  char *json = NULL;
-
-  size_t json_len = 0;
-  for (int i = 0; i < len; i += 1) {
-    json_len += issue_to_json_len(issues[i]);
-
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *issues_json = malloc(json_len + 1);
-  issues_json[0] = '\0';
-  for (int i = 0; i < len; i += 1) {
-    char *issue = issue_to_json(issues[i]);
-
-    strcat(issues_json, issue);
-    if (i < len - 1)
-      strcat(issues_json, ",");
-
-    if (strcmp(issue, "null"))
-      free(issue);
-  }
-
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", issues_json) + 1);
-    sprintf(json, "[%s]", issues_json);
-  } else {
-    json = "[]";
-  }
-
-  free(issues_json);
-
-  return json;
-}
-
-size_t issue_author_to_json_len(struct issue_author *issue) {
-  if (issue == NULL) {
-    return NULL_SIZE;
-  }
-
-  int len =
-      snprintf(NULL, 0, ISSUE_AUTHOR_JSON, issue->user_id, issue->issue_id) + 1;
-
-  return len;
-}
-
-char *issue_author_to_json(struct issue_author *issue) {
-  if (issue == NULL) {
-    return "null";
-  }
-
-  char *json = NULL;
-  json = malloc(issue_author_to_json_len(issue));
-
-  sprintf(json, ISSUE_AUTHOR_JSON, issue->user_id, issue->issue_id);
-
-  return json;
-}
-
-char *issue_authors_to_json(struct issue_author **issues, size_t len) {
-  char *json = NULL;
-
-  size_t json_len = 0;
-  for (int i = 0; i < len; i += 1) {
-    json_len += issue_author_to_json_len(issues[i]);
-
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *issues_json = malloc(json_len + 1);
-  issues_json[0] = '\0';
-  for (int i = 0; i < len; i += 1) {
-    char *issue = issue_author_to_json(issues[i]);
-
-    strcat(issues_json, issue);
-    if (i < len - 1)
-      strcat(issues_json, ",");
-
-    if (strcmp(issue, "null"))
-      free(issue);
-  }
-
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", issues_json) + 1);
-    sprintf(json, "[%s]", issues_json);
-  } else {
-    json = "[]";
-  }
-
-  free(issues_json);
-
-  return json;
-}
-
-size_t issue_sponsor_to_json_len(struct issue_sponsor *issue) {
-  if (issue == NULL) {
-    return NULL_SIZE;
-  }
-
-  int len = snprintf(NULL, 0, ISSUE_SPONSOR_JSON, issue->sponsor_name,
-                     issue->issue_id, issue->link) +
-            1;
-
-  return len;
-}
-
-char *issue_sponsor_to_json(struct issue_sponsor *issue) {
-  if (issue == NULL) {
-    return "null";
-  }
-
-  char *json = NULL;
-  json = malloc(issue_sponsor_to_json_len(issue));
-
-  sprintf(json, ISSUE_SPONSOR_JSON, issue->sponsor_name, issue->issue_id,
-          issue->link);
-
-  return json;
-}
-
-char *issue_sponsors_to_json(struct issue_sponsor **issues, size_t len) {
-  char *json = NULL;
-
-  size_t json_len = 0;
-  for (int i = 0; i < len; i += 1) {
-    json_len += issue_sponsor_to_json_len(issues[i]);
-
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *issues_json = malloc(json_len + 1);
-  issues_json[0] = '\0';
-  for (int i = 0; i < len; i += 1) {
-    char *issue = issue_sponsor_to_json(issues[i]);
-
-    strcat(issues_json, issue);
-    if (i < len - 1)
-      strcat(issues_json, ",");
-
-    if (strcmp(issue, "null"))
-      free(issue);
-  }
-
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", issues_json) + 1);
-    sprintf(json, "[%s]", issues_json);
-  } else {
-    json = "[]";
-  }
-
-  free(issues_json);
-
-  return json;
-}
-
-size_t issue_tag_to_json_len(struct issue_tag *issue) {
-  if (issue == NULL) {
-    return NULL_SIZE;
-  }
-
-  int len =
-      snprintf(NULL, 0, ISSUE_TAG_JSON, issue->tag_name, issue->issue_id) + 1;
-
-  return len;
-}
-
-char *issue_tag_to_json(struct issue_tag *issue) {
-  if (issue == NULL) {
-    return "null";
-  }
-
-  char *json = NULL;
-  json = malloc(issue_tag_to_json_len(issue));
-
-  sprintf(json, ISSUE_TAG_JSON, issue->tag_name, issue->issue_id);
-
-  return json;
-}
-
-char *issue_tags_to_json(struct issue_tag **issues, size_t len) {
-  char *json = NULL;
-
-  size_t json_len = 0;
-  for (int i = 0; i < len; i += 1) {
-    json_len += issue_tag_to_json_len(issues[i]);
-
-    if (i < len - 1) {
-      json_len += COMMA_SIZE;
-    }
-  }
-
-  char *issues_json = malloc(json_len + 1);
-  issues_json[0] = '\0';
-  for (int i = 0; i < len; i += 1) {
-    char *issue = issue_tag_to_json(issues[i]);
-
-    strcat(issues_json, issue);
-    if (i < len - 1)
-      strcat(issues_json, ",");
-
-    if (strcmp(issue, "null"))
-      free(issue);
-  }
-
-  if (len > 0) {
-    json = malloc(snprintf(NULL, 0, "[%s]", issues_json) + 1);
-    sprintf(json, "[%s]", issues_json);
-  } else {
-    json = "[]";
-  }
-
-  free(issues_json);
-
+  if (len == 0) return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, issue_to_cjson(issues[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
   return json;
 }
 

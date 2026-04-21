@@ -3,6 +3,7 @@
  * @brief Authentication endpoint handler implementations.
  */
 
+#include <cjson/cJSON.h>
 #include <enums.h>
 #include <jwt.h>
 #include <lib/email.h>
@@ -279,6 +280,12 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
                    struct error_reply *error_reply, const char *secret) {
   printf(TERMINAL_ENDPOINT_MESSAGE("=== REGISTER AUTHOR ==="));
 
+  if (!mg_match(msg->method, mg_str("POST"), NULL)) {
+    ERROR_REPLY_405;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("METHOD NOT ALLOWED"));
+    return;
+  }
+
   // Check if user logged
   int user_logged = 0;
   is_user_logged(c, msg, error_reply, secret, &user_logged);
@@ -367,10 +374,13 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
 
     return;
   } else {
-    mg_http_reply(c, 201, JSON_HEADER,
-                  "{ \"message\": \"Author successfully created\", "
-                  "\"totpseed\": \"%s\" }",
-                  user->totp_seed);
+    cJSON *reg_obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(reg_obj, "message", "Author successfully created");
+    cJSON_AddStringToObject(reg_obj, "totpseed", user->totp_seed);
+    char *reg_json = cJSON_PrintUnformatted(reg_obj);
+    cJSON_Delete(reg_obj);
+    SUCCESS_REPLY_201(reg_json);
+    free(reg_json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== AUTHOR SUCCESSFULLY REGISTER ==="));
   }
 
@@ -454,10 +464,12 @@ void generate_totpseed_user(struct mg_connection *c,
           fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR UPDATING USER"));
           HANDLE_QUERY_CODE;
         } else {
-          char seed_json[100];
-          sprintf(seed_json, "{\"totpseed\": \"%s\"}", user->totp_seed);
-
+          cJSON *seed_obj = cJSON_CreateObject();
+          cJSON_AddStringToObject(seed_obj, "totpseed", user->totp_seed);
+          char *seed_json = cJSON_PrintUnformatted(seed_obj);
+          cJSON_Delete(seed_obj);
           SUCCESS_REPLY_200(seed_json);
+          free(seed_json);
           printf(TERMINAL_SUCCESS_MESSAGE(
               "=== USER SEED SUCCESSFULLY UPDATED ==="));
         }
@@ -665,10 +677,13 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     // Send session JWT
     char *jwt_str = jwt_encode_str(jwt);
     printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY LOGGED IN ==="));
-    mg_http_reply(
-        c, 200, JSON_HEADER,
-        "{ \"message\": \"Successfully logged in\", \"token\": \"%s\" }",
-        jwt_str);
+    cJSON *login_obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(login_obj, "message", "Successfully logged in");
+    cJSON_AddStringToObject(login_obj, "token", jwt_str);
+    char *login_json = cJSON_PrintUnformatted(login_obj);
+    cJSON_Delete(login_obj);
+    SUCCESS_REPLY_200(login_json);
+    free(login_json);
     jwt_free(decoded);
     return;
   }

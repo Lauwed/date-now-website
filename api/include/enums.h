@@ -12,9 +12,9 @@
  * the endpoint via the HANDLE_QUERY_CODE macro.
  */
 enum http_res_code {
-  HTTP_NOT_FOUND      = 404,  /**< Resource not found in the database. */
-  HTTP_BAD_REQUEST    = 400,  /**< Invalid or missing parameter. */
-  HTTP_INTERNAL_ERROR = 500   /**< Unexpected internal SQLite error. */
+  HTTP_NOT_FOUND = 404,     /**< Resource not found in the database. */
+  HTTP_BAD_REQUEST = 400,   /**< Invalid or missing parameter. */
+  HTTP_INTERNAL_ERROR = 500 /**< Unexpected internal SQLite error. */
 };
 
 /**
@@ -24,7 +24,7 @@ enum http_res_code {
  * flow and prevents them from being reused across stages.
  */
 enum jwt_type {
-  SUBSCRIPTION = 1,  /**< Subscription confirmation token (valid 24 h). */
-  LOGIN        = 2,  /**< Login confirmation token (valid 24 h). */
-  SESSION      = 3   /**< Active session token issued after successful TOTP login. */
+  SUBSCRIPTION = 1, /**< Subscription confirmation token (valid 24 h). */
+  LOGIN = 2,        /**< Login confirmation token (valid 24 h). */
+  SESSION = 3 /**< Active session token issued after successful TOTP login. */
 };

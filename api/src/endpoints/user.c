@@ -114,8 +114,8 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     if (reply->count > 0) {
       free_users(users, reply->count);
       free(reply->data);
-      free(reply->json);
     }
+    free(reply->json);
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged

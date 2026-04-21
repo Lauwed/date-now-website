@@ -3,6 +3,7 @@
  * @brief Page-view endpoint handler implementations (list, create).
  */
 
+#include <cjson/cJSON.h>
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
@@ -119,8 +120,8 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     if (reply->count > 0) {
       free_views(views, reply->count);
       free(reply->data);
-      free(reply->json);
     }
+    free(reply->json);
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     if (msg->body.len <= 0) {
@@ -180,9 +181,14 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    mg_http_reply(c, 201, JSON_HEADER,
-                  "{ \"id\": %d, \"time\": %d, \"issueId\": %d }",
-                  view->id, view->time, view->issue_id);
+    cJSON *view_obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(view_obj, "id", view->id);
+    cJSON_AddNumberToObject(view_obj, "time", view->time);
+    cJSON_AddNumberToObject(view_obj, "issueId", view->issue_id);
+    char *view_json = cJSON_PrintUnformatted(view_obj);
+    cJSON_Delete(view_obj);
+    SUCCESS_REPLY_201(view_json);
+    free(view_json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== VIEW SUCCESSFULLY ADDED ==="));
 
     free_view(view);

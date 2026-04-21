@@ -3,7 +3,7 @@ MAGICK_PKG    := $(shell pkg-config --list-all 2>/dev/null | grep -i '^MagickWan
 MAGICK_CFLAGS := $(shell pkg-config --cflags $(MAGICK_PKG))
 MAGICK_LIBS   := $(shell pkg-config --libs   $(MAGICK_PKG))
 CFLAGS := -I ./include/ -g $(MAGICK_CFLAGS)
-LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl $(MAGICK_LIBS)
+LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl -lcjson $(MAGICK_LIBS)
 
 includes := ./include
 src := ./src
