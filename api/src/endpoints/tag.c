@@ -1,3 +1,8 @@
+/**
+ * @file tag.c
+ * @brief Tag endpoint handler implementations (list, single resource).
+ */
+
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>

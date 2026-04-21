@@ -1,3 +1,8 @@
+/**
+ * @file issue_sponsor.c
+ * @brief IssueSponsor endpoint handler implementations (list, add, remove).
+ */
+
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>

@@ -1,3 +1,10 @@
+/**
+ * @file utils.c
+ * @brief Implementation of all utility functions declared in utils.h:
+ *        validation, JSON serialisation, SQLite row mapping, HTTP hydration,
+ *        structure initialisation, and memory management.
+ */
+
 #include <lib/mongoose.h>
 #include <macros/colors.h>
 #include <macros/utils.h>

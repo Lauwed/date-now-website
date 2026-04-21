@@ -1,3 +1,8 @@
+/**
+ * @file user.c
+ * @brief User endpoint handler implementations (list, single resource).
+ */
+
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>

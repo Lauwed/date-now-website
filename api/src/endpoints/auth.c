@@ -1,3 +1,8 @@
+/**
+ * @file auth.c
+ * @brief Authentication endpoint handler implementations.
+ */
+
 #include <enums.h>
 #include <jwt.h>
 #include <lib/email.h>

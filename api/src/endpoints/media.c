@@ -1,3 +1,8 @@
+/**
+ * @file media.c
+ * @brief Media endpoint handler implementations (list, upload, single resource).
+ */
+
 #include <endpoints/auth.h>
 #include <endpoints/media.h>
 #include <enums.h>

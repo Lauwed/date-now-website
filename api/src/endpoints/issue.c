@@ -1,3 +1,8 @@
+/**
+ * @file issue.c
+ * @brief Issue endpoint handler implementations (list, single, publish).
+ */
+
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/email.h>

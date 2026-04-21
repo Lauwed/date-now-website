@@ -1,3 +1,8 @@
+/**
+ * @file view.c
+ * @brief Page-view endpoint handler implementations (list, create).
+ */
+
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>

@@ -1,3 +1,8 @@
+/**
+ * @file user.c
+ * @brief SQLite data-access implementation for the User table.
+ */
+
 #include <enums.h>
 #include <macros/colors.h>
 #include <macros/sql.h>

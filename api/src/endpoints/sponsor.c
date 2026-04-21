@@ -1,3 +1,8 @@
+/**
+ * @file sponsor.c
+ * @brief Sponsor endpoint handler implementations (list, single resource).
+ */
+
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>

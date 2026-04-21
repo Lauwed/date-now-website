@@ -1,3 +1,8 @@
+/**
+ * @file view.c
+ * @brief SQLite data-access implementation for the View (page-view) table.
+ */
+
 
 #include <enums.h>
 #include <macros/colors.h>
