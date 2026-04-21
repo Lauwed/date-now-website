@@ -1,4 +1,4 @@
-name: Lint API schema
+name: API Documentation - Lint API schema
  
 on:
   push:

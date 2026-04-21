@@ -3,3 +3,4 @@ api/bin/*
 !api/bin/.gitkeep
 .env
 
+.claude/
