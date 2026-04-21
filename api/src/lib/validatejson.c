@@ -1,3 +1,8 @@
+/**
+ * @file lib/validatejson.c
+ * @brief Recursive-descent JSON validator (RFC 8259).
+ */
+
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
 #include <macros/utils.h>

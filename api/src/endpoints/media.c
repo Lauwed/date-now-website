@@ -1,3 +1,8 @@
+/**
+ * @file media.c
+ * @brief Media endpoint handler implementations (list, upload, single resource).
+ */
+
 #include <endpoints/auth.h>
 #include <endpoints/media.h>
 #include <enums.h>
@@ -17,10 +22,6 @@
 #include <utils.h>
 #include <MagickWand/MagickWand.h>
 
-#define TEXT_ALT_REQUIRED_MESSAGE "textAlternatif is required and must not be empty."
-#define FILE_REQUIRED_MESSAGE "file is required."
-#define FILE_TOO_LARGE_MESSAGE "File must not exceed 5MB."
-#define FILE_NOT_IMAGE_MESSAGE "File must be an image."
 
 #define MAX_UPLOAD_SIZE (5 * 1024 * 1024)
 #define UPLOAD_DIR "/var/www/uploads/media"
@@ -107,7 +108,7 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = 0;
     list_reply_to_json(reply);
 
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
+    SUCCESS_REPLY_200(reply->json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIAS SUCCESSFULLY SENT ==="));
 
     if (medias != NULL) {
@@ -153,28 +154,24 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
     /* Validate textAlternatif */
     if (!found_text || text_part.body.len == 0) {
       ERROR_REPLY_400(TEXT_ALT_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(TEXT_ALT_REQUIRED_MESSAGE));
       return;
     }
 
     /* Validate file */
     if (!found_file || file_part.body.len == 0) {
       ERROR_REPLY_400(FILE_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(FILE_REQUIRED_MESSAGE));
       return;
     }
 
     /* Check file size */
     if (file_part.body.len > MAX_UPLOAD_SIZE) {
-      ERROR_REPLY_400(FILE_TOO_LARGE_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(FILE_TOO_LARGE_MESSAGE));
+      ERROR_REPLY_413(FILE_TOO_LARGE_MESSAGE);
       return;
     }
 
     /* Check magic bytes */
     if (!is_image_data(file_part.body.buf, file_part.body.len)) {
-      ERROR_REPLY_400(FILE_NOT_IMAGE_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(FILE_NOT_IMAGE_MESSAGE));
+      ERROR_REPLY_415(FILE_NOT_IMAGE_MESSAGE);
       return;
     }
 
@@ -189,7 +186,6 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
     if (alt_len == 0) {
       free(alt_text);
       ERROR_REPLY_400(TEXT_ALT_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(TEXT_ALT_REQUIRED_MESSAGE));
       return;
     }
 
@@ -336,7 +332,7 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     char *result = media_to_json(created);
-    mg_http_reply(c, 201, JSON_HEADER, "%s\n", result);
+    SUCCESS_REPLY_201(result);
     printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA SUCCESSFULLY CREATED ==="));
 
     free(result);
@@ -381,11 +377,65 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     char *result = media_to_json(m);
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+    SUCCESS_REPLY_200(result);
     printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA SUCCESSFULLY SENT ==="));
 
     free(result);
     free_media(m);
+
+  } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== PUT MEDIA ==="));
+
+    /* Auth check */
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
+    if (msg->body.len <= 0) {
+      ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
+      return;
+    }
+
+    char *alt_text = mg_json_get_str(msg->body, "$.textAlternatif");
+    if (alt_text == NULL || strlen(alt_text) == 0) {
+      free(alt_text);
+      ERROR_REPLY_400(TEXT_ALT_REQUIRED_MESSAGE);
+      return;
+    }
+
+    query_code = update_media_alt_text(id, alt_text);
+    free(alt_text);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR UPDATING MEDIA"));
+      HANDLE_QUERY_CODE;
+      return;
+    }
+
+    struct media *updated = malloc(sizeof(struct media));
+    updated->id = 0;
+    updated->alternative_text = NULL;
+    updated->url = NULL;
+    updated->width = 0.0;
+    updated->height = 0.0;
+
+    query_code = get_media(updated, id);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR FETCHING UPDATED MEDIA"));
+      HANDLE_QUERY_CODE;
+      free(updated);
+      return;
+    }
+
+    char *result = media_to_json(updated);
+    SUCCESS_REPLY_200(result);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA SUCCESSFULLY UPDATED ==="));
+
+    free(result);
+    free_media(updated);
 
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== DELETE MEDIA ==="));
@@ -396,6 +446,12 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
     if (user_logged == 0) {
       ERROR_REPLY_401;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
+    /* 409 if referenced by an issue or user */
+    if (media_is_referenced(id)) {
+      ERROR_REPLY_409("Media is referenced by one or more resources and cannot be deleted");
       return;
     }
 
@@ -428,8 +484,7 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA SUCCESSFULLY DELETED ==="));
-    mg_http_reply(c, 200, JSON_HEADER,
-                  "{ \"message\": \"Media successfully deleted\" }");
+    SUCCESS_REPLY_200_MSG("Media successfully deleted");
 
   } else {
     ERROR_REPLY_405;

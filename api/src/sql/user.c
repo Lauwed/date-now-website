@@ -1,3 +1,8 @@
+/**
+ * @file user.c
+ * @brief SQLite data-access implementation for the User table.
+ */
+
 #include <enums.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
@@ -576,6 +581,7 @@ int add_user(struct user *user) {
     return query_rc;
   }
 
+  user->id = (int)sqlite3_last_insert_rowid(db);
   sqlite3_finalize(stmt);
 
   return 0;
@@ -654,5 +660,45 @@ int delete_user(int id) {
 
   sqlite3_finalize(stmt);
 
+  return 0;
+}
+
+
+int get_subscriber_emails(size_t *len, char ***emails) {
+  printf(TERMINAL_SQL_MESSAGE("=== GET SUBSCRIBER EMAILS SQL ==="));
+
+  const char *query =
+      "SELECT email FROM User WHERE subscribedAt IS NOT NULL;";
+
+  sqlite3_stmt *stmt;
+  int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  size_t count = 0;
+  while (sqlite3_step(stmt) == SQLITE_ROW)
+    count++;
+  sqlite3_reset(stmt);
+
+  *len = count;
+  if (count == 0) {
+    sqlite3_finalize(stmt);
+    *emails = NULL;
+    return 0;
+  }
+
+  *emails = malloc(count * sizeof(char *));
+  size_t i = 0;
+  while (sqlite3_step(stmt) == SQLITE_ROW && i < count) {
+    const char *email = (const char *)sqlite3_column_text(stmt, 0);
+    (*emails)[i] = strdup(email);
+    i++;
+  }
+
+  sqlite3_finalize(stmt);
   return 0;
 }

@@ -1,3 +1,10 @@
+/**
+ * @file main.c
+ * @brief Entry point: initialises SQLite and ImageMagick, opens the database,
+ *        registers signal handlers, and runs the Mongoose HTTP event loop with
+ *        URL-based routing to all endpoint handlers.
+ */
+
 #include <endpoints/auth.h>
 #include <endpoints/issue.h>
 #include <endpoints/issue_author.h>
@@ -287,6 +294,19 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
                                  secret);
         }
 
+        if (mg_match(endpoint_cap[0], mg_str("issue/*/publish"), caps)) {
+          int id;
+          int id_parsed = mg_str_to_num(caps[0], 10, &id, sizeof(int));
+          if (!id_parsed) {
+            mg_http_reply(
+                c, 400, JSON_HEADER,
+                "{ \"code\": 400, \"error\": \"ID is not a number.\" }");
+            return;
+          }
+
+          publish_issue_res(c, http_msg, id, error_reply, secret);
+        }
+
         if (mg_match(endpoint_cap[0], mg_str("issue/*"), caps)) {
           int id;
           int id_parsed = mg_str_to_num(caps[0], 10, &id, sizeof(int));
@@ -325,8 +345,13 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
         mg_http_serve_dir(c, http_msg, &opts);
         return;
       }
-      struct mg_http_serve_opts opts = {.root_dir = ".", .fs = &mg_fs_posix};
-      mg_http_serve_dir(c, http_msg, &opts);
+      if (mg_match(http_msg->uri, mg_str("/docs#"), NULL)) {
+        struct mg_http_serve_opts opts = {.root_dir = "/docs=./docs"};
+        mg_http_serve_dir(c, http_msg, &opts);
+        return;
+      }
+      mg_http_reply(c, 404, JSON_HEADER,
+                    "{\"code\": 404, \"error\": \"Not found\"}");
     }
   } else if (ev == MG_EV_ERROR) {
     mg_http_reply(c, 500, JSON_HEADER,

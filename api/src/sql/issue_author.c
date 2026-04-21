@@ -1,3 +1,8 @@
+/**
+ * @file issue_author.c
+ * @brief SQLite data-access implementation for the IssueAuthor join table.
+ */
+
 
 #include <enums.h>
 #include <macros/colors.h>

@@ -64,13 +64,7 @@
         "code": 500,
         "message": "Internal server error"
       },
-      "appliesTo": [
-        "GET-list",
-        "GET-single",
-        "POST",
-        "PUT",
-        "DELETE"
-      ]
+      "appliesTo": ["GET-list", "GET-single", "POST", "PUT", "DELETE"]
     }
   ],
   "tables": [
@@ -630,13 +624,7 @@
         "name": "string",
         "color": "string"
       },
-      "includedEndpoints": [
-        "GET-list",
-        "GET-single",
-        "POST",
-        "PUT",
-        "DELETE"
-      ],
+      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
       "endpoints": {
         "GET-list": {
           "description": "Returns all available tags."
@@ -701,13 +689,7 @@
         "name": "string",
         "link": "string"
       },
-      "includedEndpoints": [
-        "GET-list",
-        "GET-single",
-        "POST",
-        "PUT",
-        "DELETE"
-      ],
+      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
       "endpoints": {
         "GET-list": {
           "description": "Returns all sponsors."
@@ -784,13 +766,7 @@
         "status": "DRAFT | PUBLISHED | ARCHIVE",
         "openedMailCount": "integer"
       },
-      "includedEndpoints": [
-        "GET-list",
-        "GET-single",
-        "POST",
-        "PUT",
-        "DELETE"
-      ],
+      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
       "response": {
         "get-list": {
           "data": "array-issue",
@@ -1293,7 +1269,7 @@
         "issueId": "integer"
       },
       "includedEndpoints": ["GET-list", "POST"],
-      "tokenRequired": { "post": false },
+      "tokenRequired": { "GET-list": true, "post": false },
       "listParameters": [
         {
           "name": "page",

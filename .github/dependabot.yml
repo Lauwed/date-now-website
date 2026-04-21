@@ -5,21 +5,29 @@ updates:
     schedule:
       interval: "weekly"
     labels:
-      - "dependencies"
-      - "frontend"
+      - "Dependencies"
+      - "Front"
 
   - package-ecosystem: "cargo"
     directory: "/cms"
     schedule:
       interval: "weekly"
     labels:
-      - "dependencies"
-      - "cms"
+      - "Dependencies"
+      - "CMS"
+
+  - package-ecosystem: "docker"
+    directory: "/api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "Dependencies"
+      - "API"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     labels:
-      - "dependencies"
-      - "ci"
+      - "Dependencies"
+      - "CI"

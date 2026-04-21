@@ -1,5 +1,11 @@
+/**
+ * @file issue.c
+ * @brief Issue endpoint handler implementations (list, single, publish).
+ */
+
 #include <endpoints/auth.h>
 #include <enums.h>
+#include <lib/email.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
 #include <macros/colors.h>
@@ -7,18 +13,12 @@
 #include <macros/utils.h>
 #include <math.h>
 #include <sql/issue.h>
+#include <sql/user.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <structs.h>
 #include <utils.h>
-
-#define ISSUE_EXISTS_MESSAGE "The issue already exists."
-#define TITLE_REQUIRED_MESSAGE "Title is required."
-#define ISSUE_NUMBER_REQUIRED_MESSAGE "Issue number is required."
-#define STATUS_REQUIRED_MESSAGE "Status is required."
-#define STATUS_FORMAT_MESSAGE                                                  \
-  "Value of 'status' should be 'DRAFT', 'PUBLISHED' or 'ARCHIVE'."
 
 void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
                      struct error_reply *error_reply, const char *secret) {
@@ -38,8 +38,25 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     const struct mg_str sort = mg_http_var(msg->query, mg_str("sort"));
-    printf("QUERY PARAMS:\tQUERY - %.*s\t|\tSORT - %.*s\n", (int)q.len, q.buf,
-           (int)sort.len, sort.buf);
+
+    // Status filter
+    char status_buf[16] = "";
+    const char *status = NULL;
+    int status_len =
+        mg_http_get_var(&msg->query, "status", status_buf, sizeof(status_buf));
+    if (status_len > 0) {
+      if (strcmp(status_buf, "DRAFT") == 0 ||
+          strcmp(status_buf, "PUBLISHED") == 0 ||
+          strcmp(status_buf, "ARCHIVE") == 0) {
+        status = status_buf;
+      } else {
+        ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
+        return;
+      }
+    }
+
+    printf("QUERY PARAMS:\tQUERY - %.*s\t|\tSORT - %.*s\t|\tSTATUS - %s\n",
+           (int)q.len, q.buf, (int)sort.len, sort.buf, status ? status : "");
 
     // Pagination
     int page, page_size;
@@ -47,10 +64,9 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     if (mg_str_to_num(page_str, 10, &page, sizeof(int)) == false)
       page = -1;
     else {
-      struct mg_str page_size_str =
-          mg_http_var(msg->query, mg_str("page_size"));
+      struct mg_str page_size_str = mg_http_var(msg->query, mg_str("limit"));
       if (mg_str_to_num(page_size_str, 10, &page_size, sizeof(int)) == false)
-        page_size = 10;
+        page_size = 20;
     }
 
     // Reply init
@@ -59,7 +75,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
-    reply->total = reply->count = get_issues_len(&q);
+    reply->total = reply->count = get_issues_len(&q, status);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
            reply->total, reply->count, reply->total_pages);
@@ -94,8 +110,8 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (reply->count > 0) {
       issues = malloc(reply->count * sizeof(struct issue *));
-      query_code = get_issues(reply->count, issues, &q, &sort, reply->page,
-                              reply->page_size);
+      query_code = get_issues(reply->count, issues, &q, status, &sort,
+                              reply->page, reply->page_size);
 
       if (query_code != 0) {
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
@@ -110,7 +126,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->data = issues_to_json(issues, reply->count);
     list_reply_to_json(reply);
 
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
+    SUCCESS_REPLY_200(reply->json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUES SUCCESSFULLY SENT ==="));
 
     if (reply->count > 0) {
@@ -132,11 +148,9 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -152,7 +166,6 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     offset = mg_json_get(msg->body, "$.title", &length);
     if (offset < 0) {
       ERROR_REPLY_400(TITLE_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(TITLE_REQUIRED_MESSAGE));
       return;
     } else {
       title = malloc(length);
@@ -163,7 +176,6 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     offset = mg_json_get(msg->body, "$.issueNumber", &length);
     if (offset < 0) {
       ERROR_REPLY_400(ISSUE_NUMBER_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(ISSUE_NUMBER_REQUIRED_MESSAGE));
       free(title);
       return;
     } else {
@@ -175,7 +187,6 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
       free(issue_number_str);
       if (issue_number <= 0) {
         ERROR_REPLY_400(ISSUE_NUMBER_REQUIRED_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(ISSUE_NUMBER_REQUIRED_MESSAGE));
         free(title);
         return;
       }
@@ -195,7 +206,6 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     free(slug);
     if (exists != 0) {
       ERROR_REPLY_400(ISSUE_EXISTS_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(ISSUE_EXISTS_MESSAGE));
       return;
     };
 
@@ -204,7 +214,6 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     char status[12];
     if (length > 12) {
       ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(STATUS_FORMAT_MESSAGE));
 
       return;
     }
@@ -215,7 +224,6 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
       if (strcmp(status, "DRAFT") != 0 && strcmp(status, "PUBLISHED") != 0 &&
           strcmp(status, "ARCHIVE") != 0) {
         ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(STATUS_FORMAT_MESSAGE));
 
         return;
       }
@@ -243,14 +251,26 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
       HANDLE_QUERY_CODE;
-
+      free_issue(issue);
       return;
-    } else {
-      mg_http_reply(c, 201, JSON_HEADER,
-                    "{ \"message\": \"Issue successfully created\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY ADDED ==="));
     }
 
+    struct issue *created = malloc(sizeof(struct issue));
+    query_code = get_issue(created, issue->id);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
+      HANDLE_QUERY_CODE;
+      free_issue(issue);
+      free_issue(created);
+      return;
+    }
+
+    char *result = issue_to_json(created);
+    SUCCESS_REPLY_201(result);
+    free(result);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY ADDED ==="));
+
+    free_issue(created);
     free_issue(issue);
   } else {
     ERROR_REPLY_405;
@@ -287,7 +307,7 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     } else {
       char *result = issue_to_json(issue);
 
-      mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+      SUCCESS_REPLY_200(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY SENT ==="));
     }
 
@@ -305,11 +325,9 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -341,7 +359,6 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
       free(issue_number_str);
       if (issue_number <= 0) {
         ERROR_REPLY_400(ISSUE_NUMBER_REQUIRED_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(ISSUE_NUMBER_REQUIRED_MESSAGE));
         free(title);
         return;
       }
@@ -357,7 +374,6 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
       int exists = issue_identity_exists(title, issue_number, slug);
       if (exists != 0) {
         ERROR_REPLY_400(ISSUE_EXISTS_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(ISSUE_EXISTS_MESSAGE));
         free(title);
         free(slug);
         return;
@@ -369,7 +385,6 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     char status[12];
     if (length > 12) {
       ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(STATUS_FORMAT_MESSAGE));
       free(title);
       free(slug);
 
@@ -382,7 +397,6 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
       if (strcmp(status, "DRAFT") != 0 && strcmp(status, "PUBLISHED") != 0 &&
           strcmp(status, "ARCHIVE") != 0) {
         ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(STATUS_FORMAT_MESSAGE));
         free(title);
         free(slug);
 
@@ -418,11 +432,20 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
       HANDLE_QUERY_CODE;
 
       return;
-    } else {
-      mg_http_reply(c, 200, JSON_HEADER,
-                    "{ \"message\": \"Issue successfully edited\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY EDITED ==="));
     }
+
+    query_code = get_issue(issue, id);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
+      HANDLE_QUERY_CODE;
+      free_issue(issue);
+      return;
+    }
+
+    char *result = issue_to_json(issue);
+    SUCCESS_REPLY_200(result);
+    free(result);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY EDITED ==="));
 
     free_issue(issue);
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
@@ -443,9 +466,94 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY DELETE ==="));
-    mg_http_reply(c, 200, JSON_HEADER,
-                  "{ \"message\": \"Issue successfully deleted\" }");
+    SUCCESS_REPLY_200_MSG("Issue successfully deleted");
   } else {
     ERROR_REPLY_405;
   }
+}
+
+void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
+                       int id, struct error_reply *error_reply,
+                       const char *secret) {
+  int query_code;
+  error_reply = malloc(sizeof(struct error_reply));
+
+  if (!mg_match(msg->method, mg_str("POST"), NULL)) {
+    ERROR_REPLY_405;
+    return;
+  }
+
+  printf(TERMINAL_ENDPOINT_MESSAGE("=== PUBLISH ISSUE ==="));
+
+  // Auth
+  int user_logged = 0;
+  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  if (user_logged == 0) {
+    ERROR_REPLY_401;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+    return;
+  }
+
+  // Check issue exists
+  int exists = issue_exists(id);
+  if (!exists) {
+    ERROR_REPLY_404;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ISSUE NOT FOUND"));
+    return;
+  }
+
+  // Load issue to check current status
+  struct issue *issue = malloc(sizeof(struct issue));
+  query_code = get_issue(issue, id);
+  if (query_code != 0) {
+    free(issue);
+    HANDLE_QUERY_CODE;
+    return;
+  }
+
+  // 409 if already published
+  if (issue->status != NULL && strcmp(issue->status, "PUBLISHED") == 0) {
+    ERROR_REPLY_409(ISSUE_ALREADY_PUBLISHED_MESSAGE);
+    free_issue(issue);
+    return;
+  }
+
+  char *title =
+      issue->title != NULL ? strdup(issue->title) : strdup("Date.now()");
+  free_issue(issue);
+
+  // Publish in DB
+  query_code = publish_issue(id);
+  if (query_code != 0) {
+    free(title);
+    ERROR_REPLY_500;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR PUBLISHING ISSUE"));
+    return;
+  }
+
+  // Send newsletter to all subscribers
+  size_t subscribers_len = 0;
+  char **emails = NULL;
+  query_code = get_subscriber_emails(&subscribers_len, &emails);
+  if (query_code == 0 && emails != NULL) {
+    char subject[256];
+    snprintf(subject, sizeof(subject), "Date.now() - %s", title);
+
+    char html[512];
+    snprintf(html, sizeof(html),
+             "Un nouveau numero est disponible : "
+             "<a href=https://datenow.com>%s</a>",
+             title);
+
+    for (size_t i = 0; i < subscribers_len; i++) {
+      send_mail(emails[i], subject, html);
+      free(emails[i]);
+    }
+    free(emails);
+  }
+
+  free(title);
+
+  SUCCESS_REPLY_200_MSG("Issue published and newsletter sent");
+  printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY PUBLISHED ==="));
 }

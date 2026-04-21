@@ -1,4 +1,4 @@
-FROM alpine:3.23.3 AS base
+FROM alpine:3.23.4 AS base
 
 RUN apk update && apk add --no-cache \
     libjwt2 \
@@ -19,7 +19,8 @@ RUN apk add --no-cache \
     imagemagick-dev \
     pkgconfig \
     bear \
-    nodejs
+    nodejs \
+    npm
 
 WORKDIR /app
 
@@ -27,7 +28,7 @@ RUN mkdir -p bin obj/lib obj/endpoints obj/sql /var/www/uploads/media
 
 COPY . .
 
-RUN node doc/validate-json-schema.mjs doc/api.json
+RUN npx tabula-docs@0.1.4 validate docs/api.json
 
 RUN bear -- make
 
@@ -45,7 +46,7 @@ RUN mkdir -p /var/www/uploads/media
 
 COPY --from=dev /app/bin /app/bin
 COPY index.html .
-COPY doc/ doc/
+COPY docs/ docs/
 
 CMD ["/app/bin/serv_api"]
 

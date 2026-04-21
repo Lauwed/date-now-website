@@ -1,0 +1,26 @@
+name: API - CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - '.github/workflows/api-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - '.github/workflows/api-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  ci:
+    name: Validate & build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build dev image
+        run: docker build --target dev -t api-dev api/

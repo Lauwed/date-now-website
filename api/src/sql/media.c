@@ -1,3 +1,8 @@
+/**
+ * @file media.c
+ * @brief SQLite data-access implementation for the Media table.
+ */
+
 #include <enums.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
@@ -20,6 +25,11 @@ extern sqlite3 *db;
   "INSERT INTO Media (textAlternatif, url, width, height) VALUES (?, ?, ?, ?);"
 #define QUERY_UPDATE_FILE_TMP \
   "UPDATE Media SET url = ?, width = ?, height = ? WHERE id = ?;"
+#define QUERY_UPDATE_ALT_TMP \
+  "UPDATE Media SET textAlternatif = ? WHERE id = ?;"
+#define QUERY_REFERENCED_TMP \
+  "SELECT (SELECT COUNT(*) FROM Issue WHERE cover = ?) + " \
+  "(SELECT COUNT(*) FROM User WHERE picture = ?);"
 #define QUERY_DELETE_TMP "DELETE FROM Media WHERE id = ?;"
 
 int media_exists(int id) {
@@ -245,6 +255,64 @@ int update_media_file(int id, const char *url, double width, double height) {
 
   sqlite3_finalize(stmt);
   return 0;
+}
+
+int update_media_alt_text(int id, const char *alt_text) {
+  printf(TERMINAL_SQL_MESSAGE("=== UPDATE MEDIA ALT TEXT SQL ==="));
+
+  int query_rc;
+
+  sqlite3_stmt *stmt;
+  query_rc = sqlite3_prepare_v2(db, QUERY_UPDATE_ALT_TMP, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  sqlite3_bind_text(stmt, 1, alt_text, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 2, id);
+
+  GET_EXPANDED_QUERY(stmt);
+  query_rc = sqlite3_step(stmt);
+
+  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  sqlite3_finalize(stmt);
+  return 0;
+}
+
+int media_is_referenced(int id) {
+  printf(TERMINAL_SQL_MESSAGE("=== MEDIA IS REFERENCED SQL ==="));
+
+  int query_rc;
+  int count = 0;
+
+  sqlite3_stmt *stmt;
+  query_rc = sqlite3_prepare_v2(db, QUERY_REFERENCED_TMP, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return 0;
+  }
+
+  sqlite3_bind_int(stmt, 1, id);
+  sqlite3_bind_int(stmt, 2, id);
+
+  GET_EXPANDED_QUERY(stmt);
+  query_rc = sqlite3_step(stmt);
+
+  if (query_rc == SQLITE_ROW) {
+    count = sqlite3_column_int(stmt, 0);
+  }
+
+  sqlite3_finalize(stmt);
+  return count > 0;
 }
 
 int delete_media(int id) {
