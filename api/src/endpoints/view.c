@@ -17,6 +17,16 @@
 
 void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
+  // Check if user logged
+  int user_logged = 0;
+  is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+  if (user_logged == 0) {
+    ERROR_REPLY_401;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+    return;
+  }
+
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
@@ -115,16 +125,6 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     }
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
-    // Check if user logged
-    int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
-
-    if (user_logged == 0) {
-      ERROR_REPLY_401;
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
-      return;
-    }
-
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));

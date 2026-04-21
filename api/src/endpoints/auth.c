@@ -12,6 +12,8 @@
 #include <structs.h>
 #include <utils.h>
 
+#define USER_EXISTS_MESSAGE "The user already exists."
+#define USERNAME_REQUIRED_MESSAGE "Username is required"
 #define EMAIL_REQUIRED_MESSAGE "Email is required"
 #define TOKEN_REQUIRED_MESSAGE "Token is required"
 #define CODE_REQUIRED_MESSAGE "Code is required"
@@ -257,6 +259,7 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
 
 void register_user(struct mg_connection *c, struct mg_http_message *msg,
                    struct error_reply *error_reply, const char *secret) {
+  printf(TERMINAL_ENDPOINT_MESSAGE("=== REGISTER AUTHOR ==="));
 
   // Check if user logged
   int user_logged = 0;
@@ -267,6 +270,101 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
     return;
   }
+
+  // Add user
+  if (msg->body.len <= 0) {
+    ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
+    return;
+  } else if (!mg_validateJSON(msg->body)) {
+    ERROR_REPLY_400(JSON_ERROR_MESSAGE);
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
+    return;
+  }
+
+  // Body validation
+  int offset, length;
+
+  // Email required
+  offset = mg_json_get(msg->body, "$.email", &length);
+  if (offset < 0) {
+    ERROR_REPLY_400(EMAIL_REQUIRED_MESSAGE);
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("EMAIL REQUIRED"));
+    return;
+  } else {
+    // Email and username not existing already
+    char *email = mg_json_get_str(msg->body, "$.email");
+    printf("%s\n", email);
+
+    // Check if email validity
+    int email_valid = check_email_validity(email);
+    if (email_valid != 0) {
+      ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
+      return;
+    }
+
+    char *username = NULL;
+    offset = mg_json_get(msg->body, "$.username", &length);
+    if (offset >= 0) {
+      username = malloc(length);
+      strncpy(username, msg->body.buf + offset + 1, length - 2);
+    }
+    if (offset < 0) {
+      ERROR_REPLY_400(USERNAME_REQUIRED_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("USERNAME REQUIRED"));
+      return;
+    }
+
+    int exists = user_identity_exists(username, email);
+    if (exists != 0) {
+      ERROR_REPLY_400(USER_EXISTS_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER ALREADY EXISTS"));
+      return;
+    };
+  }
+
+  // Hydrate
+  struct user *user = malloc(sizeof(struct user));
+  int user_init_rc = user_init(user);
+  if (user_init_rc != 0) {
+    ERROR_REPLY_500;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER IS NULL"));
+
+    return;
+  }
+
+  // Generate totpseed
+  if (totp_generate_secret(user->totp_seed) != 0) {
+    ERROR_REPLY_500;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("OPENSSL ERROR"));
+
+    free_user(user);
+    return;
+  }
+
+  printf("TOTP SEED GENERATED:\t%s\n", user->totp_seed);
+
+  // Force role to AUTHOR
+  user->role = "AUTHOR";
+  user_hydrate(msg, user);
+
+  // Store in DB
+  int query_code = add_user(user);
+  if (query_code != 0) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USERS"));
+    HANDLE_QUERY_CODE;
+
+    return;
+  } else {
+    mg_http_reply(c, 201, JSON_HEADER,
+                  "{ \"message\": \"Author successfully created\", "
+                  "\"totpseed\": \"%s\" }",
+                  user->totp_seed);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== AUTHOR SUCCESSFULLY REGISTER ==="));
+  }
+
+  free_user(user);
 }
 
 void generate_totpseed_user(struct mg_connection *c,
@@ -342,7 +440,7 @@ void generate_totpseed_user(struct mg_connection *c,
           HANDLE_QUERY_CODE;
         } else {
           char seed_json[100];
-          sprintf(seed_json, "{\"seed\": \"%s\"}", user->totp_seed);
+          sprintf(seed_json, "{\"totpseed\": \"%s\"}", user->totp_seed);
 
           mg_http_reply(c, 200, JSON_HEADER, seed_json);
           printf(TERMINAL_SUCCESS_MESSAGE(

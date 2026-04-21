@@ -13,3 +13,4 @@ int get_issue(struct issue *issue, int id);
 int add_issue(struct issue *issue);
 int edit_issue(struct issue *issue);
 int delete_issue(int id);
+int publish_issue(int id);

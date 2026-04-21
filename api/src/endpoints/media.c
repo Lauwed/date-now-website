@@ -387,6 +387,62 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
     free(result);
     free_media(m);
 
+  } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== PUT MEDIA ==="));
+
+    /* Auth check */
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
+    if (msg->body.len <= 0) {
+      ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
+      return;
+    }
+
+    char *alt_text = mg_json_get_str(msg->body, "$.textAlternatif");
+    if (alt_text == NULL || strlen(alt_text) == 0) {
+      free(alt_text);
+      ERROR_REPLY_400(TEXT_ALT_REQUIRED_MESSAGE);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(TEXT_ALT_REQUIRED_MESSAGE));
+      return;
+    }
+
+    query_code = update_media_alt_text(id, alt_text);
+    free(alt_text);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR UPDATING MEDIA"));
+      HANDLE_QUERY_CODE;
+      return;
+    }
+
+    struct media *updated = malloc(sizeof(struct media));
+    updated->id = 0;
+    updated->alternative_text = NULL;
+    updated->url = NULL;
+    updated->width = 0.0;
+    updated->height = 0.0;
+
+    query_code = get_media(updated, id);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR FETCHING UPDATED MEDIA"));
+      HANDLE_QUERY_CODE;
+      free(updated);
+      return;
+    }
+
+    char *result = media_to_json(updated);
+    mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA SUCCESSFULLY UPDATED ==="));
+
+    free(result);
+    free_media(updated);
+
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== DELETE MEDIA ==="));
 
@@ -396,6 +452,16 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
     if (user_logged == 0) {
       ERROR_REPLY_401;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
+    }
+
+    /* 409 if referenced by an issue or user */
+    if (media_is_referenced(id)) {
+      error_reply_map(error_reply, 409,
+                      "Media is referenced by one or more resources and cannot be deleted",
+                      409);
+      mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("MEDIA IS REFERENCED"));
       return;
     }
 

@@ -15,3 +15,4 @@ int get_user_totp_seed(char *email, char **seed);
 int add_user(struct user *user);
 int edit_user(struct user *user);
 int delete_user(int id);
+int get_subscriber_emails(size_t *len, char ***emails);

@@ -571,6 +571,37 @@ int edit_issue(struct issue *issue) {
   return 0;
 }
 
+int publish_issue(int id) {
+  printf(TERMINAL_SQL_MESSAGE("=== PUBLISH ISSUE SQL ==="));
+
+  const char *query =
+      "UPDATE Issue SET status = 'PUBLISHED', "
+      "publishedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP "
+      "WHERE id = ?;";
+
+  sqlite3_stmt *stmt;
+  int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  sqlite3_bind_int(stmt, 1, id);
+
+  GET_EXPANDED_QUERY(stmt);
+
+  query_rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+
+  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
+    return query_rc;
+  }
+
+  return 0;
+}
+
 int delete_issue(int id) {
   printf(TERMINAL_SQL_MESSAGE("=== DELETE ISSUE SQL ==="));
 

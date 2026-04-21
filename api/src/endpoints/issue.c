@@ -1,5 +1,6 @@
 #include <endpoints/auth.h>
 #include <enums.h>
+#include <lib/email.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
 #include <macros/colors.h>
@@ -7,6 +8,7 @@
 #include <macros/utils.h>
 #include <math.h>
 #include <sql/issue.h>
+#include <sql/user.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -14,6 +16,7 @@
 #include <utils.h>
 
 #define ISSUE_EXISTS_MESSAGE "The issue already exists."
+#define ISSUE_ALREADY_PUBLISHED_MESSAGE "Issue is already published."
 #define TITLE_REQUIRED_MESSAGE "Title is required."
 #define ISSUE_NUMBER_REQUIRED_MESSAGE "Issue number is required."
 #define STATUS_REQUIRED_MESSAGE "Status is required."
@@ -448,4 +451,91 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
   } else {
     ERROR_REPLY_405;
   }
+}
+
+void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
+                       int id, struct error_reply *error_reply,
+                       const char *secret) {
+  int query_code;
+  error_reply = malloc(sizeof(struct error_reply));
+
+  if (!mg_match(msg->method, mg_str("POST"), NULL)) {
+    ERROR_REPLY_405;
+    return;
+  }
+
+  printf(TERMINAL_ENDPOINT_MESSAGE("=== PUBLISH ISSUE ==="));
+
+  // Auth
+  int user_logged = 0;
+  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  if (user_logged == 0) {
+    ERROR_REPLY_401;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+    return;
+  }
+
+  // Check issue exists
+  int exists = issue_exists(id);
+  if (!exists) {
+    ERROR_REPLY_404;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ISSUE NOT FOUND"));
+    return;
+  }
+
+  // Load issue to check current status
+  struct issue *issue = malloc(sizeof(struct issue));
+  query_code = get_issue(issue, id);
+  if (query_code != 0) {
+    free(issue);
+    HANDLE_QUERY_CODE;
+    return;
+  }
+
+  // 409 if already published
+  if (issue->status != NULL && strcmp(issue->status, "PUBLISHED") == 0) {
+    error_reply_map(error_reply, 409, ISSUE_ALREADY_PUBLISHED_MESSAGE, 409);
+    mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
+    free_issue(issue);
+    return;
+  }
+
+  char *title = issue->title != NULL ? strdup(issue->title) : strdup("Date.now()");
+  free_issue(issue);
+
+  // Publish in DB
+  query_code = publish_issue(id);
+  if (query_code != 0) {
+    free(title);
+    ERROR_REPLY_500;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR PUBLISHING ISSUE"));
+    return;
+  }
+
+  // Send newsletter to all subscribers
+  size_t subscribers_len = 0;
+  char **emails = NULL;
+  query_code = get_subscriber_emails(&subscribers_len, &emails);
+  if (query_code == 0 && emails != NULL) {
+    char subject[256];
+    snprintf(subject, sizeof(subject), "Date.now() - %s", title);
+
+    char html[512];
+    snprintf(html, sizeof(html),
+             "Un nouveau numero est disponible : "
+             "<a href=https://datenow.com>%s</a>",
+             title);
+
+    for (size_t i = 0; i < subscribers_len; i++) {
+      send_mail(emails[i], subject, html);
+      free(emails[i]);
+    }
+    free(emails);
+  }
+
+  free(title);
+
+  mg_http_reply(c, 200, JSON_HEADER,
+                "{ \"message\": \"Issue published and newsletter sent\" }");
+  printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY PUBLISHED ==="));
 }
