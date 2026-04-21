@@ -1,3 +1,10 @@
+/**
+ * @file main.c
+ * @brief Entry point: initialises SQLite and ImageMagick, opens the database,
+ *        registers signal handlers, and runs the Mongoose HTTP event loop with
+ *        URL-based routing to all endpoint handlers.
+ */
+
 #include <endpoints/auth.h>
 #include <endpoints/issue.h>
 #include <endpoints/issue_author.h>

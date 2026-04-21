@@ -1,3 +1,8 @@
+/**
+ * @file issue.c
+ * @brief SQLite data-access implementation for the Issue table.
+ */
+
 #include <enums.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
@@ -39,6 +44,8 @@ extern sqlite3 *db;
   " WHERE i.title LIKE ?100 OR CAST(i.issueNumber AS Text) LIKE ?100 OR "      \
   "i.content LIKE ?100"
 #define QUERY_SORT_TMP " ORDER BY i.title COLLATE NOCASE %s"
+#define QUERY_STATUS_AND_TMP " AND i.status = ?101"
+#define QUERY_STATUS_WHERE_TMP " WHERE i.status = ?101"
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
 #define QUERY_POST_TMP                                                         \
@@ -144,7 +151,7 @@ int issue_identity_exists(char *title, int issue_number, char *slug) {
   return issues_count > 0;
 }
 
-int get_issues_len(const struct mg_str *q) {
+int get_issues_len(const struct mg_str *q, const char *status) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES COUNT SQL ==="));
 
   int query_rc = SQLITE_ROW;
@@ -159,12 +166,18 @@ int get_issues_len(const struct mg_str *q) {
     sprintf(q_str, "%%%.*s%%", (int)q->len, q->buf);
 
     query_len += strlen(query_q_tmp);
+    if (status != NULL) query_len += strlen(QUERY_STATUS_AND_TMP);
+  } else if (status != NULL) {
+    query_len += strlen(QUERY_STATUS_WHERE_TMP);
   }
 
   char *query = malloc(query_len);
   strcpy(query, query_tmp);
   if (q->len > 0) {
     strcat(query, query_q_tmp);
+    if (status != NULL) strcat(query, QUERY_STATUS_AND_TMP);
+  } else if (status != NULL) {
+    strcat(query, QUERY_STATUS_WHERE_TMP);
   }
   strcat(query, ";");
 
@@ -177,13 +190,16 @@ int get_issues_len(const struct mg_str *q) {
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
     free(q_str);
-
+    free(query);
     return query_rc;
   }
 
   // Binding
   if (q_str != NULL) {
     sqlite3_bind_text(stmt, 100, q_str, -1, SQLITE_STATIC);
+  }
+  if (status != NULL) {
+    sqlite3_bind_text(stmt, 101, status, -1, SQLITE_STATIC);
   }
 
   GET_EXPANDED_QUERY(stmt);
@@ -195,6 +211,7 @@ int get_issues_len(const struct mg_str *q) {
             sqlite3_errmsg(db));
     free(q_str);
     sqlite3_finalize(stmt);
+    free(query);
     return query_rc;
   }
 
@@ -214,7 +231,8 @@ int get_issues_len(const struct mg_str *q) {
 }
 
 int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
-               const struct mg_str *sort, int page, int page_size) {
+               const char *status, const struct mg_str *sort, int page,
+               int page_size) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES SQL ==="));
 
   int query_rc = SQLITE_ROW;
@@ -249,6 +267,9 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     sprintf(q_str, "%%%.*s%%", (int)q->len, q->buf);
 
     query_len += strlen(query_params_tmp);
+    if (status != NULL) query_len += strlen(QUERY_STATUS_AND_TMP);
+  } else if (status != NULL) {
+    query_len += strlen(QUERY_STATUS_WHERE_TMP);
   }
   if (sort->len > 0) {
     query_len += strlen(query_sort_tmp);
@@ -261,6 +282,9 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
   strcpy(query, query_tmp);
   if (q->len > 0) {
     strcat(query, query_params_tmp);
+    if (status != NULL) strcat(query, QUERY_STATUS_AND_TMP);
+  } else if (status != NULL) {
+    strcat(query, QUERY_STATUS_WHERE_TMP);
   }
   if (sort->len > 0) {
     strcat(query, query_sort_tmp);
@@ -278,13 +302,16 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
     free(q_str);
-
+    free(query);
     return query_rc;
   }
 
   // Binding
   if (q->len > 0) {
     sqlite3_bind_text(stmt, 100, q_str, -1, SQLITE_STATIC);
+  }
+  if (status != NULL) {
+    sqlite3_bind_text(stmt, 101, status, -1, SQLITE_STATIC);
   }
   if (page > 0) {
     int offset = (page - 1) * page_size;
@@ -301,6 +328,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
     free(q_str);
+    free(query);
     return query_rc;
   }
 
@@ -313,6 +341,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     if (issue_init_rc != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("The issue is NULL"));
       free(q_str);
+      free(query);
       return HTTP_INTERNAL_ERROR;
     }
 
@@ -370,6 +399,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
 
   sqlite3_finalize(stmt);
   free(q_str);
+  free(query);
 
   return 0;
 }
@@ -514,6 +544,7 @@ int add_issue(struct issue *issue) {
     return query_rc;
   }
 
+  issue->id = (int)sqlite3_last_insert_rowid(db);
   sqlite3_finalize(stmt);
 
   return 0;

@@ -12,9 +12,7 @@
 		[key: string]: unknown;
 	}
 
-	let { tag = 'button', children, customClass, ...props }: Props = $props();
-
-	const { variant } = props;
+	let { tag = 'button', variant, children, customClass, ...props }: Props = $props();
 </script>
 
 <svelte:element

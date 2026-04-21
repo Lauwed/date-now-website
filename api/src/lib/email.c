@@ -1,3 +1,8 @@
+/**
+ * @file lib/email.c
+ * @brief Implementation of send_mail() using the Resend HTTP API via libcurl.
+ */
+
 #include <curl/curl.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>

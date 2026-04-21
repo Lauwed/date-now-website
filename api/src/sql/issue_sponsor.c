@@ -1,3 +1,8 @@
+/**
+ * @file issue_sponsor.c
+ * @brief SQLite data-access implementation for the IssueSponsor join table.
+ */
+
 #include <enums.h>
 #include <macros/colors.h>
 #include <macros/sql.h>

@@ -1,3 +1,8 @@
+/**
+ * @file issue_tag.c
+ * @brief SQLite data-access implementation for the IssueTag join table.
+ */
+
 #include <enums.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
