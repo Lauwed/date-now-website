@@ -130,6 +130,11 @@
   error_reply->json = NULL;                                                     \
   fprintf(stderr, TERMINAL_ERROR_MESSAGE(message));
 
+/** @brief Reply with HTTP 429 Too Many Requests. */
+#define ERROR_REPLY_429                                                        \
+  mg_http_reply(c, 429, JSON_HEADER,                                           \
+                "{\"code\":429,\"error\":\"Too many requests\"}");
+
 /** @brief Reply with HTTP 413 Content Too Large and the given @p message. */
 #define ERROR_REPLY_413(message)                                               \
   error_reply_map(error_reply, 413, message, 413);                             \

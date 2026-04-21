@@ -5,7 +5,9 @@
  *        URL-based routing to all endpoint handlers.
  */
 
+#include <MagickWand/MagickWand.h>
 #include <endpoints/auth.h>
+#include <rate_limiter.h>
 #include <endpoints/issue.h>
 #include <endpoints/issue_author.h>
 #include <endpoints/issue_sponsor.h>
@@ -24,7 +26,6 @@
 #include <stdlib.h>
 #include <structs.h>
 #include <utils.h>
-#include <MagickWand/MagickWand.h>
 
 sqlite3 *db;
 
@@ -47,7 +48,6 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
 
       // JWT Secret
       const char *secret = getenv("JWT_SECRET");
-      printf("%s\n", secret);
       if (!secret) {
         mg_http_reply(c, 500, JSON_HEADER,
                       "{\"code\": 500, \"error\": \"Internal Error\"}");
@@ -61,6 +61,26 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       if (mg_match(endpoint_cap[0], mg_str("auth#"), NULL)) {
         struct mg_str caps[2];
 
+        if (rate_limit_check(&c->rem, RATE_LIMIT_AUTH_MAX,
+                             RATE_LIMIT_AUTH_WINDOW)) {
+          mg_http_reply(c, 429, JSON_HEADER,
+                        "{\"code\":429,\"error\":\"Too many requests\"}");
+          return;
+        }
+
+        if (mg_match(endpoint_cap[0], mg_str("auth/login/totp"), caps)) {
+          if (rate_limit_check(&c->rem, RATE_LIMIT_TOTP_MAX,
+                               RATE_LIMIT_TOTP_WINDOW)) {
+            mg_http_reply(c, 429, JSON_HEADER,
+                          "{\"code\":429,\"error\":\"Too many requests\"}");
+            return;
+          }
+          login_user(c, http_msg, error_reply, secret);
+          mg_http_reply(c, 404, JSON_HEADER,
+                        "{\"code\": 404, \"error\": \"Not found\"}");
+          return;
+        }
+
         if (mg_match(endpoint_cap[0], mg_str("auth/subscribe"), caps)) {
           send_subscription_mail(c, http_msg, error_reply, secret);
         }
@@ -71,13 +91,10 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           register_user(c, http_msg, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/seed"), caps)) {
-          generate_totpseed_user(c, http_msg, error_reply);
+          generate_totpseed_user(c, http_msg, error_reply, secret);
         }
         if (mg_match(endpoint_cap[0], mg_str("auth/login"), caps)) {
           send_login_mail(c, http_msg, error_reply, secret);
-        }
-        if (mg_match(endpoint_cap[0], mg_str("auth/login/totp"), caps)) {
-          login_user(c, http_msg, error_reply, secret);
         }
 
         mg_http_reply(c, 404, JSON_HEADER,

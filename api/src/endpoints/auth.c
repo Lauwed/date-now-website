@@ -70,12 +70,25 @@ void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
     return;
   }
 
-  printf("TOKEN GRANTS:\tEXP: %ld\tEMAIL: %s\n", exp, email);
+  // Check if user is author
+  struct user *user = malloc(sizeof(struct user));
+  int user_init_rc = user_init(user);
+  if (user_init_rc != 0) {
+    ERROR_REPLY_500;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER IS NULL"));
 
-  // Check if user esists
-  int query_code = user_identity_exists(NULL, (char *)email);
+    return;
+  }
+
+  int query_code = get_user_by_email(user, (char *)email);
   if (query_code <= 0) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USER"));
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER NOT FIND"));
+    return;
+  }
+
+  // Check if user is an author
+  if (strcmp(user->role, "AUTHOR") != 0) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER NOT AUTHOR"));
     return;
   }
 
@@ -144,8 +157,6 @@ void send_subscription_mail(struct mg_connection *c,
     char *jwt_str = jwt_encode_str(jwt);
     jwt_free(jwt);
 
-    printf("JWT TOKEN GENERATED:\t%s\n", jwt_str);
-
     // Send mail with link /confirm?token=<jwt>
     char html[512];
     snprintf(html, sizeof(html),
@@ -176,27 +187,35 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
-  // Check if GET
-  if (mg_match(msg->method, mg_str("GET"), NULL)) {
+  // Check if POST
+  if (mg_match(msg->method, mg_str("POST"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== CONFIRM SUBSCRIPTION ==="));
 
-    // Check if token
-    char token_buf[1024] = "";
-    int token_decoded_len =
-        mg_http_get_var(&msg->query, "token", token_buf, sizeof(token_buf));
-    if (token_decoded_len > 0 && token_decoded_len < 1024) {
-      token_buf[token_decoded_len] = '\0';
-    } else {
+    if (msg->body.len <= 0) {
+      ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
+      return;
+    } else if (!mg_validateJSON(msg->body)) {
+      ERROR_REPLY_400(JSON_ERROR_MESSAGE);
+      return;
+    }
+
+    int offset, length;
+    offset = mg_json_get(msg->body, "$.token", &length);
+    if (offset < 0) {
+      ERROR_REPLY_400(NO_TOKEN_MESSAGE);
+      return;
+    }
+    char *token_heap = mg_json_get_str(msg->body, "$.token");
+    if (token_heap == NULL) {
       ERROR_REPLY_400(NO_TOKEN_MESSAGE);
       return;
     }
 
-    printf("QUERY PARAMS:\tTOKEN: %s\n", token_buf);
-
     // Check JWT
     jwt_t *decoded = NULL;
-    int is_decoded = jwt_decode(&decoded, token_buf, (unsigned char *)secret,
+    int is_decoded = jwt_decode(&decoded, token_heap, (unsigned char *)secret,
                                 strlen(secret));
+    free(token_heap);
 
     if (is_decoded != 0) {
       ERROR_REPLY_500;
@@ -336,8 +355,6 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     return;
   }
 
-  printf("TOTP SEED GENERATED:\t%s\n", user->totp_seed);
-
   // Force role to AUTHOR
   user->role = "AUTHOR";
   user_hydrate(msg, user);
@@ -362,7 +379,18 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
 
 void generate_totpseed_user(struct mg_connection *c,
                             struct mg_http_message *msg,
-                            struct error_reply *error_reply) {
+                            struct error_reply *error_reply,
+                            const char *secret) {
+  // Check if user logged
+  int user_logged = 0;
+  is_user_logged(c, msg, error_reply, secret, &user_logged);
+
+  if (user_logged == 0) {
+    ERROR_REPLY_401;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+    return;
+  }
+
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
@@ -419,8 +447,6 @@ void generate_totpseed_user(struct mg_connection *c,
           free_user(user);
           return;
         }
-
-        printf("TOTP SEED GENERATED:\t%s\n", user->totp_seed);
 
         // Update user
         query_code = edit_user(user);
@@ -497,8 +523,6 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
 
     char *jwt_str = jwt_encode_str(jwt);
     jwt_free(jwt);
-
-    printf("JWT TOKEN GENERATED:\t%s\n", jwt_str);
 
     // Send mail with link login/totp?token=<jwt>
     char html[512];
@@ -623,9 +647,6 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     uint32_t totp_prev = totp_generate_at(seed, 30, now - 30);
     uint32_t totp_curr = totp_generate(seed, 30);
     uint32_t totp_next = totp_generate_at(seed, 30, now + 30);
-
-    printf("TOTP CODE:\tPREV:%06u\tCURR:%06u\tNEXT:%06u\tFROM USER:%d\n",
-           totp_prev, totp_curr, totp_next, code);
 
     if ((uint32_t)code != totp_prev && (uint32_t)code != totp_curr &&
         (uint32_t)code != totp_next) {
