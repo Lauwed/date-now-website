@@ -25,29 +25,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            build-essential \
-            pkg-config \
-            libjwt-dev \
-            libssl-dev \
-            libsqlite3-dev \
-            libcurl4-openssl-dev \
-            libmagickwand-dev
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: c-cpp
+          build-mode: none
           source-root: api
-
-      - name: Build
-        working-directory: api
-        run: |
-          mkdir -p bin obj/lib obj/endpoints obj/sql
-          make
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
