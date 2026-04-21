@@ -16,6 +16,14 @@ updates:
       - "Dependencies"
       - "CMS"
 
+  - package-ecosystem: "docker"
+    directory: "/api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "Dependencies"
+      - "API"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
