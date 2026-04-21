@@ -2,7 +2,9 @@ CC ?= cc
 MAGICK_PKG    := $(shell pkg-config --list-all 2>/dev/null | grep -i '^MagickWand' | head -1 | cut -d' ' -f1)
 MAGICK_CFLAGS := $(shell pkg-config --cflags $(MAGICK_PKG))
 MAGICK_LIBS   := $(shell pkg-config --libs   $(MAGICK_PKG))
-CFLAGS := -I ./include/ -g $(MAGICK_CFLAGS)
+EXTRA_CFLAGS  :=
+EXTRA_LDFLAGS :=
+CFLAGS := -I ./include/ -g $(MAGICK_CFLAGS) $(EXTRA_CFLAGS)
 LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl -lcjson $(MAGICK_LIBS) -lpthread
 
 includes := ./include
@@ -18,7 +20,7 @@ sql_o := ${foreach t,$(tables),obj/sql/$(t).o}
 helpers_h := $(includes)/utils.h $(includes)/structs.h $(includes)/enums.h
 
 serv_api : obj/main.o $(libs_o) $(helpers_o) $(endpoints_o) $(sql_o)
-	$(CC) -o bin/serv_api obj/main.o $(libs_o) $(endpoints_o) $(sql_o) $(helpers_o) $(LIBS) -g -lm -Wall -O2
+	$(CC) -o bin/serv_api obj/main.o $(libs_o) $(endpoints_o) $(sql_o) $(helpers_o) $(LIBS) -g -lm -Wall -O2 $(EXTRA_LDFLAGS)
 
 
 obj/main.o : ./src/main.c $(libs_o) $(endpoints_o) $(helpers_o)

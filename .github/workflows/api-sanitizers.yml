@@ -1,0 +1,160 @@
+name: API - Sanitizers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - '.github/workflows/api-sanitizers.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - '.github/workflows/api-sanitizers.yml'
+  workflow_dispatch:
+
+jobs:
+  asan:
+    name: AddressSanitizer + UBSan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang \
+            libjwt-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            libcurl4-openssl-dev \
+            libcjson-dev \
+            libmagickwand-dev \
+            sqlite3
+
+      - name: Create upload directory
+        run: sudo mkdir -p /var/www/uploads/media && sudo chmod 777 /var/www/uploads/media
+
+      - name: Build with ASAN/UBSan
+        working-directory: api
+        run: |
+          mkdir -p bin obj/lib obj/endpoints obj/sql
+          make CC=clang \
+               EXTRA_CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+               EXTRA_LDFLAGS="-fsanitize=address,undefined"
+
+      - name: Apply migrations
+        working-directory: api
+        run: |
+          for f in migrations/*.sql; do sqlite3 uwu.db < "$f"; done
+
+      - name: Start server & smoke test
+        working-directory: api
+        env:
+          JWT_SECRET: ci-smoke-test-jwt-secret-32-chars!
+          CORS_ORIGIN: "*"
+          ASAN_OPTIONS: halt_on_error=1:detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ./bin/serv_api &
+          SERVER_PID=$!
+
+          # Wait up to 10 s for the server to accept connections
+          for i in $(seq 1 20); do
+            curl -s http://localhost:8000/ > /dev/null 2>&1 && break || sleep 0.5
+          done
+
+          # 2xx/4xx are expected; 5xx or a crash fails the step
+          curl -sf http://localhost:8000/api/issue
+          curl -sf http://localhost:8000/api/tag
+          curl -sf http://localhost:8000/api/sponsor
+
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+                   -X POST http://localhost:8000/api/auth/subscribe \
+                   -H "Content-Type: application/json" \
+                   -d '{"email":"smoke@test.example"}')
+          echo "POST /api/auth/subscribe → HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
+
+          # SIGTERM triggers handle_shutdown → exit(0)
+          # ASAN/LSAN report leaks on exit and override the exit code to 1 if any found
+          kill $SERVER_PID
+          wait $SERVER_PID
+
+  valgrind:
+    name: Valgrind
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc \
+            libjwt-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            libcurl4-openssl-dev \
+            libcjson-dev \
+            libmagickwand-dev \
+            sqlite3 \
+            valgrind
+
+      - name: Create upload directory
+        run: sudo mkdir -p /var/www/uploads/media && sudo chmod 777 /var/www/uploads/media
+
+      - name: Build
+        working-directory: api
+        run: |
+          mkdir -p bin obj/lib obj/endpoints obj/sql
+          make
+
+      - name: Apply migrations
+        working-directory: api
+        run: |
+          for f in migrations/*.sql; do sqlite3 uwu.db < "$f"; done
+
+      - name: Start server under Valgrind & smoke test
+        working-directory: api
+        env:
+          JWT_SECRET: ci-smoke-test-jwt-secret-32-chars!
+          CORS_ORIGIN: "*"
+        run: |
+          valgrind \
+            --leak-check=full \
+            --show-leak-kinds=definite,indirect \
+            --error-exitcode=1 \
+            --log-file=valgrind.log \
+            ./bin/serv_api &
+          VALGRIND_PID=$!
+
+          # Valgrind startup is slow — wait up to 60 s
+          for i in $(seq 1 60); do
+            curl -s http://localhost:8000/ > /dev/null 2>&1 && break || sleep 1
+          done
+
+          curl -sf http://localhost:8000/api/issue
+          curl -sf http://localhost:8000/api/tag
+          curl -sf http://localhost:8000/api/sponsor
+
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+                   -X POST http://localhost:8000/api/auth/subscribe \
+                   -H "Content-Type: application/json" \
+                   -d '{"email":"smoke@test.example"}')
+          echo "POST /api/auth/subscribe → HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
+
+          # SIGTERM → handle_shutdown → exit(0) → Valgrind runs leak check
+          # --error-exitcode=1 causes Valgrind to exit with 1 if errors were found
+          kill $VALGRIND_PID
+          wait $VALGRIND_PID
+
+      - name: Print Valgrind report
+        if: always()
+        run: cat api/valgrind.log
