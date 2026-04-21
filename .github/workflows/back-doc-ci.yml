@@ -1,0 +1,25 @@
+name: Lint API schema
+ 
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "api/docs/api.json"
+  pull_request:
+    paths:
+      - "api/docs/api.json"
+ 
+jobs:
+  validate:
+    name: Validate api.json
+    runs-on: ubuntu-latest
+    container:
+      image: node:22-alpine
+ 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+ 
+      - name: Run linter
+        run: npx tabula-docs validate api/docs/api.json
