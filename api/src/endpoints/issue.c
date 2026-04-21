@@ -10,6 +10,7 @@
 #include <lib/validatejson.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
+#include <macros/strings.h>
 #include <macros/utils.h>
 #include <math.h>
 #include <pthread.h>
@@ -566,10 +567,12 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     struct newsletter_ctx *ctx = malloc(sizeof(struct newsletter_ctx));
     ctx->emails = emails;
     ctx->count = subscribers_len;
-    snprintf(ctx->subject, sizeof(ctx->subject), "Date.now() - %s", title);
-    snprintf(ctx->html, sizeof(ctx->html),
-             "Un nouveau numero est disponible : "
-             "<a href=https://datenow.com>%s</a>",
+    const char *app_url = getenv("APP_URL");
+    if (!app_url) app_url = "https://datenow.com";
+
+    snprintf(ctx->subject, sizeof(ctx->subject), EMAIL_NEWSLETTER_SUBJECT_FMT,
+             title);
+    snprintf(ctx->html, sizeof(ctx->html), EMAIL_NEWSLETTER_BODY_FMT, app_url,
              title);
 
     pthread_t tid;

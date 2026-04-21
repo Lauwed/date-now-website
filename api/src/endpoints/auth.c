@@ -12,6 +12,7 @@
 #include <lib/validatejson.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
+#include <macros/strings.h>
 #include <sql/user.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,13 +162,12 @@ void send_subscription_mail(struct mg_connection *c,
     jwt_free(jwt);
 
     // Send mail with link /confirm?token=<jwt>
+    const char *app_url = getenv("APP_URL");
+    if (!app_url) app_url = "https://datenow.com";
+
     char html[512];
-    snprintf(html, sizeof(html),
-             "Clique ici pour confirmer : "
-             "<a href='https://datenow.com/confirm?token=%s'>Confirmer</a>",
-             jwt_str);
-    int mail_sent = send_mail(
-        email, "Confim subscription to Date.now()'s Newsletter", html);
+    snprintf(html, sizeof(html), EMAIL_SUBSCRIPTION_BODY_FMT, app_url, jwt_str);
+    int mail_sent = send_mail(email, EMAIL_SUBSCRIPTION_SUBJECT, html);
 
     free(email);
     if (mail_sent != 0) {
@@ -551,12 +551,12 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
     jwt_free(jwt);
 
     // Send mail with link login/totp?token=<jwt>
+    const char *app_url = getenv("APP_URL");
+    if (!app_url) app_url = "https://datenow.com";
+
     char html[512];
-    snprintf(html, sizeof(html),
-             "Clique ici pour confirmer : "
-             "<a href='https://datenow.com/login/totp?token=%s'>Log in</a>",
-             jwt_str);
-    int mail_sent = send_mail(email, "Log in request to Date.now()", html);
+    snprintf(html, sizeof(html), EMAIL_LOGIN_BODY_FMT, app_url, jwt_str);
+    int mail_sent = send_mail(email, EMAIL_LOGIN_SUBJECT, html);
 
     free(email);
     if (mail_sent != 0) {

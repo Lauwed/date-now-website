@@ -22,13 +22,16 @@ int send_mail(const char *to, const char *subject, const char *html) {
     return 1;
   }
 
+  const char *from = getenv("MAIL_FROM");
+  if (!from) from = "datenow@lauradurieux.dev";
+
   char body[1024];
   snprintf(body, sizeof(body),
-           "{\"from\":\"datenow@lauradurieux.dev\","
+           "{\"from\":\"%s\","
            "\"to\":[\"%s\"],"
            "\"subject\":\"%s\","
            "\"html\":\"%s\"}",
-           to, subject, html);
+           from, to, subject, html);
 
   char auth_header[256];
   snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s",
