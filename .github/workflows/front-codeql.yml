@@ -8,9 +8,6 @@ on:
       - '.github/workflows/front-codeql.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'front/**'
-      - '.github/workflows/front-codeql.yml'
   schedule:
     - cron: '0 4 * * 1'
 

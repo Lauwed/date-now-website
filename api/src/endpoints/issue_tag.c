@@ -25,7 +25,8 @@ void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
                          int issue_id, struct error_reply *error_reply,
                          const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if issue exists
   int exists = issue_exists(issue_id);
@@ -69,6 +70,7 @@ void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
+    reply->json = NULL;
     reply->total = reply->count = get_issue_tags_len(&q, issue_id);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
@@ -111,6 +113,7 @@ void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUE TAGS"));
         HANDLE_QUERY_CODE;
 
+        free(reply->json);
         free(reply->data);
         free(reply);
         return;
@@ -126,8 +129,8 @@ void send_issue_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     if (reply->count > 0) {
       free_issue_tags(issues, reply->count);
       free(reply->data);
-      free(reply->json);
     }
+    free(reply->json);
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
@@ -183,7 +186,8 @@ void send_issue_tag_res(struct mg_connection *c, struct mg_http_message *msg,
                         int issue_id, char *id, struct error_reply *error_reply,
                         const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if exists
   int exists = issue_exists(issue_id);

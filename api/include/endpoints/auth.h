@@ -12,7 +12,8 @@
 #include <structs.h>
 
 /**
- * @brief Handles POST /auth/subscribe — sends a subscription confirmation email.
+ * @brief Handles POST /auth/subscribe — sends a subscription confirmation
+ * email.
  *
  * Reads the "email" field from the request body, validates it, checks for
  * duplicates, then generates a SUBSCRIPTION JWT and emails a confirmation
@@ -29,10 +30,12 @@ void send_subscription_mail(struct mg_connection *c,
                             const char *secret);
 
 /**
- * @brief Handles POST /auth/subscribe/confirm — confirms a newsletter subscription.
+ * @brief Handles POST /auth/subscribe/confirm — confirms a newsletter
+ * subscription.
  *
- * Verifies the SUBSCRIPTION JWT from the body, marks the user as subscribed,
- * and replies 200 on success.
+ * Reads the SUBSCRIPTION JWT from the JSON body field "token" (never from a
+ * URL query parameter), verifies it, marks the user as subscribed, and
+ * replies 200 on success.
  *
  * @param c           Active Mongoose connection.
  * @param msg         Parsed HTTP message.
@@ -65,10 +68,12 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
  * @param c           Active Mongoose connection.
  * @param msg         Parsed HTTP message.
  * @param error_reply Pre-allocated error reply structure.
+ * @param secret      JWT signing secret (not freed).
  */
 void generate_totpseed_user(struct mg_connection *c,
                             struct mg_http_message *msg,
-                            struct error_reply *error_reply);
+                            struct error_reply *error_reply,
+                            const char *secret);
 
 /**
  * @brief Handles POST /auth/login — sends a login confirmation email.

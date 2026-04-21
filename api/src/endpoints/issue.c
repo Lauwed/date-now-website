@@ -10,8 +10,10 @@
 #include <lib/validatejson.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
+#include <macros/strings.h>
 #include <macros/utils.h>
 #include <math.h>
+#include <pthread.h>
 #include <sql/issue.h>
 #include <sql/user.h>
 #include <stdbool.h>
@@ -20,10 +22,29 @@
 #include <structs.h>
 #include <utils.h>
 
+struct newsletter_ctx {
+  char **emails;
+  size_t count;
+  char subject[256];
+  char html[512];
+};
+
+static void *newsletter_thread(void *arg) {
+  struct newsletter_ctx *ctx = arg;
+  for (size_t i = 0; i < ctx->count; i++) {
+    send_mail(ctx->emails[i], ctx->subject, ctx->html);
+    free(ctx->emails[i]);
+  }
+  free(ctx->emails);
+  free(ctx);
+  return NULL;
+}
+
 void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
                      struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== GET ISSUE LIST ==="));
@@ -59,7 +80,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
            (int)q.len, q.buf, (int)sort.len, sort.buf, status ? status : "");
 
     // Pagination
-    int page, page_size;
+    int page = -1, page_size = 0;
     struct mg_str page_str = mg_http_var(msg->query, mg_str("page"));
     if (mg_str_to_num(page_str, 10, &page, sizeof(int)) == false)
       page = -1;
@@ -75,6 +96,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
+    reply->json = NULL;
     reply->total = reply->count = get_issues_len(&q, status);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
@@ -117,6 +139,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
         HANDLE_QUERY_CODE;
 
+        free(reply->json);
         free(reply->data);
         free(reply);
         return;
@@ -132,8 +155,8 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     if (reply->count > 0) {
       free_issues(issues, reply->count);
       free(reply->data);
-      free(reply->json);
     }
+    free(reply->json);
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
@@ -168,8 +191,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
       ERROR_REPLY_400(TITLE_REQUIRED_MESSAGE);
       return;
     } else {
-      title = malloc(length);
-      strncpy(title, msg->body.buf + offset + 1, length - 2);
+      title = strndup(msg->body.buf + offset + 1, length - 2);
     }
 
     // Issue number required
@@ -181,7 +203,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     } else {
       // Issue number not existing already
       char *issue_number_str = malloc(length + 1);
-      sprintf(issue_number_str, STR_FMT, length, msg->body.buf + offset);
+      snprintf(issue_number_str, length + 1, STR_FMT, length, msg->body.buf + offset);
 
       issue_number = atoi(issue_number_str);
       free(issue_number_str);
@@ -194,8 +216,9 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
 
     offset = mg_json_get(msg->body, "$.slug", &length);
     if (offset > 0) {
-      char *slug = malloc(length);
+      slug = malloc(length);
       strncpy(slug, msg->body.buf + offset + 1, length - 2);
+      slug[length - 2] = '\0';
     } else {
       slug = strdup(title);
       str_to_slug(slug, strlen(slug));
@@ -281,7 +304,8 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
                     int id, struct error_reply *error_reply,
                     const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if exists
   int exists = issue_exists(id);
@@ -308,6 +332,7 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
       char *result = issue_to_json(issue);
 
       SUCCESS_REPLY_200(result);
+      free(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY SENT ==="));
     }
 
@@ -344,8 +369,7 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     // Title required
     offset = mg_json_get(msg->body, "$.title", &length);
     if (offset >= 0) {
-      title = malloc(length);
-      strncpy(title, msg->body.buf + offset + 1, length - 2);
+      title = strndup(msg->body.buf + offset + 1, length - 2);
     }
 
     // Issue number required
@@ -366,8 +390,9 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
 
     offset = mg_json_get(msg->body, "$.slug", &length);
     if (offset >= 0) {
-      char *slug = malloc(length);
+      slug = malloc(length);
       strncpy(slug, msg->body.buf + offset + 1, length - 2);
+      slug[length - 2] = '\0';
     }
 
     if (title != NULL || issue_number > 0 || slug != NULL) {
@@ -476,7 +501,8 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
                        int id, struct error_reply *error_reply,
                        const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   if (!mg_match(msg->method, mg_str("POST"), NULL)) {
     ERROR_REPLY_405;
@@ -531,24 +557,40 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     return;
   }
 
-  // Send newsletter to all subscribers
+  // Send newsletter to all subscribers asynchronously
   size_t subscribers_len = 0;
   char **emails = NULL;
   query_code = get_subscriber_emails(&subscribers_len, &emails);
-  if (query_code == 0 && emails != NULL) {
-    char subject[256];
-    snprintf(subject, sizeof(subject), "Date.now() - %s", title);
+  if (query_code == 0 && emails != NULL && subscribers_len > 0) {
+    struct newsletter_ctx *ctx = malloc(sizeof(struct newsletter_ctx));
+    ctx->emails = emails;
+    ctx->count = subscribers_len;
+    const char *app_url = getenv("APP_URL");
+    if (!app_url) app_url = "https://datenow.com";
 
-    char html[512];
-    snprintf(html, sizeof(html),
-             "Un nouveau numero est disponible : "
-             "<a href=https://datenow.com>%s</a>",
+    snprintf(ctx->subject, sizeof(ctx->subject), EMAIL_NEWSLETTER_SUBJECT_FMT,
+             title);
+    snprintf(ctx->html, sizeof(ctx->html), EMAIL_NEWSLETTER_BODY_FMT, app_url,
              title);
 
-    for (size_t i = 0; i < subscribers_len; i++) {
-      send_mail(emails[i], subject, html);
-      free(emails[i]);
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    if (pthread_create(&tid, &attr, newsletter_thread, ctx) != 0) {
+      pthread_attr_destroy(&attr);
+      /* Fallback: send synchronously */
+      for (size_t i = 0; i < ctx->count; i++) {
+        send_mail(ctx->emails[i], ctx->subject, ctx->html);
+        free(ctx->emails[i]);
+      }
+      free(ctx->emails);
+      free(ctx);
+    } else {
+      pthread_attr_destroy(&attr);
     }
+  } else if (emails != NULL) {
+    for (size_t i = 0; i < subscribers_len; i++) free(emails[i]);
     free(emails);
   }
 

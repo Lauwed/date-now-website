@@ -13,9 +13,13 @@
  *
  * @param stmt A `sqlite3_stmt *` that has been prepared and bound.
  */
+#ifdef DEBUG
 #define GET_EXPANDED_QUERY(stmt)                                               \
   char *expanded = sqlite3_expanded_sql(stmt);                                 \
   if (expanded) {                                                              \
     printf("=== QUERY:\n%s\n===\n", expanded);                                 \
     sqlite3_free(expanded);                                                    \
   }
+#else
+#define GET_EXPANDED_QUERY(stmt) ((void)(stmt))
+#endif

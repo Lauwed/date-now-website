@@ -3,6 +3,7 @@
  * @brief Page-view endpoint handler implementations (list, create).
  */
 
+#include <cjson/cJSON.h>
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
@@ -22,7 +23,8 @@
 void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     // Auth required for GET
@@ -62,6 +64,7 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
+    reply->json = NULL;
     reply->total = reply->count = get_views_len(issue_id);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
@@ -104,6 +107,7 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING VIEWS"));
         HANDLE_QUERY_CODE;
 
+        free(reply->json);
         free(reply->data);
         free(reply);
         return;
@@ -119,8 +123,8 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     if (reply->count > 0) {
       free_views(views, reply->count);
       free(reply->data);
-      free(reply->json);
     }
+    free(reply->json);
     free(reply);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     if (msg->body.len <= 0) {
@@ -180,9 +184,14 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    mg_http_reply(c, 201, JSON_HEADER,
-                  "{ \"id\": %d, \"time\": %d, \"issueId\": %d }",
-                  view->id, view->time, view->issue_id);
+    cJSON *view_obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(view_obj, "id", view->id);
+    cJSON_AddNumberToObject(view_obj, "time", view->time);
+    cJSON_AddNumberToObject(view_obj, "issueId", view->issue_id);
+    char *view_json = cJSON_PrintUnformatted(view_obj);
+    cJSON_Delete(view_obj);
+    SUCCESS_REPLY_201(view_json);
+    free(view_json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== VIEW SUCCESSFULLY ADDED ==="));
 
     free_view(view);

@@ -6,7 +6,8 @@ RUN apk update && apk add --no-cache \
     sqlite-libs \
     curl \
     imagemagick \
-    libwebp
+    libwebp \
+    cjson
 
 FROM base AS dev
 
@@ -17,6 +18,7 @@ RUN apk add --no-cache \
     sqlite-dev \
     curl-dev \
     imagemagick-dev \
+    cjson-dev \
     pkgconfig \
     bear \
     nodejs \
