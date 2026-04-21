@@ -32,7 +32,7 @@ jobs:
             libsqlite3-dev \
             libcurl4-openssl-dev \
             libcjson-dev \
-            libmagickwand-dev \
+            libmagickwand-6.q16-dev \
             sqlite3
 
       - name: Create upload directory
@@ -102,7 +102,7 @@ jobs:
             libsqlite3-dev \
             libcurl4-openssl-dev \
             libcjson-dev \
-            libmagickwand-dev \
+            libmagickwand-6.q16-dev \
             sqlite3 \
             valgrind
 
