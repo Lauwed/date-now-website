@@ -18,8 +18,6 @@
 #include <structs.h>
 #include <utils.h>
 
-#define HASHED_IP_REQUIRED_MESSAGE "The hashed IP is required"
-#define ISSUE_REQUIRED_MESSAGE "The issue ID is required"
 
 void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
@@ -115,7 +113,7 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->data = views_to_json(views, reply->count);
     list_reply_to_json(reply);
 
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
+    SUCCESS_REPLY_200(reply->json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== VIEWS SUCCESSFULLY SENT ==="));
 
     if (reply->count > 0) {

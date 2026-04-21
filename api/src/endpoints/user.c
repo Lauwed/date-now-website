@@ -17,9 +17,6 @@
 #include <structs.h>
 #include <utils.h>
 
-#define USER_EXISTS_MESSAGE "The user already exists."
-#define EMAIL_REQUIRED_MESSAGE "Email is required."
-#define ROLE_FORMAT_MESSAGE "Value of 'role' should be 'USER' or 'AUTHOR'."
 
 void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
@@ -111,7 +108,7 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->data = users_to_json(users, reply->count);
     list_reply_to_json(reply);
 
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
+    SUCCESS_REPLY_200(reply->json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== USERS SUCCESSFULLY SENT ==="));
 
     if (reply->count > 0) {
@@ -133,11 +130,9 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -148,7 +143,6 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     offset = mg_json_get(msg->body, "$.email", &length);
     if (offset < 0) {
       ERROR_REPLY_400(EMAIL_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("EMAIL REQUIRED"));
       return;
     } else {
       // Email and username not existing already
@@ -159,7 +153,6 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
       int email_valid = check_email_validity(email);
       if (email_valid != 0) {
         ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
         return;
       }
 
@@ -173,7 +166,6 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
       int exists = user_identity_exists(username, email);
       if (exists != 0) {
         ERROR_REPLY_400(USER_EXISTS_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER ALREADY EXISTS"));
         return;
       };
     }
@@ -183,7 +175,6 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     char role[10];
     if (length > 10) {
       ERROR_REPLY_400(ROLE_FORMAT_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("WRONG ROLE"));
 
       return;
     }
@@ -193,7 +184,6 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
 
       if (strcmp(role, "USER") != 0 && strcmp(role, "AUTHOR") != 0) {
         ERROR_REPLY_400(ROLE_FORMAT_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE("WRONG ROLE"));
 
         return;
       }
@@ -231,7 +221,7 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     char *result = user_to_json(created);
-    mg_http_reply(c, 201, JSON_HEADER, "%s\n", result);
+    SUCCESS_REPLY_201(result);
     free(result);
     printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY ADDED ==="));
 
@@ -271,7 +261,7 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
     } else {
       char *result = user_to_json(user);
 
-      mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+      SUCCESS_REPLY_200(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY SENT ==="));
     }
 
@@ -289,11 +279,9 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
 
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -313,7 +301,6 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       int email_valid = check_email_validity(email);
       if (email_valid != 0) {
         ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
         return;
       }
 
@@ -327,7 +314,6 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       int exists = user_identity_exists(username, email);
       if (exists != 0) {
         ERROR_REPLY_400(USER_EXISTS_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER ALREADY EXISTS"));
         return;
       };
     }
@@ -337,7 +323,6 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
     char role[10];
     if (length > 10) {
       ERROR_REPLY_400(ROLE_FORMAT_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("WRONG ROLE"));
 
       return;
     }
@@ -347,7 +332,6 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
 
       if (strcmp(role, "USER") != 0 && strcmp(role, "AUTHOR") != 0) {
         ERROR_REPLY_400(ROLE_FORMAT_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE("WRONG ROLE"));
         return;
       }
     }
@@ -372,7 +356,7 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
     }
 
     char *result = user_to_json(user);
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+    SUCCESS_REPLY_200(result);
     free(result);
     printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY EDITED ==="));
 
@@ -395,8 +379,7 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
     }
 
     printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY DELETE ==="));
-    mg_http_reply(c, 200, JSON_HEADER,
-                  "{ \"message\": \"User successfully deleted\" }");
+    SUCCESS_REPLY_200_MSG("User successfully deleted");
   } else {
     ERROR_REPLY_405;
   }

@@ -20,11 +20,6 @@
 #include <structs.h>
 #include <utils.h>
 
-#define LINK_REQUIRED_MESSAGE "The link is required"
-#define ISSUE_DOES_NOT_EXIST_MESSAGE "The issue doesn't exist"
-#define SPONSOR_DOES_NOT_EXIST_MESSAGE "The sponsor doesn't exist"
-#define LINK_ALREADY_EXISTS "The link between the issue and the sponsor already"
-#define LINK_DOES_NOT_EXIST "The link doesn't exists"
 
 void send_issue_sponsors_res(struct mg_connection *c,
                              struct mg_http_message *msg, int issue_id,
@@ -127,7 +122,7 @@ void send_issue_sponsors_res(struct mg_connection *c,
     reply->data = issue_sponsors_to_json(issues, reply->count);
     list_reply_to_json(reply);
 
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
+    SUCCESS_REPLY_200(reply->json);
     printf(
         TERMINAL_SUCCESS_MESSAGE("=== ISSUE SPONSORS SUCCESSFULLY SENT ==="));
 
@@ -158,7 +153,6 @@ void send_issue_sponsors_res(struct mg_connection *c,
     offset = mg_json_get(msg->body, "$.link", &length);
     if (offset < 0) {
       ERROR_REPLY_400(LINK_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(LINK_REQUIRED_MESSAGE));
       return;
     }
 
@@ -191,8 +185,7 @@ void send_issue_sponsors_res(struct mg_connection *c,
 
       return;
     } else {
-      mg_http_reply(c, 201, JSON_HEADER,
-                    "{ \"message\": \"Issue sponsor successfully created\" }");
+      SUCCESS_REPLY_201_MSG("Issue sponsor successfully created");
       printf(
           TERMINAL_SUCCESS_MESSAGE("=== ISSUE SPONSOR SUCCESSFULLY ADDED ==="));
     }
@@ -243,8 +236,7 @@ void send_issue_sponsor_res(struct mg_connection *c,
 
     printf(
         TERMINAL_SUCCESS_MESSAGE("=== ISSUE SPONSOR SUCCESSFULLY DELETE ==="));
-    mg_http_reply(c, 200, JSON_HEADER,
-                  "{ \"message\": \"Issue sponsor successfully deleted\" }");
+    SUCCESS_REPLY_200_MSG("Issue sponsor successfully deleted");
   } else {
     ERROR_REPLY_405;
   }

@@ -17,9 +17,6 @@
 #include <structs.h>
 #include <utils.h>
 
-#define TAG_EXISTS_MESSAGE "The tag already exists."
-#define NAME_REQUIRED_MESSAGE "The name is required."
-#define COLOR_REQUIRED_MESSAGE "The color is required."
 
 void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
                    struct error_reply *error_reply, const char *secret) {
@@ -47,7 +44,7 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     char *json = tags_to_json(tags, (size_t)total);
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", json);
+    SUCCESS_REPLY_200(json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== TAGS SUCCESSFULLY SENT ==="));
 
     if (tags != NULL) {
@@ -68,11 +65,9 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -90,7 +85,6 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     int exists = tag_exists(name);
     if (exists != 0) {
       ERROR_REPLY_400(TAG_EXISTS_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("TAG ALREADY EXISTS"));
       free(name);
       return;
     };
@@ -118,7 +112,7 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     } else {
       char *result = tag_to_json(tag);
-      mg_http_reply(c, 201, JSON_HEADER, "%s\n", result);
+      SUCCESS_REPLY_201(result);
       free(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY ADDED ==="));
     }
@@ -160,7 +154,7 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
     } else {
       char *result = tag_to_json(tag);
 
-      mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+      SUCCESS_REPLY_200(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY SENT ==="));
     }
 
@@ -178,11 +172,9 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -222,7 +214,7 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     } else {
       char *result = tag_to_json(tag);
-      mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+      SUCCESS_REPLY_200(result);
       free(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY EDITED ==="));
     }
@@ -255,8 +247,7 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY DELETE ==="));
-    mg_http_reply(c, 200, JSON_HEADER,
-                  "{ \"message\": \"Tag successfully deleted\" }");
+    SUCCESS_REPLY_200_MSG("Tag successfully deleted");
   } else {
     ERROR_REPLY_405;
   }

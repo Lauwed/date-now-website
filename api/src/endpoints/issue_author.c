@@ -20,10 +20,6 @@
 #include <structs.h>
 #include <utils.h>
 
-#define ISSUE_DOES_NOT_EXIST_MESSAGE "The issue doesn't exist"
-#define AUTHOR_DOES_NOT_EXIST_MESSAGE "The author doesn't exist"
-#define LINK_ALREADY_EXISTS "The link between the issue and the author already"
-#define LINK_DOES_NOT_EXIST "The link doesn't exists"
 
 void send_issue_authors_res(struct mg_connection *c,
                             struct mg_http_message *msg, int issue_id,
@@ -126,7 +122,7 @@ void send_issue_authors_res(struct mg_connection *c,
     reply->data = users_to_json(issues, reply->count);
     list_reply_to_json(reply);
 
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
+    SUCCESS_REPLY_200(reply->json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE AUTHORS SUCCESSFULLY SENT ==="));
 
     if (reply->count > 0) {
@@ -175,8 +171,7 @@ void send_issue_authors_res(struct mg_connection *c,
 
       return;
     } else {
-      mg_http_reply(c, 201, JSON_HEADER,
-                    "{ \"message\": \"Issue author successfully created\" }");
+      SUCCESS_REPLY_201_MSG("Issue author successfully created");
       printf(
           TERMINAL_SUCCESS_MESSAGE("=== ISSUE AUTHOR SUCCESSFULLY ADDED ==="));
     }
@@ -227,8 +222,7 @@ void send_issue_author_res(struct mg_connection *c, struct mg_http_message *msg,
 
     printf(
         TERMINAL_SUCCESS_MESSAGE("=== ISSUE AUTHOR SUCCESSFULLY DELETE ==="));
-    mg_http_reply(c, 200, JSON_HEADER,
-                  "{ \"message\": \"Issue author successfully deleted\" }");
+    SUCCESS_REPLY_200_MSG("Issue author successfully deleted");
   } else {
     ERROR_REPLY_405;
   }
