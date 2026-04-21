@@ -12,6 +12,7 @@
 #include <macros/endpoints.h>
 #include <macros/utils.h>
 #include <math.h>
+#include <pthread.h>
 #include <sql/issue.h>
 #include <sql/user.h>
 #include <stdbool.h>
@@ -19,6 +20,24 @@
 #include <stdio.h>
 #include <structs.h>
 #include <utils.h>
+
+struct newsletter_ctx {
+  char **emails;
+  size_t count;
+  char subject[256];
+  char html[512];
+};
+
+static void *newsletter_thread(void *arg) {
+  struct newsletter_ctx *ctx = arg;
+  for (size_t i = 0; i < ctx->count; i++) {
+    send_mail(ctx->emails[i], ctx->subject, ctx->html);
+    free(ctx->emails[i]);
+  }
+  free(ctx->emails);
+  free(ctx);
+  return NULL;
+}
 
 void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
                      struct error_reply *error_reply, const char *secret) {
@@ -539,24 +558,38 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     return;
   }
 
-  // Send newsletter to all subscribers
+  // Send newsletter to all subscribers asynchronously
   size_t subscribers_len = 0;
   char **emails = NULL;
   query_code = get_subscriber_emails(&subscribers_len, &emails);
-  if (query_code == 0 && emails != NULL) {
-    char subject[256];
-    snprintf(subject, sizeof(subject), "Date.now() - %s", title);
-
-    char html[512];
-    snprintf(html, sizeof(html),
+  if (query_code == 0 && emails != NULL && subscribers_len > 0) {
+    struct newsletter_ctx *ctx = malloc(sizeof(struct newsletter_ctx));
+    ctx->emails = emails;
+    ctx->count = subscribers_len;
+    snprintf(ctx->subject, sizeof(ctx->subject), "Date.now() - %s", title);
+    snprintf(ctx->html, sizeof(ctx->html),
              "Un nouveau numero est disponible : "
              "<a href=https://datenow.com>%s</a>",
              title);
 
-    for (size_t i = 0; i < subscribers_len; i++) {
-      send_mail(emails[i], subject, html);
-      free(emails[i]);
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    if (pthread_create(&tid, &attr, newsletter_thread, ctx) != 0) {
+      pthread_attr_destroy(&attr);
+      /* Fallback: send synchronously */
+      for (size_t i = 0; i < ctx->count; i++) {
+        send_mail(ctx->emails[i], ctx->subject, ctx->html);
+        free(ctx->emails[i]);
+      }
+      free(ctx->emails);
+      free(ctx);
+    } else {
+      pthread_attr_destroy(&attr);
     }
+  } else if (emails != NULL) {
+    for (size_t i = 0; i < subscribers_len; i++) free(emails[i]);
     free(emails);
   }
 

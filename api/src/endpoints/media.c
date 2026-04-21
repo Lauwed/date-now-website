@@ -11,6 +11,7 @@
 #include <lib/mongoose.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
+#include <pthread.h>
 #include <sql/media.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -74,6 +75,77 @@ static void remove_media_dir(const char *uuid) {
   unlink(img_path);
   unlink(thumb_path);
   rmdir(dir_path);
+}
+
+struct media_convert_ctx {
+  unsigned media_id;
+  char uuid[37];
+  char tmp_path[256];
+};
+
+static void *media_convert_thread(void *arg) {
+  struct media_convert_ctx *ctx = arg;
+
+  char img_path[512], thumb_path[512];
+  snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%s/image.webp", ctx->uuid);
+  snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%s/thumb.webp", ctx->uuid);
+
+  MagickWand *wand = NewMagickWand();
+  if (MagickReadImage(wand, ctx->tmp_path) == MagickFalse) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK READ FAILED (async)"));
+    DestroyMagickWand(wand);
+    unlink(ctx->tmp_path);
+    remove_media_dir(ctx->uuid);
+    delete_media((int)ctx->media_id);
+    free(ctx);
+    return NULL;
+  }
+
+  size_t w = MagickGetImageWidth(wand);
+  size_t h = MagickGetImageHeight(wand);
+  if (w > 1200) {
+    size_t new_h = (size_t)((double)h * 1200.0 / (double)w);
+    MagickThumbnailImage(wand, 1200, new_h);
+    w = 1200;
+    h = new_h;
+  }
+  int img_width = (int)w;
+  int img_height = (int)h;
+
+  MagickSetImageFormat(wand, "WEBP");
+  if (MagickWriteImage(wand, img_path) == MagickFalse) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK WRITE FAILED (async)"));
+    DestroyMagickWand(wand);
+    unlink(ctx->tmp_path);
+    remove_media_dir(ctx->uuid);
+    delete_media((int)ctx->media_id);
+    free(ctx);
+    return NULL;
+  }
+  DestroyMagickWand(wand);
+
+  MagickWand *tn = NewMagickWand();
+  if (MagickReadImage(tn, ctx->tmp_path) == MagickTrue) {
+    size_t tw = MagickGetImageWidth(tn);
+    size_t th = MagickGetImageHeight(tn);
+    if (tw > 300) {
+      size_t new_th = (size_t)((double)th * 300.0 / (double)tw);
+      MagickThumbnailImage(tn, 300, new_th);
+    }
+    MagickSetImageFormat(tn, "WEBP");
+    MagickWriteImage(tn, thumb_path);
+  }
+  DestroyMagickWand(tn);
+
+  unlink(ctx->tmp_path);
+
+  char url[256];
+  snprintf(url, sizeof(url), "/uploads/media/%s/image.webp", ctx->uuid);
+  update_media_file((int)ctx->media_id, url, (double)img_width, (double)img_height);
+
+  printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA CONVERSION COMPLETE ==="));
+  free(ctx);
+  return NULL;
 }
 
 void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
@@ -240,16 +312,20 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
     write(tmp_fd, file_part.body.buf, file_part.body.len);
     close(tmp_fd);
 
-    /* Build output paths */
-    char img_path[512], thumb_path[512];
-    snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%s/image.webp", uuid);
-    snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%s/thumb.webp", uuid);
+    /* Spawn background thread to run ImageMagick and update DB */
+    struct media_convert_ctx *ctx = malloc(sizeof(struct media_convert_ctx));
+    ctx->media_id = media_id;
+    memcpy(ctx->uuid, uuid, 37);
+    memcpy(ctx->tmp_path, tmp_path, sizeof(tmp_path));
 
-    /* Convert to WebP at max 1200px width using libmagick */
-    MagickWand *wand = NewMagickWand();
-    if (MagickReadImage(wand, tmp_path) == MagickFalse) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK READ FAILED"));
-      DestroyMagickWand(wand);
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    if (pthread_create(&tid, &attr, media_convert_thread, ctx) != 0) {
+      pthread_attr_destroy(&attr);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("THREAD CREATE FAILED"));
+      free(ctx);
       unlink(tmp_path);
       remove_media_dir(uuid);
       delete_media((int)media_id);
@@ -258,86 +334,14 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
       free(m);
       return;
     }
+    pthread_attr_destroy(&attr);
 
-    size_t w = MagickGetImageWidth(wand);
-    size_t h = MagickGetImageHeight(wand);
-    if (w > 1200) {
-      size_t new_h = (size_t)((double)h * 1200.0 / (double)w);
-      MagickThumbnailImage(wand, 1200, new_h);
-      w = 1200;
-      h = new_h;
-    }
-    int img_width = (int)w;
-    int img_height = (int)h;
+    /* Return 202 — URL will be available once the background conversion finishes */
+    char response[64];
+    snprintf(response, sizeof(response), "{\"id\":%u}", media_id);
+    mg_http_reply(c, 202, JSON_HEADER, "%s\n", response);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA UPLOAD ACCEPTED ==="));
 
-    MagickSetImageFormat(wand, "WEBP");
-    if (MagickWriteImage(wand, img_path) == MagickFalse) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK WRITE FAILED"));
-      DestroyMagickWand(wand);
-      unlink(tmp_path);
-      remove_media_dir(uuid);
-      delete_media((int)media_id);
-      ERROR_REPLY_500;
-      free(alt_text);
-      free(m);
-      return;
-    }
-    DestroyMagickWand(wand);
-
-    /* Generate 300px thumbnail (non-fatal if it fails) */
-    MagickWand *tn = NewMagickWand();
-    if (MagickReadImage(tn, tmp_path) == MagickTrue) {
-      size_t tw = MagickGetImageWidth(tn);
-      size_t th = MagickGetImageHeight(tn);
-      if (tw > 300) {
-        size_t new_th = (size_t)((double)th * 300.0 / (double)tw);
-        MagickThumbnailImage(tn, 300, new_th);
-      }
-      MagickSetImageFormat(tn, "WEBP");
-      MagickWriteImage(tn, thumb_path);
-    }
-    DestroyMagickWand(tn);
-
-    unlink(tmp_path);
-
-    /* Update DB with final URL and dimensions */
-    char url[256];
-    snprintf(url, sizeof(url), "/uploads/media/%s/image.webp", uuid);
-
-    query_code =
-        update_media_file((int)media_id, url, (double)img_width, (double)img_height);
-    if (query_code != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR UPDATING MEDIA FILE"));
-      HANDLE_QUERY_CODE;
-      free(alt_text);
-      free(m);
-      return;
-    }
-
-    /* Re-fetch from DB and return 201 */
-    struct media *created = malloc(sizeof(struct media));
-    created->id = 0;
-    created->alternative_text = NULL;
-    created->url = NULL;
-    created->width = 0.0;
-    created->height = 0.0;
-
-    query_code = get_media(created, (int)media_id);
-    if (query_code != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR FETCHING CREATED MEDIA"));
-      HANDLE_QUERY_CODE;
-      free(created);
-      free(alt_text);
-      free(m);
-      return;
-    }
-
-    char *result = media_to_json(created);
-    SUCCESS_REPLY_201(result);
-    printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA SUCCESSFULLY CREATED ==="));
-
-    free(result);
-    free_media(created);
     free(alt_text);
     free(m);
 
