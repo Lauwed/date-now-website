@@ -7,7 +7,6 @@
 
 #include <MagickWand/MagickWand.h>
 #include <endpoints/auth.h>
-#include <rate_limiter.h>
 #include <endpoints/issue.h>
 #include <endpoints/issue_author.h>
 #include <endpoints/issue_sponsor.h>
@@ -18,6 +17,7 @@
 #include <endpoints/user.h>
 #include <endpoints/view.h>
 #include <lib/mongoose.h>
+#include <lib/rate_limiter.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
 #include <signal.h>

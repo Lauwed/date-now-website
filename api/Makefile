@@ -11,7 +11,7 @@ src := ./src
 tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth media
 
 libs_o := obj/lib/mongoose.o obj/lib/validatejson.o obj/lib/email.o obj/lib/totp.o
-helpers_o := obj/utils.o obj/rate_limiter.o
+helpers_o := obj/utils.o obj/lib/rate_limiter.o
 endpoints_o := ${foreach t,$(tables),obj/endpoints/$(t).o}
 sql_o := ${foreach t,$(tables),obj/sql/$(t).o}
 
