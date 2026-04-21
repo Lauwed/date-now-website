@@ -49,9 +49,8 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (tags != NULL) {
       free_tags(tags, (size_t)total);
-      free(tags);
+      free(json);
     }
-    free(json);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
     int user_logged = 0;
