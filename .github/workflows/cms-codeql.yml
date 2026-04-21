@@ -1,0 +1,40 @@
+name: CMS - CodeQL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cms/**'
+      - '.github/workflows/cms-codeql.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'cms/**'
+      - '.github/workflows/cms-codeql.yml'
+  schedule:
+    - cron: '0 4 * * 1'
+
+jobs:
+  analyze:
+    name: Analyze (rust)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: rust
+          source-root: cms
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: cms
