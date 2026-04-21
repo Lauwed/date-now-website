@@ -157,6 +157,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           int name_decoded_len =
               mg_url_decode(caps[0].buf, caps[0].len, name, caps[0].len + 1, 0);
           if (name_decoded_len <= 0) {
+            free(name);
             mg_http_reply(c, 400, JSON_HEADER,
                           "{\"code\": 400, \"error\": \"Wrong name\"}");
             return;
@@ -181,6 +182,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           int name_decoded_len =
               mg_url_decode(caps[0].buf, caps[0].len, name, caps[0].len + 1, 0);
           if (name_decoded_len <= 0) {
+            free(name);
             mg_http_reply(c, 400, "", "%m", MG_ESC("error"));
             return;
           }
@@ -265,6 +267,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           int name_decoded_len =
               mg_url_decode(caps[1].buf, caps[1].len, name, caps[1].len + 1, 0);
           if (name_decoded_len <= 0) {
+            free(name);
             mg_http_reply(c, 400, JSON_HEADER,
                           "{\"code\": 400, \"error\": \"Wrong name\"}");
             return;
@@ -342,6 +345,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
           int name_decoded_len =
               mg_url_decode(caps[1].buf, caps[1].len, name, caps[1].len + 1, 0);
           if (name_decoded_len <= 0) {
+            free(name);
             mg_http_reply(c, 400, JSON_HEADER,
                           "{\"code\": 400, \"error\": \"Wrong name\"}");
             return;

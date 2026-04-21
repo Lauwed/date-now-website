@@ -21,7 +21,8 @@
 void send_sponsors_res(struct mg_connection *c, struct mg_http_message *msg,
                        struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== GET SPONSOR LIST ==="));
@@ -126,7 +127,8 @@ void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
                       char *name, struct error_reply *error_reply,
                       const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== GET SPONSOR ==="));

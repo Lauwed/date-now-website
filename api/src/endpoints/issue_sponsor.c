@@ -26,7 +26,8 @@ void send_issue_sponsors_res(struct mg_connection *c,
                              struct error_reply *error_reply,
                              const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if issue exists
   int exists = issue_exists(issue_id);
@@ -70,6 +71,7 @@ void send_issue_sponsors_res(struct mg_connection *c,
     reply->page_size = page_size;
     reply->data = NULL;
 
+    reply->json = NULL;
     reply->total = reply->count = get_issue_sponsors_len(&q, issue_id);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
@@ -113,6 +115,7 @@ void send_issue_sponsors_res(struct mg_connection *c,
                 TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUE SPONSORS"));
         HANDLE_QUERY_CODE;
 
+        free(reply->json);
         free(reply->data);
         free(reply);
         return;
@@ -201,7 +204,8 @@ void send_issue_sponsor_res(struct mg_connection *c,
                             struct error_reply *error_reply,
                             const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if exists
   int exists = issue_exists(issue_id);

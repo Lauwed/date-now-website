@@ -23,7 +23,8 @@
 void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
                      struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== GET ISSUE LIST ==="));
@@ -75,6 +76,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
+    reply->json = NULL;
     reply->total = reply->count = get_issues_len(&q, status);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
@@ -117,6 +119,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
         HANDLE_QUERY_CODE;
 
+        free(reply->json);
         free(reply->data);
         free(reply);
         return;
@@ -282,7 +285,8 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
                     int id, struct error_reply *error_reply,
                     const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if exists
   int exists = issue_exists(id);
@@ -309,6 +313,7 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
       char *result = issue_to_json(issue);
 
       SUCCESS_REPLY_200(result);
+      free(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY SENT ==="));
     }
 
@@ -478,7 +483,8 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
                        int id, struct error_reply *error_reply,
                        const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   if (!mg_match(msg->method, mg_str("POST"), NULL)) {
     ERROR_REPLY_405;

@@ -21,7 +21,8 @@
 void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== GET USER LIST ==="));
@@ -57,6 +58,7 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
+    reply->json = NULL;
     reply->total = reply->count = get_users_len(&q);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
@@ -99,6 +101,7 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USERS"));
         HANDLE_QUERY_CODE;
 
+        free(reply->json);
         free(reply->data);
         free(reply);
         return;
@@ -235,7 +238,8 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
 void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
                    struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if exists
   int exists = user_exists(id);

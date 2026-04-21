@@ -102,7 +102,8 @@ void send_subscription_mail(struct mg_connection *c,
                             struct error_reply *error_reply,
                             const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if POST
   if (mg_match(msg->method, mg_str("POST"), NULL)) {
@@ -138,14 +139,15 @@ void send_subscription_mail(struct mg_connection *c,
 
     // Check if already subscribed
     struct user *existing_user = malloc(sizeof(struct user));
+    user_init(existing_user);
     int existing_rc = get_user_by_email(existing_user, email);
     if (existing_rc == 0 && existing_user->subscribed_at > 0) {
-      free(existing_user);
+      free_user(existing_user);
       free(email);
       ERROR_REPLY_409("Email already subscribed");
       return;
     }
-    free(existing_user);
+    free_user(existing_user);
 
     // Generate JWT of confirmation (email, exp: now + 24h)
     jwt_t *jwt = NULL;
@@ -186,7 +188,8 @@ void send_subscription_mail(struct mg_connection *c,
 void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if POST
   if (mg_match(msg->method, mg_str("POST"), NULL)) {
@@ -278,6 +281,8 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
 
 void register_user(struct mg_connection *c, struct mg_http_message *msg,
                    struct error_reply *error_reply, const char *secret) {
+  struct error_reply _er = {0};
+  error_reply = &_er;
   printf(TERMINAL_ENDPOINT_MESSAGE("=== REGISTER AUTHOR ==="));
 
   if (!mg_match(msg->method, mg_str("POST"), NULL)) {
@@ -322,6 +327,7 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     int email_valid = check_email_validity(email);
     if (email_valid != 0) {
       ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+      free(email);
       return;
     }
 
@@ -333,14 +339,19 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     }
     if (offset < 0) {
       ERROR_REPLY_400(USERNAME_REQUIRED_MESSAGE);
+      free(email);
       return;
     }
 
     int exists = user_identity_exists(username, email);
     if (exists != 0) {
       ERROR_REPLY_400(USER_EXISTS_MESSAGE);
+      free(username);
+      free(email);
       return;
     };
+    free(username);
+    free(email);
   }
 
   // Hydrate
@@ -391,6 +402,9 @@ void generate_totpseed_user(struct mg_connection *c,
                             struct mg_http_message *msg,
                             struct error_reply *error_reply,
                             const char *secret) {
+  struct error_reply _er = {0};
+  error_reply = &_er;
+
   // Check if user logged
   int user_logged = 0;
   is_user_logged(c, msg, error_reply, secret, &user_logged);
@@ -402,7 +416,6 @@ void generate_totpseed_user(struct mg_connection *c,
   }
 
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
 
   // Check if POST
   if (mg_match(msg->method, mg_str("POST"), NULL)) {
@@ -491,7 +504,8 @@ void generate_totpseed_user(struct mg_connection *c,
 void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
                      struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if POST
   if (mg_match(msg->method, mg_str("POST"), NULL)) {
@@ -563,7 +577,8 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
 void login_user(struct mg_connection *c, struct mg_http_message *msg,
                 struct error_reply *error_reply, const char *secret) {
   int query_code;
-  error_reply = malloc(sizeof(struct error_reply));
+  struct error_reply _er = {0};
+  error_reply = &_er;
 
   // Check if POST
   if (mg_match(msg->method, mg_str("POST"), NULL)) {
@@ -595,14 +610,16 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     offset = mg_json_get(msg->body, "$.code", &length);
     if (offset < 0) {
       ERROR_REPLY_400(CODE_REQUIRED_MESSAGE);
+      free(token);
       return;
     } else {
       char *code_str = malloc(length);
       strncpy(code_str, msg->body.buf + offset + 1, length - 2);
-
       code = strtol(code_str, (char **)NULL, 10);
+      free(code_str);
       if (!code) {
         ERROR_REPLY_400("Code is not a number.");
+        free(token);
         return;
       }
     }
@@ -611,6 +628,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     jwt_t *decoded = NULL;
     int is_decoded =
         jwt_decode(&decoded, token, (unsigned char *)secret, strlen(secret));
+    free(token);
 
     if (is_decoded != 0) {
       ERROR_REPLY_500;
@@ -641,6 +659,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     int email_valid = check_email_validity((char *)email);
     if (email_valid != 0) {
       ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+      jwt_free(decoded);
       return;
     }
 
@@ -651,6 +670,8 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     int query_code = get_user_totp_seed((char *)email, &seed);
     if (query_code != 0 || seed == NULL) {
       ERROR_REPLY_400("Invalid or expired TOTP code");
+      free(seed);
+      jwt_free(decoded);
       return;
     }
 
@@ -663,6 +684,8 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     if ((uint32_t)code != totp_prev && (uint32_t)code != totp_curr &&
         (uint32_t)code != totp_next) {
       ERROR_REPLY_400("Invalid or expired TOTP code");
+      free(seed);
+      jwt_free(decoded);
       return;
     }
 
@@ -684,6 +707,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     cJSON_Delete(login_obj);
     SUCCESS_REPLY_200(login_json);
     free(login_json);
+    free(seed);
     jwt_free(decoded);
     return;
   }

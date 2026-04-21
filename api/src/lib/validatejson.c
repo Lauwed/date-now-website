@@ -155,13 +155,12 @@ bool validateJSON(const char **jsonString) {
 }
 
 bool mg_validateJSON(struct mg_str json) {
-  char *str = malloc(json.len + 1);
-  sprintf(str, STR_FMT, (int)json.len, json.buf);
+  char *buf = malloc(json.len + 1);
+  sprintf(buf, STR_FMT, (int)json.len, json.buf);
 
-  bool result = validateJSON((const char **)&str);
+  const char *p = buf;
+  bool result = validateJSON(&p);
 
-  size_t offset = json.len - strlen(str);
-  free(str - offset);
-
+  free(buf);
   return result;
 }
