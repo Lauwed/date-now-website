@@ -5,12 +5,10 @@ on:
     branches:
       - main
     paths:
-      - "api/doc/api.json"
-      - "api/doc/validate-json-schema.mjs"
+      - "api/docs/api.json"
   pull_request:
     paths:
-      - "api/doc/api.json"
-      - "api/doc/validate-json-schema.mjs"
+      - "api/docs/api.json"
  
 jobs:
   validate:
@@ -24,4 +22,4 @@ jobs:
         uses: actions/checkout@v4
  
       - name: Run linter
-        run: node api/doc/validate-json-schema.mjs api/doc/api.json
+        run: npx tabula-docs validate api/docs/api.json
