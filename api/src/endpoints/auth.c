@@ -334,8 +334,7 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     char *username = NULL;
     offset = mg_json_get(msg->body, "$.username", &length);
     if (offset >= 0) {
-      username = malloc(length);
-      strncpy(username, msg->body.buf + offset + 1, length - 2);
+      username = strndup(msg->body.buf + offset + 1, length - 2);
     }
     if (offset < 0) {
       ERROR_REPLY_400(USERNAME_REQUIRED_MESSAGE);
@@ -601,8 +600,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
       ERROR_REPLY_400(TOKEN_REQUIRED_MESSAGE);
       return;
     } else {
-      token = malloc(length);
-      strncpy(token, msg->body.buf + offset + 1, length - 2);
+      token = strndup(msg->body.buf + offset + 1, length - 2);
     }
 
     // Code mandatory
@@ -613,8 +611,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
       free(token);
       return;
     } else {
-      char *code_str = malloc(length);
-      strncpy(code_str, msg->body.buf + offset + 1, length - 2);
+      char *code_str = strndup(msg->body.buf + offset + 1, length - 2);
       code = strtol(code_str, (char **)NULL, 10);
       free(code_str);
       if (!code) {

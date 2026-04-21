@@ -80,7 +80,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
            (int)q.len, q.buf, (int)sort.len, sort.buf, status ? status : "");
 
     // Pagination
-    int page, page_size;
+    int page = -1, page_size = 0;
     struct mg_str page_str = mg_http_var(msg->query, mg_str("page"));
     if (mg_str_to_num(page_str, 10, &page, sizeof(int)) == false)
       page = -1;
@@ -191,8 +191,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
       ERROR_REPLY_400(TITLE_REQUIRED_MESSAGE);
       return;
     } else {
-      title = malloc(length);
-      strncpy(title, msg->body.buf + offset + 1, length - 2);
+      title = strndup(msg->body.buf + offset + 1, length - 2);
     }
 
     // Issue number required
@@ -204,7 +203,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     } else {
       // Issue number not existing already
       char *issue_number_str = malloc(length + 1);
-      sprintf(issue_number_str, STR_FMT, length, msg->body.buf + offset);
+      snprintf(issue_number_str, length + 1, STR_FMT, length, msg->body.buf + offset);
 
       issue_number = atoi(issue_number_str);
       free(issue_number_str);
@@ -370,8 +369,7 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     // Title required
     offset = mg_json_get(msg->body, "$.title", &length);
     if (offset >= 0) {
-      title = malloc(length);
-      strncpy(title, msg->body.buf + offset + 1, length - 2);
+      title = strndup(msg->body.buf + offset + 1, length - 2);
     }
 
     // Issue number required

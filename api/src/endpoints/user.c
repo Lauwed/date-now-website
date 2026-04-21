@@ -162,8 +162,7 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
       char *username = NULL;
       offset = mg_json_get(msg->body, "$.username", &length);
       if (offset >= 0) {
-        username = malloc(length);
-        strncpy(username, msg->body.buf + offset + 1, length - 2);
+        username = strndup(msg->body.buf + offset + 1, length - 2);
       }
 
       int exists = user_identity_exists(username, email);
@@ -311,8 +310,7 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       char *username = NULL;
       offset = mg_json_get(msg->body, "$.username", &length);
       if (offset >= 0) {
-        username = malloc(length);
-        strncpy(username, msg->body.buf + offset + 1, length - 2);
+        username = strndup(msg->body.buf + offset + 1, length - 2);
       }
 
       int exists = user_identity_exists(username, email);
