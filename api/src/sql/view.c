@@ -1,3 +1,8 @@
+/**
+ * @file view.c
+ * @brief SQLite data-access implementation for the View (page-view) table.
+ */
+
 
 #include <enums.h>
 #include <macros/colors.h>
@@ -18,7 +23,7 @@ extern sqlite3 *db;
   "SELECT "                                                                    \
   "u.id, UNIXEPOCH(u.time), u.hashedIp, u.issueId "                            \
   "FROM View u";
-#define QUERY_Q_TMP " WHERE CAST(issueId AS Text) = ?100"
+#define QUERY_Q_TMP " WHERE issueId = ?100"
 #define QUERY_SORT_TMP " ORDER BY i.time COLLATE NOCASE %s"
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
 
@@ -26,25 +31,21 @@ extern sqlite3 *db;
   "INSERT INTO View (time, hashedIp, issueId)"                                 \
   "VALUES (CURRENT_TIMESTAMP, ?, ?);";
 
-int get_views_len(const struct mg_str *q) {
+int get_views_len(int issue_id) {
   printf(TERMINAL_SQL_MESSAGE("=== GET VIEWS COUNT SQL ==="));
 
   int query_rc = SQLITE_ROW;
-  char *q_str = NULL;
 
   char *query_tmp = QUERY_COUNT_TMP;
   int query_len = strlen(query_tmp) + 2;
   char *query_q_tmp = QUERY_Q_TMP;
-  if (q->len > 0) {
-    q_str = malloc(q->len + 2);
-    sprintf(q_str, "%.*s", (int)q->len, q->buf);
-
+  if (issue_id > 0) {
     query_len += strlen(query_q_tmp);
   }
 
   char *query = malloc(query_len);
   strcpy(query, query_tmp);
-  if (q->len > 0) {
+  if (issue_id > 0) {
     strcat(query, query_q_tmp);
   }
   strcat(query, ";");
@@ -58,14 +59,12 @@ int get_views_len(const struct mg_str *q) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
-    free(q_str);
-
+    free(query);
     return query_rc;
   }
 
-  // Binding
-  if (q_str != NULL) {
-    sqlite3_bind_text(stmt, 100, q_str, -1, SQLITE_STATIC);
+  if (issue_id > 0) {
+    sqlite3_bind_int(stmt, 100, issue_id);
   }
 
   GET_EXPANDED_QUERY(stmt);
@@ -76,7 +75,7 @@ int get_views_len(const struct mg_str *q) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
-    free(q_str);
+    free(query);
     return query_rc;
   }
 
@@ -90,12 +89,11 @@ int get_views_len(const struct mg_str *q) {
 
   sqlite3_finalize(stmt);
   free(query);
-  free(q_str);
 
   return views_count;
 }
 
-int get_views(size_t len, struct view **arr, const struct mg_str *q,
+int get_views(size_t len, struct view **arr, int issue_id,
               const struct mg_str *sort, int page, int page_size) {
   printf(TERMINAL_SQL_MESSAGE("=== GET VIEWS SQL ==="));
 
@@ -125,11 +123,7 @@ int get_views(size_t len, struct view **arr, const struct mg_str *q,
 
   int query_len = strlen(query_tmp) + 2;
 
-  char *q_str = NULL;
-  if (q->len > 0) {
-    q_str = malloc(q->len + 2);
-    sprintf(q_str, "%.*s", (int)q->len, q->buf);
-
+  if (issue_id > 0) {
     query_len += strlen(query_params_tmp);
   }
   if (sort->len > 0) {
@@ -141,7 +135,7 @@ int get_views(size_t len, struct view **arr, const struct mg_str *q,
 
   char *query = malloc(query_len);
   strcpy(query, query_tmp);
-  if (q->len > 0) {
+  if (issue_id > 0) {
     strcat(query, query_params_tmp);
   }
   if (sort->len > 0) {
@@ -159,14 +153,13 @@ int get_views(size_t len, struct view **arr, const struct mg_str *q,
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
-    free(q_str);
-
+    free(query);
     return query_rc;
   }
 
   // Binding
-  if (q->len > 0) {
-    sqlite3_bind_text(stmt, 100, q_str, -1, SQLITE_STATIC);
+  if (issue_id > 0) {
+    sqlite3_bind_int(stmt, 100, issue_id);
   }
   if (page > 0) {
     int offset = (page - 1) * page_size;
@@ -182,7 +175,7 @@ int get_views(size_t len, struct view **arr, const struct mg_str *q,
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
             sqlite3_errmsg(db));
     sqlite3_finalize(stmt);
-    free(q_str);
+    free(query);
     return query_rc;
   }
 
@@ -194,7 +187,7 @@ int get_views(size_t len, struct view **arr, const struct mg_str *q,
     int view_init_rc = view_init(u);
     if (view_init_rc != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("The view is NULL"));
-      free(q_str);
+      free(query);
       return HTTP_INTERNAL_ERROR;
     }
 
@@ -220,7 +213,7 @@ int get_views(size_t len, struct view **arr, const struct mg_str *q,
   }
 
   sqlite3_finalize(stmt);
-  free(q_str);
+  free(query);
 
   return 0;
 }
@@ -255,6 +248,7 @@ int add_view(struct view *view) {
     return query_rc;
   }
 
+  view->id = (int)sqlite3_last_insert_rowid(db);
   sqlite3_finalize(stmt);
 
   return 0;

@@ -1,3 +1,8 @@
+/**
+ * @file user.c
+ * @brief SQLite data-access implementation for the User table.
+ */
+
 #include <enums.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
@@ -576,6 +581,7 @@ int add_user(struct user *user) {
     return query_rc;
   }
 
+  user->id = (int)sqlite3_last_insert_rowid(db);
   sqlite3_finalize(stmt);
 
   return 0;

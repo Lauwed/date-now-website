@@ -1,3 +1,9 @@
+/**
+ * @file lib/totp.c
+ * @brief RFC 6238 TOTP implementation using OpenSSL HMAC-SHA1.
+ *        Includes base32 decoding, HOTP computation, and secret generation.
+ */
+
 #include <lib/totp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>

@@ -1,3 +1,8 @@
+/**
+ * @file tag.c
+ * @brief Tag endpoint handler implementations (list, single resource).
+ */
+
 #include <endpoints/auth.h>
 #include <enums.h>
 #include <lib/mongoose.h>
@@ -12,9 +17,6 @@
 #include <structs.h>
 #include <utils.h>
 
-#define TAG_EXISTS_MESSAGE "The tag already exists."
-#define NAME_REQUIRED_MESSAGE "The name is required."
-#define COLOR_REQUIRED_MESSAGE "The color is required."
 
 void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
                    struct error_reply *error_reply, const char *secret) {
@@ -24,97 +26,32 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== GET TAG LIST ==="));
 
-    // Query params
-    char q_buf[1024] = "";
-    struct mg_str q = {.buf = NULL, .len = 0};
-    int q_decoded_len = mg_http_get_var(&msg->query, "q", q_buf, sizeof(q_buf));
-    if (q_decoded_len > 0 && q_decoded_len < 1024) {
-      q_buf[q_decoded_len] = '\0';
-      q = mg_str(q_buf);
-    }
-
-    const struct mg_str sort = mg_http_var(msg->query, mg_str("sort"));
-    printf("QUERY PARAMS:\tQUERY - %.*s\t|\tSORT - %.*s\n", (int)q.len, q.buf,
-           (int)sort.len, sort.buf);
-
-    // Pagination
-    int page, page_size = 0;
-    struct mg_str page_str = mg_http_var(msg->query, mg_str("page"));
-    if (mg_str_to_num(page_str, 10, &page, sizeof(int)) == false)
-      page = -1;
-    else {
-      struct mg_str page_size_str =
-          mg_http_var(msg->query, mg_str("page_size"));
-      if (mg_str_to_num(page_size_str, 10, &page_size, sizeof(int)) == false)
-        page_size = 10;
-    }
-
-    // Reply init
-    struct list_reply *reply = malloc(sizeof(struct list_reply));
-    reply->page = page;
-    reply->page_size = page_size;
-    reply->data = NULL;
-
-    reply->total = reply->count = get_tags_len(&q);
-    reply->total_pages = 0;
-    printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
-           reply->total, reply->count, reply->total_pages);
-    // If pagination
-    if (reply->page > 0) {
-      // Cancel pagination if page size too big
-      if (reply->total < reply->page_size) {
-        reply->page = -1;
-      } else {
-        double tot_pages = (double)reply->total / (double)reply->page_size;
-        reply->total_pages = (int)ceil(tot_pages);
-
-        if (reply->total_pages < reply->page) {
-          reply->page = reply->total_pages;
-        }
-
-        if (reply->page < reply->total_pages) {
-          reply->count = reply->page_size;
-        } else {
-          int remainder = reply->total % reply->page_size;
-          reply->count = remainder == 0 ? reply->page_size : remainder;
-        }
-      }
-    }
-
-    printf("PAGINATION:\tPAGE INDEX - %d\t|\tPAGE SIZE - %d\n", page,
-           page_size);
-    printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
-           reply->total, reply->count, reply->total_pages);
-
+    struct mg_str empty_q = {.buf = NULL, .len = 0};
+    struct mg_str empty_sort = {.buf = NULL, .len = 0};
+    int total = get_tags_len(&empty_q);
     struct tag **tags = NULL;
 
-    if (reply->count > 0) {
-      tags = malloc(reply->count * sizeof(struct tag *));
-      query_code = get_tags(reply->count, tags, &q, &sort, reply->page,
-                            reply->page_size);
+    if (total > 0) {
+      tags = malloc((size_t)total * sizeof(struct tag *));
+      query_code = get_tags((size_t)total, tags, &empty_q, &empty_sort, -1, 0);
 
       if (query_code != 0) {
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING TAGS"));
         HANDLE_QUERY_CODE;
-
-        free(reply->data);
-        free(reply);
+        free(tags);
         return;
       }
     }
 
-    reply->data = tags_to_json(tags, reply->count);
-    list_reply_to_json(reply);
-
-    mg_http_reply(c, 200, JSON_HEADER, "%s\n", reply->json);
+    char *json = tags_to_json(tags, (size_t)total);
+    SUCCESS_REPLY_200(json);
     printf(TERMINAL_SUCCESS_MESSAGE("=== TAGS SUCCESSFULLY SENT ==="));
 
-    if (reply->count > 0) {
-      free_tags(tags, reply->count);
-      free(reply->data);
-      free(reply->json);
+    if (tags != NULL) {
+      free_tags(tags, (size_t)total);
+      free(tags);
     }
-    free(reply);
+    free(json);
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
     int user_logged = 0;
@@ -128,11 +65,9 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -150,7 +85,6 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
     int exists = tag_exists(name);
     if (exists != 0) {
       ERROR_REPLY_400(TAG_EXISTS_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("TAG ALREADY EXISTS"));
       free(name);
       return;
     };
@@ -177,8 +111,9 @@ void send_tags_res(struct mg_connection *c, struct mg_http_message *msg,
 
       return;
     } else {
-      mg_http_reply(c, 201, JSON_HEADER,
-                    "{ \"message\": \"Tag successfully created\" }");
+      char *result = tag_to_json(tag);
+      SUCCESS_REPLY_201(result);
+      free(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY ADDED ==="));
     }
 
@@ -219,7 +154,7 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
     } else {
       char *result = tag_to_json(tag);
 
-      mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+      SUCCESS_REPLY_200(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY SENT ==="));
     }
 
@@ -237,11 +172,9 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -280,8 +213,9 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
 
       return;
     } else {
-      mg_http_reply(c, 200, JSON_HEADER,
-                    "{ \"message\": \"Tag successfully edited\" }");
+      char *result = tag_to_json(tag);
+      SUCCESS_REPLY_200(result);
+      free(result);
       printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY EDITED ==="));
     }
 
@@ -313,8 +247,7 @@ void send_tag_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     printf(TERMINAL_SUCCESS_MESSAGE("=== TAG SUCCESSFULLY DELETE ==="));
-    mg_http_reply(c, 200, JSON_HEADER,
-                  "{ \"message\": \"Tag successfully deleted\" }");
+    SUCCESS_REPLY_200_MSG("Tag successfully deleted");
   } else {
     ERROR_REPLY_405;
   }

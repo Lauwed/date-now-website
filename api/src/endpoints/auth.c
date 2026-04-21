@@ -1,3 +1,8 @@
+/**
+ * @file auth.c
+ * @brief Authentication endpoint handler implementations.
+ */
+
 #include <enums.h>
 #include <jwt.h>
 #include <lib/email.h>
@@ -11,13 +16,6 @@
 #include <stdlib.h>
 #include <structs.h>
 #include <utils.h>
-
-#define USER_EXISTS_MESSAGE "The user already exists."
-#define USERNAME_REQUIRED_MESSAGE "Username is required"
-#define EMAIL_REQUIRED_MESSAGE "Email is required"
-#define TOKEN_REQUIRED_MESSAGE "Token is required"
-#define CODE_REQUIRED_MESSAGE "Code is required"
-#define NO_TOKEN_GIVEN "No token given"
 
 void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret,
@@ -99,11 +97,9 @@ void send_subscription_mail(struct mg_connection *c,
     // Check if body and validate JSON
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -113,7 +109,6 @@ void send_subscription_mail(struct mg_connection *c,
     offset = mg_json_get(msg->body, "$.email", &length);
     if (offset < 0) {
       ERROR_REPLY_400(EMAIL_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_REQUIRED_MESSAGE));
       return;
     } else {
       email = mg_json_get_str(msg->body, "$.email");
@@ -123,10 +118,20 @@ void send_subscription_mail(struct mg_connection *c,
       int email_valid = check_email_validity(email);
       if (email_valid != 0) {
         ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
         return;
       }
     }
+
+    // Check if already subscribed
+    struct user *existing_user = malloc(sizeof(struct user));
+    int existing_rc = get_user_by_email(existing_user, email);
+    if (existing_rc == 0 && existing_user->subscribed_at > 0) {
+      free(existing_user);
+      free(email);
+      ERROR_REPLY_409("Email already subscribed");
+      return;
+    }
+    free(existing_user);
 
     // Generate JWT of confirmation (email, exp: now + 24h)
     jwt_t *jwt = NULL;
@@ -146,20 +151,18 @@ void send_subscription_mail(struct mg_connection *c,
     snprintf(html, sizeof(html),
              "Clique ici pour confirmer : "
              "<a href='https://datenow.com/confirm?token=%s'>Confirmer</a>",
-             secret);
+             jwt_str);
     int mail_sent = send_mail(
         email, "Confim subscription to Date.now()'s Newsletter", html);
 
     free(email);
     if (mail_sent != 0) {
       ERROR_REPLY_400(EMAIL_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_ERROR_MESSAGE));
       return;
     }
 
-    mg_http_reply(
-        c, 200, JSON_HEADER,
-        "{ \"message\": \"Confirmation mail has been correctly sent\" }");
+    printf(TERMINAL_SUCCESS_MESSAGE("=== SUBSCRIPTION MAIL SENT ==="));
+    SUCCESS_REPLY_200_MSG("Confirmation mail has been correctly sent");
     return;
   }
 
@@ -184,8 +187,7 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
     if (token_decoded_len > 0 && token_decoded_len < 1024) {
       token_buf[token_decoded_len] = '\0';
     } else {
-      ERROR_REPLY_400(NO_TOKEN_GIVEN);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(NO_TOKEN_GIVEN));
+      ERROR_REPLY_400(NO_TOKEN_MESSAGE);
       return;
     }
 
@@ -206,7 +208,6 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
     long exp = jwt_get_grant_int(decoded, "exp");
     if (time(NULL) > exp) {
       ERROR_REPLY_400(JWT_EXPIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JWT_EXPIRED_MESSAGE));
       jwt_free(decoded);
       return;
     }
@@ -215,7 +216,6 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
     int type = jwt_get_grant_int(decoded, "type");
     if (type != SUBSCRIPTION) {
       ERROR_REPLY_400(WRONG_JWT_TYPE_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(WRONG_JWT_TYPE_MESSAGE));
       jwt_free(decoded);
       return;
     }
@@ -228,7 +228,6 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
     int email_valid = check_email_validity((char *)email);
     if (email_valid != 0) {
       ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
       return;
     }
 
@@ -243,10 +242,10 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
       HANDLE_QUERY_CODE;
       jwt_free(decoded);
     } else {
-      mg_http_reply(c, 201, JSON_HEADER,
-                    "{ \"message\": \"User successfully subscribed\" }");
+      SUCCESS_REPLY_200_MSG("User successfully subscribed");
       printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY SUBSCRIBED ==="));
       jwt_free(decoded);
+      return;
     }
 
     return;
@@ -274,11 +273,9 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
   // Add user
   if (msg->body.len <= 0) {
     ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
     return;
   } else if (!mg_validateJSON(msg->body)) {
     ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
     return;
   }
 
@@ -289,7 +286,6 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
   offset = mg_json_get(msg->body, "$.email", &length);
   if (offset < 0) {
     ERROR_REPLY_400(EMAIL_REQUIRED_MESSAGE);
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("EMAIL REQUIRED"));
     return;
   } else {
     // Email and username not existing already
@@ -300,7 +296,6 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     int email_valid = check_email_validity(email);
     if (email_valid != 0) {
       ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
       return;
     }
 
@@ -312,14 +307,12 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     }
     if (offset < 0) {
       ERROR_REPLY_400(USERNAME_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("USERNAME REQUIRED"));
       return;
     }
 
     int exists = user_identity_exists(username, email);
     if (exists != 0) {
       ERROR_REPLY_400(USER_EXISTS_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER ALREADY EXISTS"));
       return;
     };
   }
@@ -380,11 +373,9 @@ void generate_totpseed_user(struct mg_connection *c,
     // Check if body and validate JSON
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -394,7 +385,6 @@ void generate_totpseed_user(struct mg_connection *c,
     offset = mg_json_get(msg->body, "$.email", &length);
     if (offset < 0) {
       ERROR_REPLY_400(EMAIL_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_REQUIRED_MESSAGE));
       return;
     } else {
       email = mg_json_get_str(msg->body, "$.email");
@@ -404,7 +394,6 @@ void generate_totpseed_user(struct mg_connection *c,
       int email_valid = check_email_validity(email);
       if (email_valid != 0) {
         ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
         return;
       }
     }
@@ -442,7 +431,7 @@ void generate_totpseed_user(struct mg_connection *c,
           char seed_json[100];
           sprintf(seed_json, "{\"totpseed\": \"%s\"}", user->totp_seed);
 
-          mg_http_reply(c, 200, JSON_HEADER, seed_json);
+          SUCCESS_REPLY_200(seed_json);
           printf(TERMINAL_SUCCESS_MESSAGE(
               "=== USER SEED SUCCESSFULLY UPDATED ==="));
         }
@@ -452,7 +441,7 @@ void generate_totpseed_user(struct mg_connection *c,
       }
     }
 
-    ERROR_REPLY_404
+    ERROR_REPLY_404;
     return;
   }
 
@@ -473,11 +462,9 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
     // Check if body and validate JSON
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -487,7 +474,6 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
     offset = mg_json_get(msg->body, "$.email", &length);
     if (offset < 0) {
       ERROR_REPLY_400(EMAIL_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_REQUIRED_MESSAGE));
       return;
     } else {
       email = mg_json_get_str(msg->body, "$.email");
@@ -497,7 +483,6 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
       int email_valid = check_email_validity(email);
       if (email_valid != 0) {
         ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
         return;
       }
     }
@@ -520,18 +505,17 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
     snprintf(html, sizeof(html),
              "Clique ici pour confirmer : "
              "<a href='https://datenow.com/login/totp?token=%s'>Log in</a>",
-             secret);
+             jwt_str);
     int mail_sent = send_mail(email, "Log in request to Date.now()", html);
 
     free(email);
     if (mail_sent != 0) {
       ERROR_REPLY_400(EMAIL_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_ERROR_MESSAGE));
       return;
     }
 
-    mg_http_reply(c, 200, JSON_HEADER,
-                  "{ \"message\": \"Login mail has been correctly sent\" }");
+    printf(TERMINAL_SUCCESS_MESSAGE("=== LOGIN MAIL SENT ==="));
+    SUCCESS_REPLY_200_MSG("Login mail has been correctly sent");
     return;
   }
 
@@ -547,16 +531,14 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
 
   // Check if POST
   if (mg_match(msg->method, mg_str("POST"), NULL)) {
-    printf(TERMINAL_ENDPOINT_MESSAGE("=== CONFIRM SUBSCRIPTION ==="));
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== LOGIN ==="));
 
     // Check if body and validate JSON
     if (msg->body.len <= 0) {
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BODY_REQUIRED_MESSAGE));
       return;
     } else if (!mg_validateJSON(msg->body)) {
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JSON_ERROR_MESSAGE));
       return;
     }
 
@@ -566,7 +548,6 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     offset = mg_json_get(msg->body, "$.token", &length);
     if (offset < 0) {
       ERROR_REPLY_400(TOKEN_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(TOKEN_REQUIRED_MESSAGE));
       return;
     } else {
       token = malloc(length);
@@ -578,7 +559,6 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     offset = mg_json_get(msg->body, "$.code", &length);
     if (offset < 0) {
       ERROR_REPLY_400(CODE_REQUIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(CODE_REQUIRED_MESSAGE));
       return;
     } else {
       char *code_str = malloc(length);
@@ -586,9 +566,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
 
       code = strtol(code_str, (char **)NULL, 10);
       if (!code) {
-        mg_http_reply(
-            c, 400, JSON_HEADER,
-            "{ \"code\": 400, \"error\": \"Code is not a number.\" }");
+        ERROR_REPLY_400("Code is not a number.");
         return;
       }
     }
@@ -608,7 +586,6 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     long exp = jwt_get_grant_int(decoded, "exp");
     if (time(NULL) > exp) {
       ERROR_REPLY_400(JWT_EXPIRED_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(JWT_EXPIRED_MESSAGE));
       jwt_free(decoded);
       return;
     }
@@ -616,7 +593,6 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     int type = jwt_get_grant_int(decoded, "type");
     if (type != LOGIN) {
       ERROR_REPLY_400(WRONG_JWT_TYPE_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(WRONG_JWT_TYPE_MESSAGE));
       jwt_free(decoded);
       return;
     }
@@ -629,7 +605,6 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     int email_valid = check_email_validity((char *)email);
     if (email_valid != 0) {
       ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE(EMAIL_VALIDITY_ERROR_MESSAGE));
       return;
     }
 
@@ -639,8 +614,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     char *seed = NULL;
     int query_code = get_user_totp_seed((char *)email, &seed);
     if (query_code != 0 || seed == NULL) {
-      ERROR_REPLY_400("NO TOTP FOUND");
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("NO TOTP FOUND"));
+      ERROR_REPLY_400("Invalid or expired TOTP code");
       return;
     }
 
@@ -655,8 +629,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
 
     if ((uint32_t)code != totp_prev && (uint32_t)code != totp_curr &&
         (uint32_t)code != totp_next) {
-      ERROR_REPLY_400("CODE INVALID");
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("CODE INVALID"));
+      ERROR_REPLY_400("Invalid or expired TOTP code");
       return;
     }
 
@@ -670,13 +643,13 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
 
     // Send session JWT
     char *jwt_str = jwt_encode_str(jwt);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY LOGGED IN ==="));
     mg_http_reply(
         c, 200, JSON_HEADER,
         "{ \"message\": \"Successfully logged in\", \"token\": \"%s\" }",
         jwt_str);
-    return;
-
     jwt_free(decoded);
+    return;
   }
 
   ERROR_REPLY_405;
