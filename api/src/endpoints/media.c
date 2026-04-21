@@ -166,14 +166,14 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
 
     /* Check file size */
     if (file_part.body.len > MAX_UPLOAD_SIZE) {
-      ERROR_REPLY_400(FILE_TOO_LARGE_MESSAGE);
+      ERROR_REPLY_413(FILE_TOO_LARGE_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(FILE_TOO_LARGE_MESSAGE));
       return;
     }
 
     /* Check magic bytes */
     if (!is_image_data(file_part.body.buf, file_part.body.len)) {
-      ERROR_REPLY_400(FILE_NOT_IMAGE_MESSAGE);
+      ERROR_REPLY_415(FILE_NOT_IMAGE_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(FILE_NOT_IMAGE_MESSAGE));
       return;
     }

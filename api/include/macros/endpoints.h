@@ -30,6 +30,15 @@
 #define ERROR_REPLY_401                                                        \
   error_reply_map(error_reply, 401, "Not authorized", 401);                    \
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
+#define ERROR_REPLY_409(message)                                               \
+  error_reply_map(error_reply, 409, message, 409);                             \
+  mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
+#define ERROR_REPLY_413(message)                                               \
+  error_reply_map(error_reply, 413, message, 413);                             \
+  mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
+#define ERROR_REPLY_415(message)                                               \
+  error_reply_map(error_reply, 415, message, 415);                             \
+  mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);
 
 #define HANDLE_QUERY_CODE                                                      \
   if (query_code == HTTP_INTERNAL_ERROR) {                                     \

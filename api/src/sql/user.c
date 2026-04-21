@@ -576,6 +576,7 @@ int add_user(struct user *user) {
     return query_rc;
   }
 
+  user->id = (int)sqlite3_last_insert_rowid(db);
   sqlite3_finalize(stmt);
 
   return 0;

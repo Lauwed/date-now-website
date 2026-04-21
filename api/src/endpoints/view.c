@@ -5,6 +5,7 @@
 #include <macros/colors.h>
 #include <macros/endpoints.h>
 #include <math.h>
+#include <sql/issue.h>
 #include <sql/view.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -17,33 +18,28 @@
 
 void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
-  // Check if user logged
-  int user_logged = 0;
-  is_user_logged(c, msg, error_reply, secret, &user_logged);
-
-  if (user_logged == 0) {
-    ERROR_REPLY_401;
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
-    return;
-  }
-
   int query_code;
   error_reply = malloc(sizeof(struct error_reply));
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
-    printf(TERMINAL_ENDPOINT_MESSAGE("=== GET VIEW LIST ==="));
-
-    // Query params
-    char q_buf[1024] = "";
-    struct mg_str q = {.buf = NULL, .len = 0};
-    int q_decoded_len = mg_http_get_var(&msg->query, "q", q_buf, sizeof(q_buf));
-    if (q_decoded_len > 0 && q_decoded_len < 1024) {
-      q_buf[q_decoded_len] = '\0';
-      q = mg_str(q_buf);
+    // Auth required for GET
+    int user_logged = 0;
+    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    if (user_logged == 0) {
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+      return;
     }
 
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== GET VIEW LIST ==="));
+
+    // issueId filter
+    int issue_id = 0;
+    struct mg_str issue_id_str = mg_http_var(msg->query, mg_str("issueId"));
+    mg_str_to_num(issue_id_str, 10, &issue_id, sizeof(int));
+
     const struct mg_str sort = mg_http_var(msg->query, mg_str("sort"));
-    printf("QUERY PARAMS:\tQUERY - %.*s\t|\tSORT - %.*s\n", (int)q.len, q.buf,
+    printf("QUERY PARAMS:\tISSUE_ID - %d\t|\tSORT - %.*s\n", issue_id,
            (int)sort.len, sort.buf);
 
     // Pagination
@@ -52,10 +48,9 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     if (mg_str_to_num(page_str, 10, &page, sizeof(int)) == false)
       page = -1;
     else {
-      struct mg_str page_size_str =
-          mg_http_var(msg->query, mg_str("page_size"));
-      if (mg_str_to_num(page_size_str, 10, &page_size, sizeof(int)) == false)
-        page_size = 10;
+      struct mg_str limit_str = mg_http_var(msg->query, mg_str("limit"));
+      if (mg_str_to_num(limit_str, 10, &page_size, sizeof(int)) == false)
+        page_size = 20;
     }
 
     // Reply init
@@ -64,7 +59,7 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
-    reply->total = reply->count = get_views_len(&q);
+    reply->total = reply->count = get_views_len(issue_id);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
            reply->total, reply->count, reply->total_pages);
@@ -99,7 +94,7 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (reply->count > 0) {
       views = malloc(reply->count * sizeof(struct view *));
-      query_code = get_views(reply->count, views, &q, &sort, reply->page,
+      query_code = get_views(reply->count, views, issue_id, &sort, reply->page,
                              reply->page_size);
 
       if (query_code != 0) {
@@ -138,17 +133,20 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     // Body validation
     int offset, length;
 
-    // Email required
+    // hashedIp required
     offset = mg_json_get(msg->body, "$.hashedIp", &length);
     if (offset < 0) {
       ERROR_REPLY_400(HASHED_IP_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("HASHED IP REQUIRED"));
       return;
     }
+
+    // issueId required
     offset = mg_json_get(msg->body, "$.issueId", &length);
     if (offset < 0) {
       ERROR_REPLY_400(ISSUE_REQUIRED_MESSAGE);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ISSUE ID REQUIRED"));
+      return;
     }
 
     // Hydrate
@@ -157,24 +155,32 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
     if (view_init_rc != 0) {
       ERROR_REPLY_500;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("VIEW IS NULL"));
-
       return;
     }
 
     view_hydrate(msg, view);
+
+    // Check issue exists
+    if (!issue_exists(view->issue_id)) {
+      ERROR_REPLY_404;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ISSUE NOT FOUND"));
+      free_view(view);
+      return;
+    }
 
     // Store in DB
     query_code = add_view(view);
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING VIEWS"));
       HANDLE_QUERY_CODE;
-
+      free_view(view);
       return;
-    } else {
-      mg_http_reply(c, 201, JSON_HEADER,
-                    "{ \"message\": \"User successfully created\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== VIEW SUCCESSFULLY ADDED ==="));
     }
+
+    mg_http_reply(c, 201, JSON_HEADER,
+                  "{ \"id\": %d, \"time\": %d, \"issueId\": %d }",
+                  view->id, view->time, view->issue_id);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== VIEW SUCCESSFULLY ADDED ==="));
 
     free_view(view);
   } else {

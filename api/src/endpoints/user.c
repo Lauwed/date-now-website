@@ -44,9 +44,9 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
       page = -1;
     else {
       struct mg_str page_size_str =
-          mg_http_var(msg->query, mg_str("page_size"));
+          mg_http_var(msg->query, mg_str("limit"));
       if (mg_str_to_num(page_size_str, 10, &page_size, sizeof(int)) == false)
-        page_size = 10;
+        page_size = 20;
     }
 
     // Reply init
@@ -211,14 +211,26 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USERS"));
       HANDLE_QUERY_CODE;
-
+      free_user(user);
       return;
-    } else {
-      mg_http_reply(c, 201, JSON_HEADER,
-                    "{ \"message\": \"User successfully created\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY ADDED ==="));
     }
 
+    struct user *created = malloc(sizeof(struct user));
+    query_code = get_user(created, user->id);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USERS"));
+      HANDLE_QUERY_CODE;
+      free_user(user);
+      free_user(created);
+      return;
+    }
+
+    char *result = user_to_json(created);
+    mg_http_reply(c, 201, JSON_HEADER, "%s\n", result);
+    free(result);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY ADDED ==="));
+
+    free_user(created);
     free_user(user);
   } else {
     ERROR_REPLY_405;
@@ -352,11 +364,12 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       HANDLE_QUERY_CODE;
 
       return;
-    } else {
-      mg_http_reply(c, 200, JSON_HEADER,
-                    "{ \"message\": \"User successfully edited\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY EDITED ==="));
     }
+
+    char *result = user_to_json(user);
+    mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+    free(result);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY EDITED ==="));
 
     free_user(user);
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {

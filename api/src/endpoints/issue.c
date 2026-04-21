@@ -41,8 +41,23 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     const struct mg_str sort = mg_http_var(msg->query, mg_str("sort"));
-    printf("QUERY PARAMS:\tQUERY - %.*s\t|\tSORT - %.*s\n", (int)q.len, q.buf,
-           (int)sort.len, sort.buf);
+
+    // Status filter
+    char status_buf[16] = "";
+    const char *status = NULL;
+    int status_len = mg_http_get_var(&msg->query, "status", status_buf, sizeof(status_buf));
+    if (status_len > 0) {
+      if (strcmp(status_buf, "DRAFT") == 0 || strcmp(status_buf, "PUBLISHED") == 0 ||
+          strcmp(status_buf, "ARCHIVE") == 0) {
+        status = status_buf;
+      } else {
+        ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
+        return;
+      }
+    }
+
+    printf("QUERY PARAMS:\tQUERY - %.*s\t|\tSORT - %.*s\t|\tSTATUS - %s\n",
+           (int)q.len, q.buf, (int)sort.len, sort.buf, status ? status : "");
 
     // Pagination
     int page, page_size;
@@ -51,9 +66,9 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
       page = -1;
     else {
       struct mg_str page_size_str =
-          mg_http_var(msg->query, mg_str("page_size"));
+          mg_http_var(msg->query, mg_str("limit"));
       if (mg_str_to_num(page_size_str, 10, &page_size, sizeof(int)) == false)
-        page_size = 10;
+        page_size = 20;
     }
 
     // Reply init
@@ -62,7 +77,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     reply->page_size = page_size;
     reply->data = NULL;
 
-    reply->total = reply->count = get_issues_len(&q);
+    reply->total = reply->count = get_issues_len(&q, status);
     reply->total_pages = 0;
     printf("ARRAY COUNT:\tTOTAL - %d\t|\tCOUNT - %d\t|\tTOTAL PAGES - %d\n",
            reply->total, reply->count, reply->total_pages);
@@ -97,8 +112,8 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (reply->count > 0) {
       issues = malloc(reply->count * sizeof(struct issue *));
-      query_code = get_issues(reply->count, issues, &q, &sort, reply->page,
-                              reply->page_size);
+      query_code = get_issues(reply->count, issues, &q, status, &sort,
+                              reply->page, reply->page_size);
 
       if (query_code != 0) {
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
@@ -246,14 +261,26 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
       HANDLE_QUERY_CODE;
-
+      free_issue(issue);
       return;
-    } else {
-      mg_http_reply(c, 201, JSON_HEADER,
-                    "{ \"message\": \"Issue successfully created\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY ADDED ==="));
     }
 
+    struct issue *created = malloc(sizeof(struct issue));
+    query_code = get_issue(created, issue->id);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
+      HANDLE_QUERY_CODE;
+      free_issue(issue);
+      free_issue(created);
+      return;
+    }
+
+    char *result = issue_to_json(created);
+    mg_http_reply(c, 201, JSON_HEADER, "%s\n", result);
+    free(result);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY ADDED ==="));
+
+    free_issue(created);
     free_issue(issue);
   } else {
     ERROR_REPLY_405;
@@ -421,11 +448,20 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
       HANDLE_QUERY_CODE;
 
       return;
-    } else {
-      mg_http_reply(c, 200, JSON_HEADER,
-                    "{ \"message\": \"Issue successfully edited\" }");
-      printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY EDITED ==="));
     }
+
+    query_code = get_issue(issue, id);
+    if (query_code != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
+      HANDLE_QUERY_CODE;
+      free_issue(issue);
+      return;
+    }
+
+    char *result = issue_to_json(issue);
+    mg_http_reply(c, 200, JSON_HEADER, "%s\n", result);
+    free(result);
+    printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY EDITED ==="));
 
     free_issue(issue);
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {

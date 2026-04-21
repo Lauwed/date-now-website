@@ -128,6 +128,18 @@ void send_subscription_mail(struct mg_connection *c,
       }
     }
 
+    // Check if already subscribed
+    struct user *existing_user = malloc(sizeof(struct user));
+    int existing_rc = get_user_by_email(existing_user, email);
+    if (existing_rc == 0 && existing_user->subscribed_at > 0) {
+      free(existing_user);
+      free(email);
+      mg_http_reply(c, 409, JSON_HEADER,
+                    "{\"code\": 409, \"error\": \"Email already subscribed\"}");
+      return;
+    }
+    free(existing_user);
+
     // Generate JWT of confirmation (email, exp: now + 24h)
     jwt_t *jwt = NULL;
     jwt_new(&jwt);
@@ -146,7 +158,7 @@ void send_subscription_mail(struct mg_connection *c,
     snprintf(html, sizeof(html),
              "Clique ici pour confirmer : "
              "<a href='https://datenow.com/confirm?token=%s'>Confirmer</a>",
-             secret);
+             jwt_str);
     int mail_sent = send_mail(
         email, "Confim subscription to Date.now()'s Newsletter", html);
 
@@ -243,10 +255,11 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
       HANDLE_QUERY_CODE;
       jwt_free(decoded);
     } else {
-      mg_http_reply(c, 201, JSON_HEADER,
+      mg_http_reply(c, 200, JSON_HEADER,
                     "{ \"message\": \"User successfully subscribed\" }");
       printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY SUBSCRIBED ==="));
       jwt_free(decoded);
+      return;
     }
 
     return;
@@ -452,7 +465,7 @@ void generate_totpseed_user(struct mg_connection *c,
       }
     }
 
-    ERROR_REPLY_404
+    ERROR_REPLY_404;
     return;
   }
 
@@ -520,7 +533,7 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
     snprintf(html, sizeof(html),
              "Clique ici pour confirmer : "
              "<a href='https://datenow.com/login/totp?token=%s'>Log in</a>",
-             secret);
+             jwt_str);
     int mail_sent = send_mail(email, "Log in request to Date.now()", html);
 
     free(email);
@@ -639,7 +652,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     char *seed = NULL;
     int query_code = get_user_totp_seed((char *)email, &seed);
     if (query_code != 0 || seed == NULL) {
-      ERROR_REPLY_400("NO TOTP FOUND");
+      ERROR_REPLY_400("Invalid or expired TOTP code");
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("NO TOTP FOUND"));
       return;
     }
@@ -655,7 +668,7 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
 
     if ((uint32_t)code != totp_prev && (uint32_t)code != totp_curr &&
         (uint32_t)code != totp_next) {
-      ERROR_REPLY_400("CODE INVALID");
+      ERROR_REPLY_400("Invalid or expired TOTP code");
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("CODE INVALID"));
       return;
     }
