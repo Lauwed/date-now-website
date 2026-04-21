@@ -8,9 +8,6 @@ on:
       - '.github/workflows/cms-codeql.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'cms/**'
-      - '.github/workflows/cms-codeql.yml'
   schedule:
     - cron: '0 4 * * 1'
 
