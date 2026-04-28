@@ -386,3 +386,45 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
     ERROR_REPLY_405;
   }
 }
+
+void send_user_count_res(struct mg_connection *c, struct mg_http_message *msg,
+                         struct error_reply *error_reply, const char *secret) {
+  struct error_reply _er = {0};
+  error_reply = &_er;
+
+  if (!mg_match(msg->method, mg_str("GET"), NULL)) {
+    ERROR_REPLY_405;
+    return;
+  }
+
+  printf(TERMINAL_ENDPOINT_MESSAGE("=== GET USER COUNT ==="));
+
+  int user_logged = 0;
+  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  if (user_logged == 0) {
+    ERROR_REPLY_401;
+    return;
+  }
+
+  char type_buf[16] = "";
+  const char *type = NULL;
+  int type_len = mg_http_get_var(&msg->query, "type", type_buf, sizeof(type_buf));
+  if (type_len > 0) {
+    if (strcmp(type_buf, "subscriber") == 0 || strcmp(type_buf, "author") == 0) {
+      type = type_buf;
+    } else {
+      ERROR_REPLY_400("Invalid type parameter");
+      return;
+    }
+  }
+
+  int count = get_users_count(type);
+  if (count < 0) {
+    ERROR_REPLY_500;
+    return;
+  }
+
+  char json[32];
+  snprintf(json, sizeof(json), "{\"count\":%d}", count);
+  SUCCESS_REPLY_200(json);
+}

@@ -64,7 +64,13 @@
         "code": 500,
         "message": "Internal server error"
       },
-      "appliesTo": ["GET-list", "GET-single", "POST", "PUT", "DELETE"]
+      "appliesTo": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ]
     }
   ],
   "tables": [
@@ -520,6 +526,53 @@
           ]
         }
       ],
+      "customEndpoints": [
+        {
+          "name": "Get subscriber count",
+          "description": "Returns the number of subscribers of the newsletter",
+          "uri": "/nb-subscribers",
+          "method": "GET",
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "count": "integer"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get user count",
+          "description": "Returns the total number of users. Use the optional `type` parameter to restrict the count to subscribers (users with a non-null subscribedAt) or authors (role = AUTHOR).",
+          "uri": "/count",
+          "method": "GET",
+          "tokenRequired": true,
+          "queryParameters": [
+            {
+              "label": "Type",
+              "name": "type",
+              "type": "select",
+              "required": false,
+              "options": [
+                { "name": "subscriber", "label": "Subscribers" },
+                { "name": "author", "label": "Authors" }
+              ]
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": { "count": "integer" }
+            },
+            401,
+            {
+              "code": 400,
+              "response": { "code": 400, "message": "Invalid type parameter" }
+            },
+            500
+          ]
+        }
+      ],
       "endpoints": {
         "GET-list": {
           "description": "Returns the paginated list of users. The totpSeed field is never exposed."
@@ -624,7 +677,13 @@
         "name": "string",
         "color": "string"
       },
-      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "includedEndpoints": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
       "endpoints": {
         "GET-list": {
           "description": "Returns all available tags."
@@ -689,7 +748,13 @@
         "name": "string",
         "link": "string"
       },
-      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "includedEndpoints": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
       "endpoints": {
         "GET-list": {
           "description": "Returns all sponsors."
@@ -766,7 +831,13 @@
         "status": "DRAFT | PUBLISHED | ARCHIVE",
         "openedMailCount": "integer"
       },
-      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "includedEndpoints": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
       "response": {
         "get-list": {
           "data": "array-issue",
@@ -922,6 +993,38 @@
         }
       },
       "customEndpoints": [
+        {
+          "name": "Get issue count",
+          "description": "Returns the total number of issues. Use the optional `status` parameter to restrict the count to issues with a specific status.",
+          "uri": "/count",
+          "method": "GET",
+          "tokenRequired": true,
+          "queryParameters": [
+            {
+              "label": "Status",
+              "name": "status",
+              "type": "select",
+              "required": false,
+              "options": [
+                { "name": "DRAFT", "label": "Draft" },
+                { "name": "PUBLISHED", "label": "Published" },
+                { "name": "ARCHIVE", "label": "Archived" }
+              ]
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": { "count": "integer" }
+            },
+            401,
+            {
+              "code": 400,
+              "response": { "code": 400, "message": "Invalid status parameter" }
+            },
+            500
+          ]
+        },
         {
           "name": "publish",
           "description": "Publishes an issue and sends the newsletter to active subscribers. Sets status to PUBLISHED and records publishedAt.",

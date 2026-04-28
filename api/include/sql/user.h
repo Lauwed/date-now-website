@@ -107,6 +107,15 @@ int edit_user(struct user *user);
 int delete_user(int id);
 
 /**
+ * @brief Returns the total number of users, optionally filtered by type.
+ * @param type Optional filter: "subscriber" (subscribedAt IS NOT NULL) or
+ *             "author" (role = 'AUTHOR'). NULL = no filter.
+ * @return Count of matching users, or a negative http_res_code on error.
+ * @note @p type is not freed by this function.
+ */
+int get_users_count(const char *type);
+
+/**
  * @brief Fetches the email addresses of all newsletter subscribers.
  * @param len    Output: number of addresses returned.
  * @param emails Output: dynamically allocated array of NUL-terminated strings.

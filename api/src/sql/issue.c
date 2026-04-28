@@ -290,6 +290,50 @@ int issue_identity_exists(char *title, int issue_number, char *slug) {
   return issues_count > 0;
 }
 
+int get_issues_count(const char *status) {
+  printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES COUNT (filtered) SQL ==="));
+
+  const char *where = status != NULL ? QUERY_STATUS_WHERE_TMP : NULL;
+  int query_len = strlen(QUERY_COUNT_TMP) + (where ? strlen(where) : 0) + 2;
+  char *query = malloc(query_len);
+  strcpy(query, QUERY_COUNT_TMP);
+  if (where) strcat(query, where);
+  strcat(query, ";");
+
+  int issues_count = 0;
+  sqlite3_stmt *stmt;
+  int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+  free(query);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  if (status != NULL)
+    sqlite3_bind_text(stmt, 101, status, -1, SQLITE_STATIC);
+
+  GET_EXPANDED_QUERY(stmt);
+
+  query_rc = sqlite3_step(stmt);
+  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("step error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  while (query_rc != SQLITE_DONE) {
+    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER)
+      issues_count = sqlite3_column_int(stmt, 0);
+    query_rc = sqlite3_step(stmt);
+  }
+
+  sqlite3_finalize(stmt);
+  return issues_count;
+}
+
 int get_issues_len(const struct mg_str *q, const char *status) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES COUNT SQL ==="));
 

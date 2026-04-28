@@ -205,6 +205,53 @@ int get_users_len(const struct mg_str *q) {
   return users_count;
 }
 
+int get_users_count(const char *type) {
+  printf(TERMINAL_SQL_MESSAGE("=== GET USERS COUNT (filtered) SQL ==="));
+
+  const char *where = NULL;
+  if (type != NULL) {
+    if (strcmp(type, "subscriber") == 0)
+      where = " WHERE subscribedAt IS NOT NULL;";
+    else if (strcmp(type, "author") == 0)
+      where = " WHERE role = 'AUTHOR';";
+  }
+
+  int query_len = strlen(QUERY_COUNT_TMP) + (where ? strlen(where) : 2);
+  char *query = malloc(query_len);
+  strcpy(query, QUERY_COUNT_TMP);
+  strcat(query, where ? where : ";");
+
+  int users_count = 0;
+  sqlite3_stmt *stmt;
+  int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+  free(query);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  GET_EXPANDED_QUERY(stmt);
+
+  query_rc = sqlite3_step(stmt);
+  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("step error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  while (query_rc != SQLITE_DONE) {
+    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER)
+      users_count = sqlite3_column_int(stmt, 0);
+    query_rc = sqlite3_step(stmt);
+  }
+
+  sqlite3_finalize(stmt);
+  return users_count;
+}
+
 int get_users(size_t len, struct user **arr, const struct mg_str *q,
               const struct mg_str *sort, int page, int page_size) {
   printf(TERMINAL_SQL_MESSAGE("=== GET USERS SQL ==="));

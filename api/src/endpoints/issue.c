@@ -599,3 +599,47 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
   SUCCESS_REPLY_200_MSG("Issue published and newsletter sent");
   printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY PUBLISHED ==="));
 }
+
+void send_issue_count_res(struct mg_connection *c, struct mg_http_message *msg,
+                          struct error_reply *error_reply, const char *secret) {
+  struct error_reply _er = {0};
+  error_reply = &_er;
+
+  if (!mg_match(msg->method, mg_str("GET"), NULL)) {
+    ERROR_REPLY_405;
+    return;
+  }
+
+  printf(TERMINAL_ENDPOINT_MESSAGE("=== GET ISSUE COUNT ==="));
+
+  int user_logged = 0;
+  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  if (user_logged == 0) {
+    ERROR_REPLY_401;
+    return;
+  }
+
+  char status_buf[16] = "";
+  const char *status = NULL;
+  int status_len = mg_http_get_var(&msg->query, "status", status_buf, sizeof(status_buf));
+  if (status_len > 0) {
+    if (strcmp(status_buf, "DRAFT") == 0 ||
+        strcmp(status_buf, "PUBLISHED") == 0 ||
+        strcmp(status_buf, "ARCHIVE") == 0) {
+      status = status_buf;
+    } else {
+      ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
+      return;
+    }
+  }
+
+  int count = get_issues_count(status);
+  if (count < 0) {
+    ERROR_REPLY_500;
+    return;
+  }
+
+  char json[32];
+  snprintf(json, sizeof(json), "{\"count\":%d}", count);
+  SUCCESS_REPLY_200(json);
+}

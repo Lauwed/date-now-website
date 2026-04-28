@@ -4,6 +4,7 @@ use iced::widget::{button, column, row, text};
 use iced::{Element, Font, Length};
 
 use crate::components::card::Card;
+use crate::data::users::get_nb_subscribers;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
@@ -13,28 +14,38 @@ pub enum Message {
 
 #[derive(Default)]
 pub struct Dashboard {
-    value: i64,
+    nb_subscribers: u8,
+    nb_published_issues: u8,
+    nb_draft_issues: u8,
+    loaded: bool,
 }
 
 impl Dashboard {
     pub fn update(&mut self, message: Message) {
         match message {
-            Message::Increment => {
-                self.value += 1;
-            }
-            Message::Decrement => {
-                self.value -= 1;
-            }
+            Message::Increment => {}
+            Message::Decrement => {}
         }
     }
     pub fn view(&self) -> Element<'_, Message> {
+        // if (!self.loaded) {
+        //     nb_subscribers = match xx {
+        //      Ok(count) => count,
+        //      Err(e) => {
+        //          0
+        //      }
+        //
+        //     self.loaded = true;
+        //     }
+        // }
+
         let nb_subscribers = Card {
             body: column![
                 text("Subscribers").font(Font {
                     weight: Weight::Black,
                     ..Default::default()
                 }),
-                text(250).size(40)
+                text(self.nb_subscribers).size(40),
             ]
             .align_x(Horizontal::Center)
             .into(),
@@ -45,7 +56,7 @@ impl Dashboard {
                     weight: Weight::Black,
                     ..Default::default()
                 }),
-                text(81).size(40)
+                text(self.nb_published_issues).size(40)
             ]
             .align_x(Horizontal::Center)
             .into(),
@@ -56,7 +67,7 @@ impl Dashboard {
                     weight: Weight::Black,
                     ..Default::default()
                 }),
-                text(3).size(40)
+                text(self.nb_draft_issues).size(40)
             ]
             .align_x(Horizontal::Center)
             .into(),

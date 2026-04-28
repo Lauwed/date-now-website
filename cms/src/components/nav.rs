@@ -8,6 +8,7 @@ pub enum Screen {
     #[default]
     Dashboard,
     Issues,
+    Login,
 }
 
 #[derive(Debug, Clone, Copy)]

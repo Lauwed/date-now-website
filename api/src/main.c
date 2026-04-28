@@ -136,6 +136,13 @@ static void r_users(struct mg_connection *c, struct mg_http_message *msg,
   send_users_res(c, msg, er, secret);
 }
 
+static void r_user_count(struct mg_connection *c, struct mg_http_message *msg,
+                         struct mg_str *caps, struct error_reply *er,
+                         const char *secret) {
+  (void)caps;
+  send_user_count_res(c, msg, er, secret);
+}
+
 static void r_user(struct mg_connection *c, struct mg_http_message *msg,
                    struct mg_str *caps, struct error_reply *er,
                    const char *secret) {
@@ -225,6 +232,13 @@ static void r_issues(struct mg_connection *c, struct mg_http_message *msg,
                      const char *secret) {
   (void)caps;
   send_issues_res(c, msg, er, secret);
+}
+
+static void r_issue_count(struct mg_connection *c, struct mg_http_message *msg,
+                          struct mg_str *caps, struct error_reply *er,
+                          const char *secret) {
+  (void)caps;
+  send_issue_count_res(c, msg, er, secret);
 }
 
 static void r_issue(struct mg_connection *c, struct mg_http_message *msg,
@@ -350,9 +364,11 @@ static const struct route_entry routes[] = {
   {"issue/*/sponsor/*",      r_issue_sponsor,     0, 0},
   {"issue/*/sponsor",        r_issue_sponsors,    0, 0},
   {"issue/*/publish",        r_issue_publish,     0, 0},
+  {"issue/count",            r_issue_count,       0, 0},
   {"issue/*",                r_issue,             0, 0},
   {"issue",                  r_issues,            0, 0},
   /* remaining resources */
+  {"user/count",             r_user_count,        0, 0},
   {"user/*",                 r_user,              0, 0},
   {"user",                   r_users,             0, 0},
   {"tag/*",                  r_tag,               0, 0},

@@ -163,7 +163,8 @@ void send_subscription_mail(struct mg_connection *c,
 
     // Send mail with link /confirm?token=<jwt>
     const char *app_url = getenv("APP_URL");
-    if (!app_url) app_url = "https://datenow.com";
+    if (!app_url)
+      app_url = "https://datenow.com";
 
     char html[512];
     snprintf(html, sizeof(html), EMAIL_SUBSCRIPTION_BODY_FMT, app_url, jwt_str);
@@ -508,7 +509,7 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
 
   // Check if POST
   if (mg_match(msg->method, mg_str("POST"), NULL)) {
-    printf(TERMINAL_ENDPOINT_MESSAGE("=== SEND SUBSCRIBE MAIL ==="));
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== SEND LOGIN CONFIRMATION MAIL ==="));
 
     // Check if body and validate JSON
     if (msg->body.len <= 0) {
@@ -538,6 +539,18 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
       }
     }
 
+    // Check if user exists
+    struct user *existing_user = malloc(sizeof(struct user));
+    user_init(existing_user);
+    int existing_rc = get_user_by_email(existing_user, email);
+    if (existing_rc != 0) {
+      free_user(existing_user);
+      free(email);
+      ERROR_REPLY_404;
+      return;
+    }
+    free_user(existing_user);
+
     // Generate JWT of confirmation (email, exp: now + 24h)
     jwt_t *jwt = NULL;
     jwt_new(&jwt);
@@ -545,21 +558,26 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
     jwt_add_grant_int(jwt, "type", LOGIN);
     jwt_add_grant_int(jwt, "exp", time(NULL) + 86400);
     jwt_set_alg(jwt, JWT_ALG_HS256, (unsigned char *)secret, strlen(secret));
+    printf("jwt generated\n");
 
     char *jwt_str = jwt_encode_str(jwt);
     jwt_free(jwt);
 
     // Send mail with link login/totp?token=<jwt>
     const char *app_url = getenv("APP_URL");
-    if (!app_url) app_url = "https://datenow.com";
+    if (!app_url)
+      app_url = "https://datenow.com";
 
-    char html[512];
-    snprintf(html, sizeof(html), EMAIL_LOGIN_BODY_FMT, app_url, jwt_str);
+    char url[512];
+    snprintf(url, sizeof(url), "%s/auth/totp?token=%s", app_url, jwt_str);
+
+    char html[1532];
+    snprintf(html, sizeof(html), EMAIL_LOGIN_BODY_FMT, url, url);
     int mail_sent = send_mail(email, EMAIL_LOGIN_SUBJECT, html);
 
     free(email);
     if (mail_sent != 0) {
-      ERROR_REPLY_400(EMAIL_ERROR_MESSAGE);
+      ERROR_REPLY_500(EMAIL_ERROR_MESSAGE);
       return;
     }
 

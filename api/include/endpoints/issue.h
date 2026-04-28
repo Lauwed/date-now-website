@@ -57,3 +57,17 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
 void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
                        int id, struct error_reply *error_reply,
                        const char *secret);
+
+/**
+ * @brief Handles GET /issue/count — returns the total number of issues.
+ *
+ * Accepts an optional `status` query parameter: "DRAFT", "PUBLISHED", or
+ * "ARCHIVE". Requires authentication. Returns { "count": integer }.
+ *
+ * @param c           Active Mongoose connection.
+ * @param msg         Parsed HTTP message.
+ * @param error_reply Pre-allocated error reply structure.
+ * @param secret      JWT signing secret (not freed).
+ */
+void send_issue_count_res(struct mg_connection *c, struct mg_http_message *msg,
+                          struct error_reply *error_reply, const char *secret);

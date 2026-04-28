@@ -27,6 +27,15 @@ int issue_exists(int id);
 int issue_identity_exists(char *title, int issue_number, char *slug);
 
 /**
+ * @brief Returns the total number of issues, optionally filtered by status.
+ * @param status Optional status filter: "DRAFT", "PUBLISHED", or "ARCHIVE"
+ *               (NULL = no filter).
+ * @return Count of matching issues, or a negative http_res_code on error.
+ * @note @p status is not freed by this function.
+ */
+int get_issues_count(const char *status);
+
+/**
  * @brief Returns the total number of issues matching an optional query and
  *        status filter.
  * @param q      Optional full-text search query (empty/NULL = no filter).
