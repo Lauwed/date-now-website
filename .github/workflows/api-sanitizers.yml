@@ -81,6 +81,12 @@ jobs:
           echo "POST /api/auth/subscribe → HTTP $code"
           [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
 
+          # blocked-domain: GET must return 200 (BLOCKED_DOMAIN_LIST_PUBLIC not set → 401)
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+                   http://localhost:8000/api/blocked-domain)
+          echo "GET /api/blocked-domain → HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
+
           # SIGTERM triggers handle_shutdown → exit(0)
           # ASAN/LSAN report leaks on exit and override the exit code to 1 if any found
           kill $SERVER_PID
@@ -152,6 +158,11 @@ jobs:
                    -H "Content-Type: application/json" \
                    -d '{"email":"smoke@test.example"}')
           echo "POST /api/auth/subscribe → HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
+
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+                   http://localhost:8000/api/blocked-domain)
+          echo "GET /api/blocked-domain → HTTP $code"
           [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
 
           # SIGTERM → handle_shutdown → exit(0) → Valgrind runs leak check
