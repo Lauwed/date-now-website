@@ -7,6 +7,7 @@
 #include <enums.h>
 #include <jwt.h>
 #include <lib/email.h>
+#include <lib/email_validator.h>
 #include <lib/mongoose.h>
 #include <lib/totp.h>
 #include <lib/validatejson.h>
@@ -130,10 +131,26 @@ void send_subscription_mail(struct mg_connection *c,
       email = mg_json_get_str(msg->body, "$.email");
       printf("%s\n", email);
 
-      // Check if email validity
+      // Check format validity
       int email_valid = check_email_validity(email);
       if (email_valid != 0) {
         ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+        free(email);
+        return;
+      }
+
+      // Run email admission pipeline
+      struct email_admission_result admission = {0};
+      email_admission_inspect(email, &admission);
+      if (!admission.allowed) {
+        if (admission.reason_code == EMAIL_ADMISSION_DNS_FAIL) {
+          ERROR_REPLY_400(EMAIL_DOMAIN_UNRESOLVABLE_MESSAGE);
+        } else if (admission.reason_code == EMAIL_ADMISSION_APP_DOMAIN) {
+          ERROR_REPLY_400(EMAIL_DOMAIN_SELF_MESSAGE);
+        } else {
+          ERROR_REPLY_400(EMAIL_DOMAIN_BLOCKED_MESSAGE);
+        }
+        free(email);
         return;
       }
     }
@@ -256,9 +273,28 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
 
     printf("TOKEN GRANTS:\tEXP: %ld\tEMAIL: %s\n", exp, email);
 
-    // Create user in DB
+    // Run email admission pipeline
+    struct email_admission_result admission = {0};
+    email_admission_inspect(email, &admission);
+    if (!admission.allowed) {
+      if (admission.reason_code == EMAIL_ADMISSION_DNS_FAIL) {
+        ERROR_REPLY_400(EMAIL_DOMAIN_UNRESOLVABLE_MESSAGE);
+      } else if (admission.reason_code == EMAIL_ADMISSION_APP_DOMAIN) {
+        ERROR_REPLY_400(EMAIL_DOMAIN_SELF_MESSAGE);
+      } else {
+        ERROR_REPLY_400(EMAIL_DOMAIN_BLOCKED_MESSAGE);
+      }
+      jwt_free(decoded);
+      return;
+    }
+
+    // Create user in DB (with flag state from admission)
     struct user user = {
-        .email = (char *)email, .role = "USER", .subscribed_at = time(NULL)};
+        .email             = (char *)email,
+        .role              = "USER",
+        .subscribed_at     = time(NULL),
+        .is_email_flagged  = admission.is_flagged,
+        .email_flag_reason = admission.is_flagged ? "blocked_domain" : NULL};
     int query_code = add_user(&user);
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USERS"));
@@ -323,10 +359,25 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     char *email = mg_json_get_str(msg->body, "$.email");
     printf("%s\n", email);
 
-    // Check if email validity
+    // Check format validity
     int email_valid = check_email_validity(email);
     if (email_valid != 0) {
       ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+      free(email);
+      return;
+    }
+
+    // Run email admission pipeline
+    struct email_admission_result admission = {0};
+    email_admission_inspect(email, &admission);
+    if (!admission.allowed) {
+      if (admission.reason_code == EMAIL_ADMISSION_DNS_FAIL) {
+        ERROR_REPLY_400(EMAIL_DOMAIN_UNRESOLVABLE_MESSAGE);
+      } else if (admission.reason_code == EMAIL_ADMISSION_APP_DOMAIN) {
+        ERROR_REPLY_400(EMAIL_DOMAIN_SELF_MESSAGE);
+      } else {
+        ERROR_REPLY_400(EMAIL_DOMAIN_BLOCKED_MESSAGE);
+      }
       free(email);
       return;
     }

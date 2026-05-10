@@ -61,16 +61,31 @@ struct media {
  * via free_media().
  */
 struct user {
-  int id;             /**< Database identifier. */
-  char *username;     /**< Display name. @note Dynamically allocated — freed by free_user(). */
-  char *email;        /**< Email address. @note Dynamically allocated — freed by free_user(). */
-  char *role;         /**< Role: "USER" or "AUTHOR". @note Dynamically allocated — freed by free_user(). */
-  char totp_seed[64]; /**< Base32-encoded TOTP seed (fixed-size array, not dynamically allocated). */
-  struct media *picture; /**< Profile picture (may be NULL). @note Dynamically allocated — freed recursively by free_user(). */
-  char *link;         /**< Optional personal URL (may be NULL). @note Dynamically allocated — freed by free_user(). */
-  int subscribed_at;  /**< Newsletter subscription timestamp (0 = not subscribed). */
-  int is_supporter;   /**< 1 if the user is a supporter, 0 otherwise. */
-  int created_at;     /**< Account creation timestamp (Unix). */
+  int id;                   /**< Database identifier. */
+  char *username;           /**< Display name. @note Dynamically allocated - freed by free_user(). */
+  char *email;              /**< Email address. @note Dynamically allocated - freed by free_user(). */
+  char *role;               /**< Role: "USER" or "AUTHOR". @note Dynamically allocated - freed by free_user(). */
+  char totp_seed[64];       /**< Base32-encoded TOTP seed (fixed-size array). */
+  struct media *picture;    /**< Profile picture (may be NULL). @note Dynamically allocated - freed recursively by free_user(). */
+  char *link;               /**< Optional personal URL (may be NULL). @note Dynamically allocated - freed by free_user(). */
+  int subscribed_at;        /**< Newsletter subscription timestamp (0 = not subscribed). */
+  int is_supporter;         /**< 1 if the user is a supporter, 0 otherwise. */
+  int created_at;           /**< Account creation timestamp (Unix). */
+  int is_email_flagged;     /**< 1 if the email domain is disposable or manually flagged. */
+  char *email_flag_reason;  /**< Reason for the flag ("blocked_domain", "manual_override"). @note Dynamically allocated - freed by free_user(). */
+};
+
+/**
+ * @brief Result of an email admission inspection.
+ *
+ * Produced by email_admission_inspect(). The @c reason_code field uses
+ * the EMAIL_ADMISSION_* constants defined in email_validator.h.
+ * No dynamic allocation - safe to use on the stack.
+ */
+struct email_admission_result {
+  int allowed;      /**< 1 = the email can be accepted. */
+  int is_flagged;   /**< 1 = accepted but the user must be flagged in DB. */
+  int reason_code;  /**< EMAIL_ADMISSION_* constant, 0 when allowed with no flag. */
 };
 
 /**

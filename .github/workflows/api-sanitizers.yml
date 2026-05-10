@@ -56,6 +56,8 @@ jobs:
         env:
           JWT_SECRET: ci-smoke-test-jwt-secret-32-chars!
           CORS_ORIGIN: "*"
+          EMAIL_DNS_CHECK: "0"
+          EMAIL_VALIDATION_BYPASS: "1"
           ASAN_OPTIONS: halt_on_error=1:detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
@@ -77,6 +79,12 @@ jobs:
                    -H "Content-Type: application/json" \
                    -d '{"email":"smoke@test.example"}')
           echo "POST /api/auth/subscribe → HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
+
+          # blocked-domain: GET must return 200 (BLOCKED_DOMAIN_LIST_PUBLIC not set → 401)
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+                   http://localhost:8000/api/blocked-domain)
+          echo "GET /api/blocked-domain → HTTP $code"
           [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
 
           # SIGTERM triggers handle_shutdown → exit(0)
@@ -125,6 +133,8 @@ jobs:
         env:
           JWT_SECRET: ci-smoke-test-jwt-secret-32-chars!
           CORS_ORIGIN: "*"
+          EMAIL_DNS_CHECK: "0"
+          EMAIL_VALIDATION_BYPASS: "1"
         run: |
           valgrind \
             --leak-check=full \
@@ -148,6 +158,11 @@ jobs:
                    -H "Content-Type: application/json" \
                    -d '{"email":"smoke@test.example"}')
           echo "POST /api/auth/subscribe → HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
+
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+                   http://localhost:8000/api/blocked-domain)
+          echo "GET /api/blocked-domain → HTTP $code"
           [ "$code" -ge 200 ] && [ "$code" -lt 500 ]
 
           # SIGTERM → handle_shutdown → exit(0) → Valgrind runs leak check

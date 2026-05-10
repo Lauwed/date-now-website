@@ -10,9 +10,9 @@ LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl -lcjson $(MAGICK_LIBS) -lpthread
 includes := ./include
 src := ./src
 
-tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth media
+tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth media blocked_email_domain
 
-libs_o := obj/lib/mongoose.o obj/lib/validatejson.o obj/lib/email.o obj/lib/totp.o
+libs_o := obj/lib/mongoose.o obj/lib/validatejson.o obj/lib/email.o obj/lib/totp.o obj/lib/email_validator.o
 helpers_o := obj/utils.o obj/lib/rate_limiter.o
 endpoints_o := ${foreach t,$(tables),obj/endpoints/$(t).o}
 sql_o := ${foreach t,$(tables),obj/sql/$(t).o}

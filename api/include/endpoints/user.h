@@ -39,3 +39,20 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
  */
 void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
                    struct error_reply *error_reply, const char *secret);
+
+/**
+ * @brief Handles PUT /user/:id/flag — manually flag or unflag a user's email.
+ *
+ * Requires AUTHOR authentication.
+ * Body: {"flagged": 1, "reason": "manual_override"}
+ *       "reason" is optional when flagged = 0.
+ *
+ * @param c           Active Mongoose connection.
+ * @param msg         Parsed HTTP message.
+ * @param id          User database identifier.
+ * @param error_reply Pre-allocated error reply structure.
+ * @param secret      JWT signing secret (not freed).
+ */
+void send_user_flag_res(struct mg_connection *c, struct mg_http_message *msg,
+                        int id, struct error_reply *error_reply,
+                        const char *secret);

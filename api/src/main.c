@@ -7,6 +7,7 @@
 
 #include <MagickWand/MagickWand.h>
 #include <endpoints/auth.h>
+#include <endpoints/blocked_email_domain.h>
 #include <endpoints/issue.h>
 #include <endpoints/issue_author.h>
 #include <endpoints/issue_sponsor.h>
@@ -145,6 +146,40 @@ static void r_user(struct mg_connection *c, struct mg_http_message *msg,
     return;
   }
   send_user_res(c, msg, id, er, secret);
+}
+
+static void r_user_flag(struct mg_connection *c, struct mg_http_message *msg,
+                        struct mg_str *caps, struct error_reply *er,
+                        const char *secret) {
+  int id;
+  if (!mg_str_to_num(caps[0], 10, &id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_user_flag_res(c, msg, id, er, secret);
+}
+
+/* ---- blocked email domain route handlers ---- */
+
+static void r_blocked_domains(struct mg_connection *c,
+                               struct mg_http_message *msg,
+                               struct mg_str *caps, struct error_reply *er,
+                               const char *secret) {
+  (void)caps;
+  send_blocked_email_domains_res(c, msg, er, secret);
+}
+
+static void r_blocked_domain(struct mg_connection *c,
+                              struct mg_http_message *msg,
+                              struct mg_str *caps, struct error_reply *er,
+                              const char *secret) {
+  char *domain = decode_name(caps[0]);
+  if (!domain) {
+    reply_bad_name(c);
+    return;
+  }
+  send_blocked_email_domain_res(c, msg, domain, er, secret);
+  free(domain);
 }
 
 /* ---- tag route handlers ---- */
@@ -353,6 +388,7 @@ static const struct route_entry routes[] = {
   {"issue/*",                r_issue,             0, 0},
   {"issue",                  r_issues,            0, 0},
   /* remaining resources */
+  {"user/*/flag",            r_user_flag,         0, 0},
   {"user/*",                 r_user,              0, 0},
   {"user",                   r_users,             0, 0},
   {"tag/*",                  r_tag,               0, 0},
@@ -362,6 +398,8 @@ static const struct route_entry routes[] = {
   {"media/*",                r_media,             0, 0},
   {"media",                  r_medias,            0, 0},
   {"view",                   r_views,             0, 0},
+  {"blocked-domain/*",       r_blocked_domain,    0, 0},
+  {"blocked-domain",         r_blocked_domains,   0, 0},
   {NULL, NULL, 0, 0},
 };
 

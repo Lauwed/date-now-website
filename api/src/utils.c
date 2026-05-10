@@ -6,15 +6,18 @@
  */
 
 #include <cjson/cJSON.h>
+#include <lib/email_validator.h>
 #include <lib/mongoose.h>
 #include <macros/colors.h>
 #include <macros/utils.h>
 #include <regex.h>
 #include <sqlite3.h>
+#include <sql/blocked_email_domain.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <structs.h>
 #include <utils.h>
 
@@ -102,6 +105,69 @@ int check_email_validity(char *email) {
   }
 
   regfree(&regex);
+  return 0;
+}
+
+int email_admission_inspect(const char *email,
+                            struct email_admission_result *result) {
+  if (result == NULL) return -1;
+
+  result->allowed     = 1;
+  result->is_flagged  = 0;
+  result->reason_code = EMAIL_ADMISSION_OK;
+
+  // Bypass env var - skip all validation
+  const char *bypass = getenv("EMAIL_VALIDATION_BYPASS");
+  if (bypass != NULL && bypass[0] == '1') {
+    return 0;
+  }
+
+  // Extract and lowercase domain
+  char domain[256];
+  if (email_domain_normalize(email, domain, sizeof(domain)) != 0) {
+    result->allowed     = 0;
+    result->reason_code = EMAIL_ADMISSION_DNS_FAIL;
+    return 0;
+  }
+
+  // Reject the service's own domain
+  const char *app_domain = getenv("APP_DOMAIN");
+  if (app_domain != NULL && *app_domain != '\0') {
+    if (strcasecmp(domain, app_domain) == 0) {
+      result->allowed     = 0;
+      result->reason_code = EMAIL_ADMISSION_APP_DOMAIN;
+      return 0;
+    }
+  }
+
+  // DNS check
+  if (!email_dns_can_receive(domain)) {
+    result->allowed     = 0;
+    result->reason_code = EMAIL_ADMISSION_DNS_FAIL;
+    return 0;
+  }
+
+  // Blocked domain check
+  int blocked = blocked_domain_exists(domain);
+  if (blocked < 0) {
+    // SQL error - treat as reject
+    result->allowed     = 0;
+    result->reason_code = EMAIL_ADMISSION_BLOCKED;
+    return blocked;
+  }
+  if (blocked > 0) {
+    const char *mode = getenv("EMAIL_BLOCKLIST_MODE");
+    if (mode != NULL && strcmp(mode, "flag") == 0) {
+      // Flag mode: accept but mark the user
+      result->is_flagged  = 1;
+      result->reason_code = EMAIL_ADMISSION_BLOCKED;
+    } else {
+      // Reject mode (default)
+      result->allowed     = 0;
+      result->reason_code = EMAIL_ADMISSION_BLOCKED;
+    }
+  }
+
   return 0;
 }
 
@@ -215,6 +281,11 @@ static cJSON *user_to_cjson(struct user *user) {
   cJSON_AddNumberToObject(obj, "subscribedAt", user->subscribed_at);
   cJSON_AddNumberToObject(obj, "isSupporter", user->is_supporter);
   cJSON_AddNumberToObject(obj, "createdAt", user->created_at);
+  cJSON_AddNumberToObject(obj, "isEmailFlagged", user->is_email_flagged);
+  if (user->email_flag_reason != NULL)
+    cJSON_AddStringToObject(obj, "emailFlagReason", user->email_flag_reason);
+  else
+    cJSON_AddNullToObject(obj, "emailFlagReason");
   return obj;
 }
 
@@ -469,15 +540,17 @@ int free_user(struct user *user) {
   free(user->email);
   free(user->role);
   free(user->link);
+  free(user->email_flag_reason);
 
   if (user->picture != NULL) {
     free_media(user->picture);
   }
 
-  user->username = NULL;
-  user->email = NULL;
-  user->role = NULL;
-  user->link = NULL;
+  user->username          = NULL;
+  user->email             = NULL;
+  user->role              = NULL;
+  user->link              = NULL;
+  user->email_flag_reason = NULL;
 
   free(user);
   user = NULL;
@@ -768,6 +841,11 @@ int user_map(struct user *user, sqlite3_stmt *stmt, int start_index,
 
   // Created at
   MAP_INT(user->created_at, stmt, start_index + 7, 1);
+
+  // Is email flagged
+  MAP_INT(user->is_email_flagged, stmt, start_index + 8, 0);
+  // Email flag reason
+  MAP_TEXT(user->email_flag_reason, stmt, start_index + 9, 0);
 
   return 0;
 }
@@ -1186,11 +1264,13 @@ int user_init(struct user *user) {
   user->email = NULL;
   user->role = NULL;
 
-  user->link = NULL;
+  user->link    = NULL;
   user->picture = NULL;
 
-  user->subscribed_at = 0;
-  user->is_supporter = 0;
+  user->subscribed_at     = 0;
+  user->is_supporter      = 0;
+  user->is_email_flagged  = 0;
+  user->email_flag_reason = NULL;
 
   return 0;
 }

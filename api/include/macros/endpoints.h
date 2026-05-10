@@ -77,6 +77,14 @@ extern char g_json_header[]; // défini dans main.c
 #define HASHED_IP_REQUIRED_MESSAGE "The hashed IP is required."
 #define ISSUE_REQUIRED_MESSAGE "The issue ID is required."
 
+/* Email admission messages */
+#define EMAIL_DOMAIN_UNRESOLVABLE_MESSAGE "Email domain cannot receive mail."
+#define EMAIL_DOMAIN_BLOCKED_MESSAGE "Email domain is not allowed."
+#define EMAIL_DOMAIN_SELF_MESSAGE "Cannot register with the service domain."
+#define DOMAIN_REQUIRED_MESSAGE "The domain is required."
+#define DOMAIN_EXISTS_MESSAGE "The domain is already blocked."
+#define FLAG_REQUIRED_MESSAGE "The flagged field is required."
+
 /* -------------------------------------------------------------------------
  * Error reply macros
  * Each macro sends the response and frees the allocated JSON string.
