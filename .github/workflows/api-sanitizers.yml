@@ -56,6 +56,8 @@ jobs:
         env:
           JWT_SECRET: ci-smoke-test-jwt-secret-32-chars!
           CORS_ORIGIN: "*"
+          EMAIL_DNS_CHECK: "0"
+          EMAIL_VALIDATION_BYPASS: "1"
           ASAN_OPTIONS: halt_on_error=1:detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
@@ -125,6 +127,8 @@ jobs:
         env:
           JWT_SECRET: ci-smoke-test-jwt-secret-32-chars!
           CORS_ORIGIN: "*"
+          EMAIL_DNS_CHECK: "0"
+          EMAIL_VALIDATION_BYPASS: "1"
         run: |
           valgrind \
             --leak-check=full \
