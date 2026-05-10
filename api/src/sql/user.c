@@ -24,7 +24,8 @@ extern sqlite3 *db;
 #define QUERY_SELECT_TMP                                                       \
   "SELECT "                                                                    \
   "u.id, u.username, u.email, u.role, u.link, UNIXEPOCH(u.subscribedAt), "     \
-  "u.isSupporter, UNIXEPOCH(u.createdAt), m.id, m.textAlternatif, m.url, "     \
+  "u.isSupporter, UNIXEPOCH(u.createdAt), u.isEmailFlagged, "                  \
+  "u.emailFlagReason, m.id, m.textAlternatif, m.url, "                         \
   "m.width, m.height "                                                         \
   "FROM User u LEFT JOIN Media m ON m.id = u.picture"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE u.id = ?"
@@ -38,12 +39,14 @@ extern sqlite3 *db;
 
 #define QUERY_POST_TMP                                                         \
   "INSERT INTO User (username, email, role, link, totpSeed, subscribedAt, "    \
-  "picture) "                                                                  \
-  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?, DATETIME(?, 'unixepoch'), ?);";
+  "picture, isEmailFlagged, emailFlagReason) "                                 \
+  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?, DATETIME(?, 'unixepoch'), "        \
+  "?, ?, ?);";
 #define QUERY_PUT_TMP                                                          \
   "UPDATE User "                                                               \
   "SET username = ?, email = ?, role = COALESCE(?, 'USER'), "                  \
-  "link = ?, isSupporter = ?, totpSeed = ?, picture = ? "                      \
+  "link = ?, isSupporter = ?, totpSeed = ?, picture = ?, "                     \
+  "isEmailFlagged = ?, emailFlagReason = ? "                                   \
   "WHERE id = ?;";
 
 #define QUERY_DELETE_TMP "DELETE FROM User WHERE id = ?;"
@@ -311,7 +314,7 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int user_rc = user_map(u, stmt, 0, 7);
+    int user_rc = user_map(u, stmt, 0, 9);
     if (user_rc != 0) {
       free(u);
 
@@ -324,7 +327,7 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
     }
 
     // Picture
-    int picture_rc = media_map(m, stmt, 8, 12);
+    int picture_rc = media_map(m, stmt, 10, 14);
     if (picture_rc != 0) {
       free(m);
     } else {
@@ -394,7 +397,7 @@ int get_user(struct user *user, int id) {
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int user_rc = user_map(user, stmt, 0, 7);
+    int user_rc = user_map(user, stmt, 0, 9);
     if (user_rc != 0) {
       free(user);
 
@@ -403,7 +406,7 @@ int get_user(struct user *user, int id) {
     }
 
     // Picture
-    int picture_rc = media_map(m, stmt, 8, 12);
+    int picture_rc = media_map(m, stmt, 10, 14);
     if (picture_rc != 0) {
       free(m);
     } else {
@@ -467,7 +470,7 @@ int get_user_by_email(struct user *user, char *email) {
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int user_rc = user_map(user, stmt, 0, 7);
+    int user_rc = user_map(user, stmt, 0, 9);
     if (user_rc != 0) {
       free(user);
 
@@ -476,7 +479,7 @@ int get_user_by_email(struct user *user, char *email) {
     }
 
     // Picture
-    int picture_rc = media_map(m, stmt, 8, 12);
+    int picture_rc = media_map(m, stmt, 10, 14);
     if (picture_rc != 0) {
       free(m);
     } else {
@@ -571,6 +574,10 @@ int add_user(struct user *user) {
   if (user->picture != NULL && user->picture->id > 0) {
     sqlite3_bind_int(stmt, 7, user->picture->id);
   }
+  sqlite3_bind_int(stmt, 8, user->is_email_flagged);
+  if (user->email_flag_reason != NULL) {
+    sqlite3_bind_text(stmt, 9, user->email_flag_reason, -1, SQLITE_STATIC);
+  }
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -613,7 +620,11 @@ int edit_user(struct user *user) {
   if (user->picture != NULL && user->picture->id > 0) {
     sqlite3_bind_int(stmt, 7, user->picture->id);
   }
-  sqlite3_bind_int(stmt, 8, user->id);
+  sqlite3_bind_int(stmt, 8, user->is_email_flagged);
+  if (user->email_flag_reason != NULL) {
+    sqlite3_bind_text(stmt, 9, user->email_flag_reason, -1, SQLITE_STATIC);
+  }
+  sqlite3_bind_int(stmt, 10, user->id);
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -668,7 +679,8 @@ int get_subscriber_emails(size_t *len, char ***emails) {
   printf(TERMINAL_SQL_MESSAGE("=== GET SUBSCRIBER EMAILS SQL ==="));
 
   const char *query =
-      "SELECT email FROM User WHERE subscribedAt IS NOT NULL;";
+      "SELECT email FROM User WHERE subscribedAt IS NOT NULL "
+      "AND isEmailFlagged = 0;";
 
   sqlite3_stmt *stmt;
   int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
@@ -697,6 +709,44 @@ int get_subscriber_emails(size_t *len, char ***emails) {
     const char *email = (const char *)sqlite3_column_text(stmt, 0);
     (*emails)[i] = strdup(email);
     i++;
+  }
+
+  sqlite3_finalize(stmt);
+  return 0;
+}
+
+int set_user_email_flag(int id, int flagged, const char *reason) {
+  printf(TERMINAL_SQL_MESSAGE("=== SET USER EMAIL FLAG SQL ==="));
+
+  const char *query =
+      "UPDATE User SET isEmailFlagged = ?, emailFlagReason = ? WHERE id = ?;";
+
+  sqlite3_stmt *stmt;
+  int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
+  }
+
+  sqlite3_bind_int(stmt, 1, flagged);
+  if (reason != NULL) {
+    sqlite3_bind_text(stmt, 2, reason, -1, SQLITE_STATIC);
+  } else {
+    sqlite3_bind_null(stmt, 2);
+  }
+  sqlite3_bind_int(stmt, 3, id);
+
+  GET_EXPANDED_QUERY(stmt);
+
+  query_rc = sqlite3_step(stmt);
+
+  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return query_rc;
   }
 
   sqlite3_finalize(stmt);

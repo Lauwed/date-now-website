@@ -108,9 +108,23 @@ int delete_user(int id);
 
 /**
  * @brief Fetches the email addresses of all newsletter subscribers.
+ *
+ * Only returns subscribers that are NOT email-flagged (isEmailFlagged = 0),
+ * protecting the newsletter sender reputation.
+ *
  * @param len    Output: number of addresses returned.
  * @param emails Output: dynamically allocated array of NUL-terminated strings.
  *               The array and each string must be freed by the caller.
  * @return 0 on success, http_res_code on error.
  */
 int get_subscriber_emails(size_t *len, char ***emails);
+
+/**
+ * @brief Updates the email-flag status of a user.
+ * @param id      User database identifier.
+ * @param flagged 1 to flag the user, 0 to clear the flag.
+ * @param reason  Reason string ("blocked_domain", "manual_override", or NULL
+ *                to clear). Not freed by this function.
+ * @return 0 on success, SQLITE_* error code on failure.
+ */
+int set_user_email_flag(int id, int flagged, const char *reason);
