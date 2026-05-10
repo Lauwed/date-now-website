@@ -93,7 +93,7 @@
               "code": 400,
               "response": {
                 "code": 400,
-                "message": "Invalid email address"
+                "message": "Invalid email / domain cannot receive mail / domain is not allowed / service domain"
               }
             },
             {
@@ -472,7 +472,9 @@
         "picture": "foreignKey-media",
         "subscribedAt": "timestamp?",
         "isSupporter": "boolean",
-        "createdAt": "timestamp"
+        "createdAt": "timestamp",
+        "isEmailFlagged": "boolean",
+        "emailFlagReason": "string?"
       },
       "response": {
         "get-list": {
@@ -491,6 +493,8 @@
           "subscribedAt": "timestamp?",
           "isSupporter": "boolean",
           "createdAt": "timestamp",
+          "isEmailFlagged": "boolean",
+          "emailFlagReason": "string?",
           "issues": "array-issue"
         }
       },
@@ -551,7 +555,9 @@
                 "picture": "foreignKey-media",
                 "subscribedAt": "timestamp?",
                 "isSupporter": "boolean",
-                "createdAt": "timestamp"
+                "createdAt": "timestamp",
+                "isEmailFlagged": "boolean",
+                "emailFlagReason": "string?"
               }
             },
             {
@@ -564,7 +570,7 @@
           ]
         },
         "PUT": {
-          "description": "Updates an existing user.",
+          "description": "Updates an existing user. If the email domain fails DNS or is on the blocklist (in flag mode), the user is accepted but isEmailFlagged is set.",
           "body": {
             "schema": {
               "username": "string?",
@@ -588,7 +594,16 @@
                 "picture": "foreignKey-media",
                 "subscribedAt": "timestamp?",
                 "isSupporter": "boolean",
-                "createdAt": "timestamp"
+                "createdAt": "timestamp",
+                "isEmailFlagged": "boolean",
+                "emailFlagReason": "string?"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Email domain cannot receive mail / is not allowed / is the service domain"
               }
             },
             {
@@ -603,7 +618,44 @@
         "DELETE": {
           "description": "Deletes a user. IssueAuthor associations are deleted in cascade."
         }
-      }
+      },
+      "customEndpoints": [
+        {
+          "name": "flag email",
+          "description": "Manually flags or unflags a user's email domain. Useful to override the automatic blocklist decision or to mark a suspicious address. Requires AUTHOR authentication.",
+          "uri": "/{ID}/flag",
+          "method": "PUT",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "body": {
+            "schema": {
+              "flagged": "boolean",
+              "reason": "string?"
+            },
+            "defaultValue": "{\n\t\"flagged\": 1,\n\t\"reason\": \"manual_override\"\n}"
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": { "message": "User flag successfully updated" }
+            },
+            400,
+            401,
+            {
+              "code": 404,
+              "response": { "code": 404, "message": "User not found" }
+            },
+            500
+          ]
+        }
+      ]
     },
     {
       "name": {
@@ -1246,6 +1298,94 @@
           ]
         }
       }
+    },
+    {
+      "name": {
+        "singular": "blocked email domain",
+        "plural": "blocked email domains"
+      },
+      "description": "Domains that are blocked from subscribing or registering (disposable mail providers, etc.). GET visibility is controlled by the BLOCKED_DOMAIN_LIST_PUBLIC environment variable.",
+      "uri": "/blocked-domain",
+      "uriParameters": [
+        {
+          "name": "domain",
+          "type": "string",
+          "defaultValue": "yopmail.com",
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "domain": "string"
+      },
+      "includedEndpoints": [],
+      "customEndpoints": [
+        {
+          "name": "list blocked domains",
+          "description": "Returns the full list of blocked email domains as a JSON array of strings. Public when BLOCKED_DOMAIN_LIST_PUBLIC=1, otherwise requires AUTHOR authentication.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 200,
+              "response": ["string"]
+            },
+            401,
+            500
+          ]
+        },
+        {
+          "name": "add blocked domain",
+          "description": "Adds a domain to the blocklist. Requires AUTHOR authentication.",
+          "uri": "",
+          "method": "POST",
+          "tokenRequired": true,
+          "body": {
+            "schema": { "domain": "string" },
+            "defaultValue": "{\n\t\"domain\": \"yopmail.com\"\n}"
+          },
+          "responses": [
+            {
+              "code": 201,
+              "response": { "message": "Domain successfully blocked" }
+            },
+            400,
+            401,
+            {
+              "code": 409,
+              "response": { "code": 409, "message": "The domain is already blocked." }
+            },
+            500
+          ]
+        },
+        {
+          "name": "remove blocked domain",
+          "description": "Removes a domain from the blocklist. Requires AUTHOR authentication.",
+          "uri": "/{domain}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "domain",
+              "type": "string",
+              "defaultValue": "yopmail.com",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": { "message": "Domain successfully unblocked" }
+            },
+            401,
+            {
+              "code": 404,
+              "response": { "code": 404, "message": "Domain not found in blocklist" }
+            },
+            500
+          ]
+        }
+      ]
     },
     {
       "name": {
