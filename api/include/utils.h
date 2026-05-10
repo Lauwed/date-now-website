@@ -12,6 +12,27 @@
 #include <structs.h>
 
 /* -------------------------------------------------------------------------
+ * Email admission
+ * ---------------------------------------------------------------------- */
+
+/**
+ * @brief Inspects an email address through the full admission pipeline.
+ *
+ * Checks (in order): EMAIL_VALIDATION_BYPASS env, domain normalisation,
+ * APP_DOMAIN match, DNS reachability, and the BlockedEmailDomain table.
+ * The EMAIL_BLOCKLIST_MODE env ("flag" or "reject", default "reject")
+ * controls whether a blocked domain hard-rejects or merely flags the user.
+ *
+ * @param email  Source email string (not modified).
+ * @param result Output: filled admission result. Must not be NULL.
+ * @return 0 on success, -1 if @p result is NULL or email is malformed.
+ * @note Neither @p email nor @p result is freed by this function.
+ */
+int email_admission_inspect(const char *email,
+                            struct email_admission_result *result);
+
+
+/* -------------------------------------------------------------------------
  * Validation and conversion
  * ---------------------------------------------------------------------- */
 
