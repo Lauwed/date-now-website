@@ -1,4 +1,4 @@
-FROM alpine:3.23.4 AS base
+FROM alpine:3.24.1 AS base
 
 RUN apk update && apk add --no-cache \
     libjwt2 \
