@@ -3,6 +3,8 @@ use iced::widget::{button, column, text, text_input};
 use iced::{Element, Font};
 use reqwest;
 
+use crate::data::auth;
+
 #[derive(Debug, Clone)]
 pub enum Message {
     InputChanged(String),
@@ -22,17 +24,9 @@ impl Login {
                 self.email = email;
             }
             Message::SendConfirmationToken => {
-                let url = "http://localhost:8000/api/auth/login";
-
-                let client = reqwest::blocking::Client::new();
-                let res = client
-                    .post(url)
-                    .body(format!(r#"{{ "email": "{}" }}"#, self.email))
-                    .send();
-
                 let confirmation_text = "Please verify your Email box".to_string();
 
-                self.confirmation_response = match res {
+                self.confirmation_response = match auth::send_login_confirmation_mail(&self.email) {
                     Ok(r) => match r.error_for_status() {
                         Ok(content) => match content.text() {
                             Ok(_) => confirmation_text,

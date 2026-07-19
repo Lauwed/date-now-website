@@ -9,14 +9,12 @@
 #include <lib/validatejson.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
-#include <math.h>
 #include <sql/sponsor.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <structs.h>
 #include <utils.h>
-
 
 void send_sponsors_res(struct mg_connection *c, struct mg_http_message *msg,
                        struct error_reply *error_reply, const char *secret) {
@@ -34,7 +32,8 @@ void send_sponsors_res(struct mg_connection *c, struct mg_http_message *msg,
 
     if (total > 0) {
       sponsors = malloc((size_t)total * sizeof(struct sponsor *));
-      query_code = get_sponsors((size_t)total, sponsors, &empty_q, &empty_sort, -1, 0);
+      query_code =
+          get_sponsors((size_t)total, sponsors, &empty_q, &empty_sort, -1, 0);
 
       if (query_code != 0) {
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING SPONSORS"));
@@ -55,7 +54,7 @@ void send_sponsors_res(struct mg_connection *c, struct mg_http_message *msg,
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;
@@ -162,7 +161,7 @@ void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
   } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;
@@ -223,7 +222,7 @@ void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;

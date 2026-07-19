@@ -161,7 +161,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;
@@ -187,7 +187,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
 
     // Title required
     offset = mg_json_get(msg->body, "$.title", &length);
-    if (offset < 0) {
+    if (offset < 0 || length - 2 <= 0) {
       ERROR_REPLY_400(TITLE_REQUIRED_MESSAGE);
       return;
     } else {
@@ -203,7 +203,8 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     } else {
       // Issue number not existing already
       char *issue_number_str = malloc(length + 1);
-      snprintf(issue_number_str, length + 1, STR_FMT, length, msg->body.buf + offset);
+      snprintf(issue_number_str, length + 1, STR_FMT, length,
+               msg->body.buf + offset);
 
       issue_number = atoi(issue_number_str);
       free(issue_number_str);
@@ -215,16 +216,16 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     offset = mg_json_get(msg->body, "$.slug", &length);
-    if (offset > 0) {
+    if (offset < 0 || length <= 2) {
+      ERROR_REPLY_400(SLUG_REQUIRED_MESSAGE);
+      return;
+    } else {
       slug = malloc(length);
       strncpy(slug, msg->body.buf + offset + 1, length - 2);
       slug[length - 2] = '\0';
-    } else {
-      slug = strdup(title);
-      str_to_slug(slug, strlen(slug));
     }
 
-    int exists = issue_identity_exists(title, issue_number, slug);
+    int exists = issue_identity_exists(title, issue_number, slug, 0);
     free(title);
     free(slug);
     if (exists != 0) {
@@ -340,7 +341,7 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
   } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;
@@ -377,9 +378,10 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     if (offset >= 0) {
       // Issue number not existing already
       char *issue_number_str = malloc(length + 1);
-      mg_http_get_var(&msg->body, "issueNumber", issue_number_str, length + 1);
+      snprintf(issue_number_str, length + 1, STR_FMT, length,
+               msg->body.buf + offset);
 
-      int issue_number = atoi(issue_number_str);
+      issue_number = atoi(issue_number_str);
       free(issue_number_str);
       if (issue_number <= 0) {
         ERROR_REPLY_400(ISSUE_NUMBER_REQUIRED_MESSAGE);
@@ -396,7 +398,7 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     }
 
     if (title != NULL || issue_number > 0 || slug != NULL) {
-      int exists = issue_identity_exists(title, issue_number, slug);
+      int exists = issue_identity_exists(title, issue_number, slug, id);
       if (exists != 0) {
         ERROR_REPLY_400(ISSUE_EXISTS_MESSAGE);
         free(title);
@@ -476,7 +478,7 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;
@@ -513,7 +515,7 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
 
   // Auth
   int user_logged = 0;
-  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
   if (user_logged == 0) {
     ERROR_REPLY_401;
     fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
@@ -566,7 +568,8 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
     ctx->emails = emails;
     ctx->count = subscribers_len;
     const char *app_url = getenv("APP_URL");
-    if (!app_url) app_url = "https://datenow.com";
+    if (!app_url)
+      app_url = "https://datenow.com";
 
     snprintf(ctx->subject, sizeof(ctx->subject), EMAIL_NEWSLETTER_SUBJECT_FMT,
              title);
@@ -590,7 +593,8 @@ void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
       pthread_attr_destroy(&attr);
     }
   } else if (emails != NULL) {
-    for (size_t i = 0; i < subscribers_len; i++) free(emails[i]);
+    for (size_t i = 0; i < subscribers_len; i++)
+      free(emails[i]);
     free(emails);
   }
 
@@ -613,7 +617,7 @@ void send_issue_count_res(struct mg_connection *c, struct mg_http_message *msg,
   printf(TERMINAL_ENDPOINT_MESSAGE("=== GET ISSUE COUNT ==="));
 
   int user_logged = 0;
-  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
   if (user_logged == 0) {
     ERROR_REPLY_401;
     return;
@@ -621,7 +625,8 @@ void send_issue_count_res(struct mg_connection *c, struct mg_http_message *msg,
 
   char status_buf[16] = "";
   const char *status = NULL;
-  int status_len = mg_http_get_var(&msg->query, "status", status_buf, sizeof(status_buf));
+  int status_len =
+      mg_http_get_var(&msg->query, "status", status_buf, sizeof(status_buf));
   if (status_len > 0) {
     if (strcmp(status_buf, "DRAFT") == 0 ||
         strcmp(status_buf, "PUBLISHED") == 0 ||

@@ -24,7 +24,7 @@ int issue_exists(int id);
  * @return 1 if a conflicting record exists, 0 if not, negative on SQL error.
  * @note None of the pointer parameters are freed by this function.
  */
-int issue_identity_exists(char *title, int issue_number, char *slug);
+int issue_identity_exists(char *title, int issue_number, char *slug, int id);
 
 /**
  * @brief Returns the total number of issues, optionally filtered by status.
@@ -65,7 +65,8 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
                int page_size);
 
 /**
- * @brief Fetches a single issue by id, including its tags, authors, and sponsors.
+ * @brief Fetches a single issue by id, including its tags, authors, and
+ * sponsors.
  * @param issue Pre-allocated and initialised structure to fill.
  * @param id    Database identifier.
  * @return 0 on success, HTTP_NOT_FOUND if not found, HTTP_INTERNAL_ERROR on

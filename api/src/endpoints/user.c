@@ -17,7 +17,6 @@
 #include <structs.h>
 #include <utils.h>
 
-
 void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
   int query_code;
@@ -46,8 +45,7 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
     if (mg_str_to_num(page_str, 10, &page, sizeof(int)) == false)
       page = -1;
     else {
-      struct mg_str page_size_str =
-          mg_http_var(msg->query, mg_str("limit"));
+      struct mg_str page_size_str = mg_http_var(msg->query, mg_str("limit"));
       if (mg_str_to_num(page_size_str, 10, &page_size, sizeof(int)) == false)
         page_size = 20;
     }
@@ -123,7 +121,7 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;
@@ -272,7 +270,7 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
   } else if (mg_match(msg->method, mg_str("PUT"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;
@@ -366,7 +364,7 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
   } else if (mg_match(msg->method, mg_str("DELETE"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
     if (user_logged == 0) {
       ERROR_REPLY_401;
@@ -400,7 +398,7 @@ void send_user_count_res(struct mg_connection *c, struct mg_http_message *msg,
   printf(TERMINAL_ENDPOINT_MESSAGE("=== GET USER COUNT ==="));
 
   int user_logged = 0;
-  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
   if (user_logged == 0) {
     ERROR_REPLY_401;
     return;
@@ -408,9 +406,11 @@ void send_user_count_res(struct mg_connection *c, struct mg_http_message *msg,
 
   char type_buf[16] = "";
   const char *type = NULL;
-  int type_len = mg_http_get_var(&msg->query, "type", type_buf, sizeof(type_buf));
+  int type_len =
+      mg_http_get_var(&msg->query, "type", type_buf, sizeof(type_buf));
   if (type_len > 0) {
-    if (strcmp(type_buf, "subscriber") == 0 || strcmp(type_buf, "author") == 0) {
+    if (strcmp(type_buf, "subscriber") == 0 ||
+        strcmp(type_buf, "author") == 0) {
       type = type_buf;
     } else {
       ERROR_REPLY_400("Invalid type parameter");
@@ -427,4 +427,33 @@ void send_user_count_res(struct mg_connection *c, struct mg_http_message *msg,
   char json[32];
   snprintf(json, sizeof(json), "{\"count\":%d}", count);
   SUCCESS_REPLY_200(json);
+}
+
+void send_current_user_res(struct mg_connection *c, struct mg_http_message *msg,
+                           struct error_reply *error_reply,
+                           const char *secret) {
+  struct error_reply _er = {0};
+  error_reply = &_er;
+
+  if (!mg_match(msg->method, mg_str("GET"), NULL)) {
+    ERROR_REPLY_405;
+    return;
+  }
+
+  printf(TERMINAL_ENDPOINT_MESSAGE("=== GET CURRENT USER ==="));
+
+  struct user *user = malloc(sizeof(struct user));
+  int user_logged = 0;
+  is_user_logged(c, msg, error_reply, secret, &user_logged, user);
+  if (user_logged == 0) {
+    free(user);
+    ERROR_REPLY_401;
+    return;
+  }
+  char *result = user_to_json(user);
+
+  SUCCESS_REPLY_200(result);
+  printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY SENT ==="));
+
+  free_user(user);
 }

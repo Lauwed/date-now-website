@@ -1,19 +1,25 @@
 use iced::alignment::Vertical;
 use iced::font::Weight;
 use iced::widget::{button, column, container, image, row, text};
-use iced::{Color, Element, Font, Length, Shadow, Theme};
+use iced::{Color, Element, Font, Length, Shadow, Task, Theme};
+
+use crate::data::sessions::Session;
+use crate::data::users::User;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
     #[default]
     Dashboard,
     Issues,
+    Issue(u32),
+    NewIssue,
     Login,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
     OnScreenPressed(Screen),
+    GoTo(Screen),
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -42,14 +48,19 @@ impl Nav {
             .into()
     }
 
-    pub fn update(&mut self, message: Message) {
-        match message {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        let _ = match message {
             Message::OnScreenPressed(screen) => {
                 self.current_screen = screen;
             }
-        }
+            Message::GoTo(screen) => {
+                self.current_screen = screen;
+            }
+        };
+
+        Task::none()
     }
-    pub fn view(&self) -> Element<'_, Message> {
+    pub fn view(&self, current_user: &Session) -> Element<'_, Message> {
         let title_font = Font {
             weight: Weight::Bold,
             ..Default::default()
@@ -66,6 +77,14 @@ impl Nav {
         let issues_button = self.nav_button("Issues", Screen::Issues);
         let nav_buttons = column![dashboard_button, issues_button].height(Length::Fill);
 
+        let username = match current_user.user.username.clone() {
+            Some(u) => u,
+            None => current_user.user.email.clone(),
+        };
+        let current_user_button = text(username)
+            .width(Length::Fill)
+            .size(14)
+            .wrapping(text::Wrapping::Glyph);
         let settings_button = button(
             row![
                 image("assets/icons/settings_w.png").height(18).width(18),
@@ -76,7 +95,7 @@ impl Nav {
         )
         .width(Length::Fill);
 
-        container(column![header, nav_buttons, settings_button].spacing(32))
+        container(column![header, nav_buttons, current_user_button, settings_button].spacing(32))
             .height(Length::Fill)
             .width(Length::FillPortion(1))
             .padding(20)

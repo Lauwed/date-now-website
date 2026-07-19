@@ -52,6 +52,7 @@ extern char g_json_header[]; // défini dans main.c
 #define ISSUE_EXISTS_MESSAGE "The issue already exists."
 #define ISSUE_ALREADY_PUBLISHED_MESSAGE "Issue is already published."
 #define TITLE_REQUIRED_MESSAGE "Title is required."
+#define SLUG_REQUIRED_MESSAGE "Slug is required."
 #define ISSUE_NUMBER_REQUIRED_MESSAGE "Issue number is required."
 #define STATUS_FORMAT_MESSAGE                                                  \
   "Value of 'status' should be 'DRAFT', 'PUBLISHED' or 'ARCHIVE'."

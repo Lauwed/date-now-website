@@ -1,3 +1,7 @@
+## Roadmap
+
+- [] Apply a real policy for CORS origins
+
 ## Generate JWT_SECRET
 
 Use of the `openssl` lib
@@ -5,10 +9,11 @@ Use of the `openssl` lib
 ```bash
 openssl rand -hex 32
 ```
-## User of Docker
+## Use of Docker
 
 ### First build and after code changes
 
 ```bash
-docker compose up --build
+docker compose up --build -d
+docker compose exec api sh
 ```

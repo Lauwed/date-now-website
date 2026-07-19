@@ -1,10 +1,10 @@
 services:
   api:
-    build: .
+    build: 
+      context: .
+      target: dev
     ports:
       - "8000:8000"
-    environment:
-      - JWT_SECRET=${JWT_SECRET}
     env_file:
       - .env
     volumes:

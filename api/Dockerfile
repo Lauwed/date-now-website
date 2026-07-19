@@ -21,6 +21,7 @@ RUN apk add --no-cache \
     cjson-dev \
     pkgconfig \
     bear \
+    gdb \
     nodejs \
     npm
 
@@ -36,7 +37,8 @@ RUN bear -- make
 
 EXPOSE 8000
 
-CMD ["./bin/serv_api"]
+# CMD ["./bin/serv_api"]
+CMD ["tail", "-f", "/dev/null"]
 
 FROM base AS run
 

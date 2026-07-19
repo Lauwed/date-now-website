@@ -39,17 +39,16 @@
   }
 
 #define MAP_INT(dest, stmt, index, required)                                   \
-  printf("type int:  %d, ", sqlite3_column_type(stmt, index));                 \
+  printf("type int:  %d, \n", sqlite3_column_type(stmt, index));               \
   if (sqlite3_column_type(stmt, index) == SQLITE_INTEGER) {                    \
     int integer = sqlite3_column_int(stmt, index);                             \
-    printf("%s: %d, ", sqlite3_column_name(stmt, index), integer);             \
+    printf("%s: %d, \n", sqlite3_column_name(stmt, index), integer);           \
     dest = integer;                                                            \
   } else if (required) {                                                       \
     return 1;                                                                  \
   } else {                                                                     \
     dest = 0;                                                                  \
   }
-
 
 static void trim(char *str) {
   int len = strlen(str);
@@ -169,7 +168,8 @@ void list_reply_to_json(struct list_reply *reply) {
 }
 
 static cJSON *media_to_cjson(struct media *media) {
-  if (media == NULL) return cJSON_CreateNull();
+  if (media == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddNumberToObject(obj, "id", media->id);
   cJSON_AddStringToObject(obj, "alt", media->alternative_text);
@@ -180,7 +180,8 @@ static cJSON *media_to_cjson(struct media *media) {
 }
 
 char *media_to_json(struct media *media) {
-  if (media == NULL) return "null";
+  if (media == NULL)
+    return "null";
   cJSON *obj = media_to_cjson(media);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -188,7 +189,8 @@ char *media_to_json(struct media *media) {
 }
 
 char *medias_to_json(struct media **medias, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, media_to_cjson(medias[i]));
@@ -198,7 +200,8 @@ char *medias_to_json(struct media **medias, size_t len) {
 }
 
 static cJSON *user_to_cjson(struct user *user) {
-  if (user == NULL) return cJSON_CreateNull();
+  if (user == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddNumberToObject(obj, "id", user->id);
   if (user->username != NULL)
@@ -213,13 +216,16 @@ static cJSON *user_to_cjson(struct user *user) {
     cJSON_AddNullToObject(obj, "link");
   cJSON_AddItemToObject(obj, "picture", media_to_cjson(user->picture));
   cJSON_AddNumberToObject(obj, "subscribedAt", user->subscribed_at);
-  cJSON_AddNumberToObject(obj, "isSupporter", user->is_supporter);
+
+  cJSON_AddItemToObject(obj, "isSupporter",
+                        cJSON_CreateBool(user->is_supporter));
   cJSON_AddNumberToObject(obj, "createdAt", user->created_at);
   return obj;
 }
 
 char *user_to_json(struct user *user) {
-  if (user == NULL) return "null";
+  if (user == NULL)
+    return "null";
   cJSON *obj = user_to_cjson(user);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -227,7 +233,8 @@ char *user_to_json(struct user *user) {
 }
 
 char *users_to_json(struct user **users, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, user_to_cjson(users[i]));
@@ -237,7 +244,8 @@ char *users_to_json(struct user **users, size_t len) {
 }
 
 static cJSON *view_to_cjson(struct view *view) {
-  if (view == NULL) return cJSON_CreateNull();
+  if (view == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddNumberToObject(obj, "id", view->id);
   cJSON_AddNumberToObject(obj, "time", view->time);
@@ -247,7 +255,8 @@ static cJSON *view_to_cjson(struct view *view) {
 }
 
 char *view_to_json(struct view *view) {
-  if (view == NULL) return "null";
+  if (view == NULL)
+    return "null";
   cJSON *obj = view_to_cjson(view);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -255,7 +264,8 @@ char *view_to_json(struct view *view) {
 }
 
 char *views_to_json(struct view **views, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, view_to_cjson(views[i]));
@@ -265,7 +275,8 @@ char *views_to_json(struct view **views, size_t len) {
 }
 
 static cJSON *tag_to_cjson(struct tag *tag) {
-  if (tag == NULL) return cJSON_CreateNull();
+  if (tag == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddStringToObject(obj, "name", tag->name);
   cJSON_AddStringToObject(obj, "color", tag->color);
@@ -273,7 +284,8 @@ static cJSON *tag_to_cjson(struct tag *tag) {
 }
 
 char *tag_to_json(struct tag *tag) {
-  if (tag == NULL) return "null";
+  if (tag == NULL)
+    return "null";
   cJSON *obj = tag_to_cjson(tag);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -281,7 +293,8 @@ char *tag_to_json(struct tag *tag) {
 }
 
 char *tags_to_json(struct tag **tags, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, tag_to_cjson(tags[i]));
@@ -291,7 +304,8 @@ char *tags_to_json(struct tag **tags, size_t len) {
 }
 
 static cJSON *sponsor_to_cjson(struct sponsor *sponsor) {
-  if (sponsor == NULL) return cJSON_CreateNull();
+  if (sponsor == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddStringToObject(obj, "name", sponsor->name);
   cJSON_AddStringToObject(obj, "link", sponsor->link);
@@ -299,7 +313,8 @@ static cJSON *sponsor_to_cjson(struct sponsor *sponsor) {
 }
 
 char *sponsor_to_json(struct sponsor *sponsor) {
-  if (sponsor == NULL) return "null";
+  if (sponsor == NULL)
+    return "null";
   cJSON *obj = sponsor_to_cjson(sponsor);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -307,7 +322,8 @@ char *sponsor_to_json(struct sponsor *sponsor) {
 }
 
 char *sponsors_to_json(struct sponsor **sponsors, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, sponsor_to_cjson(sponsors[i]));
@@ -317,7 +333,8 @@ char *sponsors_to_json(struct sponsor **sponsors, size_t len) {
 }
 
 static cJSON *issue_tag_to_cjson(struct issue_tag *it) {
-  if (it == NULL) return cJSON_CreateNull();
+  if (it == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddStringToObject(obj, "tagName", it->tag_name);
   cJSON_AddNumberToObject(obj, "issueId", it->issue_id);
@@ -325,7 +342,8 @@ static cJSON *issue_tag_to_cjson(struct issue_tag *it) {
 }
 
 char *issue_tag_to_json(struct issue_tag *it) {
-  if (it == NULL) return "null";
+  if (it == NULL)
+    return "null";
   cJSON *obj = issue_tag_to_cjson(it);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -333,7 +351,8 @@ char *issue_tag_to_json(struct issue_tag *it) {
 }
 
 char *issue_tags_to_json(struct issue_tag **its, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, issue_tag_to_cjson(its[i]));
@@ -343,7 +362,8 @@ char *issue_tags_to_json(struct issue_tag **its, size_t len) {
 }
 
 static cJSON *issue_author_to_cjson(struct issue_author *ia) {
-  if (ia == NULL) return cJSON_CreateNull();
+  if (ia == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddNumberToObject(obj, "userId", ia->user_id);
   cJSON_AddNumberToObject(obj, "issueId", ia->issue_id);
@@ -351,7 +371,8 @@ static cJSON *issue_author_to_cjson(struct issue_author *ia) {
 }
 
 char *issue_author_to_json(struct issue_author *ia) {
-  if (ia == NULL) return "null";
+  if (ia == NULL)
+    return "null";
   cJSON *obj = issue_author_to_cjson(ia);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -359,7 +380,8 @@ char *issue_author_to_json(struct issue_author *ia) {
 }
 
 char *issue_authors_to_json(struct issue_author **ias, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, issue_author_to_cjson(ias[i]));
@@ -369,16 +391,19 @@ char *issue_authors_to_json(struct issue_author **ias, size_t len) {
 }
 
 static cJSON *issue_sponsor_to_cjson(struct issue_sponsor *is) {
-  if (is == NULL) return cJSON_CreateNull();
+  if (is == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddStringToObject(obj, "sponsorName", is->sponsor_name);
   cJSON_AddNumberToObject(obj, "issueId", is->issue_id);
+  cJSON_AddStringToObject(obj, "issueLink", is->issue_link);
   cJSON_AddStringToObject(obj, "link", is->link);
   return obj;
 }
 
 char *issue_sponsor_to_json(struct issue_sponsor *is) {
-  if (is == NULL) return "null";
+  if (is == NULL)
+    return "null";
   cJSON *obj = issue_sponsor_to_cjson(is);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -386,7 +411,8 @@ char *issue_sponsor_to_json(struct issue_sponsor *is) {
 }
 
 char *issue_sponsors_to_json(struct issue_sponsor **iss, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, issue_sponsor_to_cjson(iss[i]));
@@ -396,7 +422,8 @@ char *issue_sponsors_to_json(struct issue_sponsor **iss, size_t len) {
 }
 
 static cJSON *issue_to_cjson(struct issue *issue) {
-  if (issue == NULL) return cJSON_CreateNull();
+  if (issue == NULL)
+    return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddNumberToObject(obj, "id", issue->id);
   cJSON_AddStringToObject(obj, "slug", issue->slug);
@@ -407,15 +434,17 @@ static cJSON *issue_to_cjson(struct issue *issue) {
   cJSON_AddNumberToObject(obj, "publishedAt", issue->published_at);
   cJSON_AddNumberToObject(obj, "updatedAt", issue->updated_at);
   cJSON_AddNumberToObject(obj, "issueNumber", issue->issue_number);
+  cJSON_AddNumberToObject(obj, "views", issue->views);
   cJSON_AddStringToObject(obj, "excerpt", issue->excerpt);
   cJSON_AddStringToObject(obj, "content", issue->content);
-  cJSON_AddNumberToObject(obj, "isSponsored", issue->is_sponsored);
+  cJSON_AddItemToObject(obj, "isSponsored",
+                        cJSON_CreateBool(issue->is_sponsored));
   cJSON_AddStringToObject(obj, "status", issue->status);
   cJSON_AddNumberToObject(obj, "openedMailCount", issue->opened_mail_count);
 
   cJSON *tags_arr = cJSON_CreateArray();
   for (size_t i = 0; i < issue->tags_count; i++)
-    cJSON_AddItemToArray(tags_arr, issue_tag_to_cjson(issue->tags[i]));
+    cJSON_AddItemToArray(tags_arr, tag_to_cjson(issue->tags[i]));
   cJSON_AddItemToObject(obj, "tags", tags_arr);
 
   cJSON *authors_arr = cJSON_CreateArray();
@@ -425,14 +454,16 @@ static cJSON *issue_to_cjson(struct issue *issue) {
 
   cJSON *sponsors_arr = cJSON_CreateArray();
   for (size_t i = 0; i < issue->sponsors_count; i++)
-    cJSON_AddItemToArray(sponsors_arr, issue_sponsor_to_cjson(issue->sponsors[i]));
+    cJSON_AddItemToArray(sponsors_arr,
+                         issue_sponsor_to_cjson(issue->sponsors[i]));
   cJSON_AddItemToObject(obj, "sponsors", sponsors_arr);
 
   return obj;
 }
 
 char *issue_to_json(struct issue *issue) {
-  if (issue == NULL) return "null";
+  if (issue == NULL)
+    return "null";
   cJSON *obj = issue_to_cjson(issue);
   char *json = cJSON_PrintUnformatted(obj);
   cJSON_Delete(obj);
@@ -440,7 +471,8 @@ char *issue_to_json(struct issue *issue) {
 }
 
 char *issues_to_json(struct issue **issues, size_t len) {
-  if (len == 0) return "[]";
+  if (len == 0)
+    return "[]";
   cJSON *arr = cJSON_CreateArray();
   for (size_t i = 0; i < len; i++)
     cJSON_AddItemToArray(arr, issue_to_cjson(issues[i]));
@@ -509,7 +541,7 @@ int free_issue(struct issue *issue) {
   }
 
   if (issue->tags != NULL) {
-    free_issue_tags(issue->tags, issue->tags_count);
+    free_tags(issue->tags, issue->tags_count);
   }
   if (issue->authors != NULL) {
     free_users(issue->authors, issue->authors_count);
@@ -539,8 +571,10 @@ int free_issue_author(struct issue_author *issue) {
 }
 int free_issue_sponsor(struct issue_sponsor *issue) {
   free(issue->sponsor_name);
+  free(issue->issue_link);
   free(issue->link);
   issue->sponsor_name = NULL;
+  issue->issue_link = NULL;
   issue->link = NULL;
 
   free(issue);
@@ -812,6 +846,8 @@ int issue_map(struct issue *issue, sqlite3_stmt *stmt, int start_index,
   MAP_INT(issue->is_sponsored, stmt, start_index + 10, 0);
   MAP_TEXT(issue->status, stmt, start_index + 11, 1);
   MAP_INT(issue->opened_mail_count, stmt, start_index + 12, 0);
+  MAP_INT(issue->views, stmt, start_index + 13, 0);
+  printf("\n");
 
   return 0;
 }
@@ -838,7 +874,8 @@ int issue_sponsor_map(struct issue_sponsor *issue, sqlite3_stmt *stmt,
   // ID
   MAP_INT(issue->issue_id, stmt, start_index, 1);
   MAP_TEXT(issue->sponsor_name, stmt, start_index + 1, 1);
-  MAP_TEXT(issue->link, stmt, start_index + 2, 1);
+  MAP_TEXT(issue->issue_link, stmt, start_index + 2, 1);
+  MAP_TEXT(issue->link, stmt, start_index + 3, 1);
 
   return 0;
 }
@@ -995,8 +1032,7 @@ void issue_hydrate(struct mg_http_message *msg, struct issue *issue) {
       sprintf(issue->slug, "%.*s", (int)val.len - 2, val.buf + 1);
     } else if (mg_strcmp(key, mg_str("\"content\"")) == 0) {
       printf("CONTENT: %.*s\n", (int)val.len, val.buf);
-      issue->content = malloc(val.len);
-      sprintf(issue->content, "%.*s", (int)val.len - 2, val.buf + 1);
+      issue->content = mg_json_get_str(msg->body, "$.content");
     } else if (mg_strcmp(key, mg_str("\"subtitle\"")) == 0) {
       printf("SUBTITLE: %.*s\n", (int)val.len, val.buf);
       issue->subtitle = malloc(val.len);
@@ -1040,9 +1076,9 @@ void issue_hydrate(struct mg_http_message *msg, struct issue *issue) {
         issue->issue_number = number;
       }
     } else if (mg_strcmp(key, mg_str("\"isSponsored\"")) == 0) {
-      number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
-      if (number_parsed) {
-        issue->is_sponsored = number;
+      bool value = false;
+      if (mg_json_get_bool(val, "$", &value)) {
+        issue->is_sponsored = value;
       }
     } else if (mg_strcmp(key, mg_str("\"coverId\"")) == 0) {
       number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
@@ -1223,6 +1259,7 @@ int issue_init(struct issue *issue) {
 
   issue->published_at = 0;
   issue->updated_at = 0;
+  issue->views = 0;
 
   issue->cover = NULL;
 
@@ -1250,6 +1287,7 @@ int issue_sponsor_init(struct issue_sponsor *issue) {
   }
   issue->issue_id = 0;
   issue->sponsor_name = NULL;
+  issue->issue_link = NULL;
   issue->link = NULL;
 
   return 0;

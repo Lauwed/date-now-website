@@ -4,7 +4,7 @@ MAGICK_CFLAGS := $(shell pkg-config --cflags $(MAGICK_PKG))
 MAGICK_LIBS   := $(shell pkg-config --libs   $(MAGICK_PKG))
 EXTRA_CFLAGS  :=
 EXTRA_LDFLAGS :=
-CFLAGS := -I ./include/ -g $(MAGICK_CFLAGS) $(EXTRA_CFLAGS)
+CFLAGS := -I ./include/ -DDEBUG -g $(MAGICK_CFLAGS) $(EXTRA_CFLAGS)
 LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl -lcjson $(MAGICK_LIBS) -lpthread
 
 includes := ./include

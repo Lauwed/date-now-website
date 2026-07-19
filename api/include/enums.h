@@ -26,5 +26,6 @@ enum http_res_code {
 enum jwt_type {
   SUBSCRIPTION = 1, /**< Subscription confirmation token (valid 24 h). */
   LOGIN = 2,        /**< Login confirmation token (valid 24 h). */
-  SESSION = 3 /**< Active session token issued after successful TOTP login. */
+  SESSION = 3, /**< Active session token issued after successful TOTP login. */
+  REFRESH = 4
 };

@@ -266,7 +266,7 @@
         },
         {
           "name": "TOTP login",
-          "description": "Validates the 6-digit TOTP code and returns a JWT token to use in the Authorization header of authenticated requests.",
+          "description": "Validates the 6-digit TOTP code and returns an access token (SESSION, valid 30 min) and a refresh token (REFRESH, valid 30 days) to use in the Authorization header of authenticated requests.",
           "uri": "/login/totp",
           "method": "POST",
           "tokenRequired": false,
@@ -276,7 +276,8 @@
               "code": 200,
               "response": {
                 "message": "Successfully logged in",
-                "token": "string"
+                "token": "string",
+                "refresh_token": "string"
               }
             },
             {
@@ -298,6 +299,38 @@
               "response": {
                 "code": 429,
                 "message": "Too many failed attempts, please try again later"
+              }
+            },
+            500
+          ]
+        },
+        {
+          "name": "refresh token",
+          "description": "Exchanges a valid, non-expired refresh token for a new access token (SESSION, valid 30 min). The refresh token is rotated: a new refresh token (REFRESH, valid 30 days) is returned and supersedes the one just consumed.",
+          "uri": "/refresh",
+          "method": "POST",
+          "tokenRequired": false,
+          "body": { "refresh_token": "string" },
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "token": "string",
+                "refresh_token": "string"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid or expired refresh token"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "User not found"
               }
             },
             500
@@ -527,6 +560,29 @@
         }
       ],
       "customEndpoints": [
+        {
+          "name": "Get current user",
+          "description": "Returns the current user based on its session JWT auth token",
+          "uri": "/current",
+          "method": "GET",
+          "tokenRequired": true,
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "username": "string?",
+                "email": "string",
+                "role": "USER | AUTHOR",
+                "link": "string?",
+                "picture": "foreignKey-media",
+                "subscribedAt": "timestamp?",
+                "isSupporter": "boolean",
+                "createdAt": "timestamp"
+              }
+            }
+          ]
+        },
         {
           "name": "Get subscriber count",
           "description": "Returns the number of subscribers of the newsletter",
@@ -887,6 +943,7 @@
           "label": "Status",
           "type": "select",
           "options": [
+            { "name": "null", "label": "All" },
             { "name": "DRAFT", "label": "Draft" },
             { "name": "PUBLISHED", "label": "Published" },
             { "name": "ARCHIVE", "label": "Archived" }

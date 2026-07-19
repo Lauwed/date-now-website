@@ -1,8 +1,10 @@
 /**
  * @file media.c
- * @brief Media endpoint handler implementations (list, upload, single resource).
+ * @brief Media endpoint handler implementations (list, upload, single
+ * resource).
  */
 
+#include <MagickWand/MagickWand.h>
 #include <endpoints/auth.h>
 #include <endpoints/media.h>
 #include <enums.h>
@@ -21,32 +23,37 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <utils.h>
-#include <MagickWand/MagickWand.h>
-
 
 #define MAX_UPLOAD_SIZE (5 * 1024 * 1024)
 #define UPLOAD_DIR "/var/www/uploads/media"
 
 static int is_image_data(const char *data, size_t len) {
-  if (len < 4) return 0;
+  if (len < 4)
+    return 0;
   const unsigned char *d = (const unsigned char *)data;
   /* JPEG */
-  if (d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF) return 1;
+  if (d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF)
+    return 1;
   /* PNG */
-  if (d[0] == 0x89 && d[1] == 0x50 && d[2] == 0x4E && d[3] == 0x47) return 1;
+  if (d[0] == 0x89 && d[1] == 0x50 && d[2] == 0x4E && d[3] == 0x47)
+    return 1;
   /* GIF */
-  if (d[0] == 0x47 && d[1] == 0x49 && d[2] == 0x46) return 1;
+  if (d[0] == 0x47 && d[1] == 0x49 && d[2] == 0x46)
+    return 1;
   /* WebP: RIFF....WEBP */
   if (len >= 12 && d[0] == 0x52 && d[1] == 0x49 && d[2] == 0x46 &&
       d[3] == 0x46 && d[8] == 0x57 && d[9] == 0x45 && d[10] == 0x42 &&
       d[11] == 0x50)
     return 1;
   /* BMP */
-  if (d[0] == 0x42 && d[1] == 0x4D) return 1;
+  if (d[0] == 0x42 && d[1] == 0x4D)
+    return 1;
   /* TIFF LE */
-  if (d[0] == 0x49 && d[1] == 0x49 && d[2] == 0x2A && d[3] == 0x00) return 1;
+  if (d[0] == 0x49 && d[1] == 0x49 && d[2] == 0x2A && d[3] == 0x00)
+    return 1;
   /* TIFF BE */
-  if (d[0] == 0x4D && d[1] == 0x4D && d[2] == 0x00 && d[3] == 0x2A) return 1;
+  if (d[0] == 0x4D && d[1] == 0x4D && d[2] == 0x00 && d[3] == 0x2A)
+    return 1;
   return 0;
 }
 
@@ -62,9 +69,9 @@ static void generate_uuid_v4(char out[37]) {
   snprintf(out, 37,
            "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x"
            "-%02x%02x%02x%02x%02x%02x",
-           bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5],
-           bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11],
-           bytes[12], bytes[13], bytes[14], bytes[15]);
+           bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6],
+           bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12],
+           bytes[13], bytes[14], bytes[15]);
 }
 
 static void remove_media_dir(const char *uuid) {
@@ -88,7 +95,8 @@ static void *media_convert_thread(void *arg) {
 
   char img_path[512], thumb_path[512];
   snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%s/image.webp", ctx->uuid);
-  snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%s/thumb.webp", ctx->uuid);
+  snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%s/thumb.webp",
+           ctx->uuid);
 
   MagickWand *wand = NewMagickWand();
   if (MagickReadImage(wand, ctx->tmp_path) == MagickFalse) {
@@ -141,7 +149,8 @@ static void *media_convert_thread(void *arg) {
 
   char url[256];
   snprintf(url, sizeof(url), "/uploads/media/%s/image.webp", ctx->uuid);
-  update_media_file((int)ctx->media_id, url, (double)img_width, (double)img_height);
+  update_media_file((int)ctx->media_id, url, (double)img_width,
+                    (double)img_height);
 
   printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA CONVERSION COMPLETE ==="));
   free(ctx);
@@ -190,7 +199,8 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
       }
       free(medias);
     }
-    if (total > 0) free(data);
+    if (total > 0)
+      free(data);
     free(reply->json);
     free(reply);
 
@@ -199,7 +209,7 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
 
     /* Auth check */
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
     if (user_logged == 0) {
       ERROR_REPLY_401;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
@@ -336,7 +346,8 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
     }
     pthread_attr_destroy(&attr);
 
-    /* Return 202 — URL will be available once the background conversion finishes */
+    /* Return 202 — URL will be available once the background conversion
+     * finishes */
     char response[64];
     snprintf(response, sizeof(response), "{\"id\":%u}", media_id);
     mg_http_reply(c, 202, JSON_HEADER, "%s\n", response);
@@ -394,7 +405,7 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
 
     /* Auth check */
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
     if (user_logged == 0) {
       ERROR_REPLY_401;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
@@ -448,7 +459,7 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
 
     /* Auth check */
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
     if (user_logged == 0) {
       ERROR_REPLY_401;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
@@ -457,7 +468,8 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
 
     /* 409 if referenced by an issue or user */
     if (media_is_referenced(id)) {
-      ERROR_REPLY_409("Media is referenced by one or more resources and cannot be deleted");
+      ERROR_REPLY_409(
+          "Media is referenced by one or more resources and cannot be deleted");
       return;
     }
 

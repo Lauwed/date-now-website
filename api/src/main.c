@@ -53,9 +53,9 @@ typedef void (*route_fn)(struct mg_connection *c, struct mg_http_message *msg,
 
 struct route_entry {
   const char *pattern;
-  route_fn    handler;
-  int         rl_max;     /* 0 = no per-route rate limit */
-  int         rl_window;
+  route_fn handler;
+  int rl_max; /* 0 = no per-route rate limit */
+  int rl_window;
 };
 
 /* ---- helpers ---- */
@@ -89,6 +89,13 @@ static void r_login_totp(struct mg_connection *c, struct mg_http_message *msg,
                          const char *secret) {
   (void)caps;
   login_user(c, msg, er, secret);
+}
+
+static void r_refresh_token(struct mg_connection *c,
+                            struct mg_http_message *msg, struct mg_str *caps,
+                            struct error_reply *er, const char *secret) {
+  (void)caps;
+  refresh_token(c, msg, er, secret);
 }
 
 static void r_subscribe(struct mg_connection *c, struct mg_http_message *msg,
@@ -134,6 +141,13 @@ static void r_users(struct mg_connection *c, struct mg_http_message *msg,
                     const char *secret) {
   (void)caps;
   send_users_res(c, msg, er, secret);
+}
+
+static void r_current_user(struct mg_connection *c, struct mg_http_message *msg,
+                           struct mg_str *caps, struct error_reply *er,
+                           const char *secret) {
+  (void)caps;
+  send_current_user_res(c, msg, er, secret);
 }
 
 static void r_user_count(struct mg_connection *c, struct mg_http_message *msg,
@@ -349,51 +363,57 @@ static void r_issue_sponsor(struct mg_connection *c,
  * Route table — most-specific patterns first within each resource group.
  * ------------------------------------------------------------------------- */
 static const struct route_entry routes[] = {
-  /* auth — all share the prefix-level auth rate limit (applied in dispatch) */
-  {"auth/login/totp",        r_login_totp,        RATE_LIMIT_TOTP_MAX, RATE_LIMIT_TOTP_WINDOW},
-  {"auth/subscribe/confirm", r_subscribe_confirm, 0, 0},
-  {"auth/subscribe",         r_subscribe,         0, 0},
-  {"auth/register",          r_register,          0, 0},
-  {"auth/seed",              r_seed,              0, 0},
-  {"auth/login",             r_login_mail,        0, 0},
-  // issue sub-resources before issue/* to avoid short-circuit
-  {"issue/*/tag/*",          r_issue_tag,         0, 0},
-  {"issue/*/tag",            r_issue_tags,        0, 0},
-  {"issue/*/author/*",       r_issue_author,      0, 0},
-  {"issue/*/author",         r_issue_authors,     0, 0},
-  {"issue/*/sponsor/*",      r_issue_sponsor,     0, 0},
-  {"issue/*/sponsor",        r_issue_sponsors,    0, 0},
-  {"issue/*/publish",        r_issue_publish,     0, 0},
-  {"issue/count",            r_issue_count,       0, 0},
-  {"issue/*",                r_issue,             0, 0},
-  {"issue",                  r_issues,            0, 0},
-  /* remaining resources */
-  {"user/count",             r_user_count,        0, 0},
-  {"user/*",                 r_user,              0, 0},
-  {"user",                   r_users,             0, 0},
-  {"tag/*",                  r_tag,               0, 0},
-  {"tag",                    r_tags,              0, 0},
-  {"sponsor/*",              r_sponsor,           0, 0},
-  {"sponsor",                r_sponsors,          0, 0},
-  {"media/*",                r_media,             0, 0},
-  {"media",                  r_medias,            0, 0},
-  {"view",                   r_views,             0, 0},
-  {NULL, NULL, 0, 0},
+    /* auth — all share the prefix-level auth rate limit (applied in dispatch)
+     */
+    {"auth/login/totp", r_login_totp, RATE_LIMIT_TOTP_MAX,
+     RATE_LIMIT_TOTP_WINDOW},
+    {"auth/subscribe/confirm", r_subscribe_confirm, 0, 0},
+    {"auth/subscribe", r_subscribe, 0, 0},
+    {"auth/register", r_register, 0, 0},
+    {"auth/seed", r_seed, 0, 0},
+    {"auth/login", r_login_mail, 0, 0},
+    {"auth/refresh", r_refresh_token, 0, 0},
+    // issue sub-resources before issue/* to avoid short-circuit
+    {"issue/*/tag/*", r_issue_tag, 0, 0},
+    {"issue/*/tag", r_issue_tags, 0, 0},
+    {"issue/*/author/*", r_issue_author, 0, 0},
+    {"issue/*/author", r_issue_authors, 0, 0},
+    {"issue/*/sponsor/*", r_issue_sponsor, 0, 0},
+    {"issue/*/sponsor", r_issue_sponsors, 0, 0},
+    {"issue/*/publish", r_issue_publish, 0, 0},
+    {"issue/count", r_issue_count, 0, 0},
+    {"issue/*", r_issue, 0, 0},
+    {"issue", r_issues, 0, 0},
+    /* remaining resources */
+    {"user/current", r_current_user, 0, 0},
+    {"user/count", r_user_count, 0, 0},
+    {"user/*", r_user, 0, 0},
+    {"user", r_users, 0, 0},
+    {"tag/*", r_tag, 0, 0},
+    {"tag", r_tags, 0, 0},
+    {"sponsor/*", r_sponsor, 0, 0},
+    {"sponsor", r_sponsors, 0, 0},
+    {"media/*", r_media, 0, 0},
+    {"media", r_medias, 0, 0},
+    {"view", r_views, 0, 0},
+    {NULL, NULL, 0, 0},
 };
 
 static void dispatch(struct mg_connection *c, struct mg_http_message *msg,
                      struct mg_str endpoint, struct error_reply *er,
                      const char *secret) {
   // Prefix-level auth rate limit — applies to every auth/* route
-  if (mg_match(endpoint, mg_str("auth#"), NULL) &&
-      rate_limit_check(&c->rem, RATE_LIMIT_AUTH_MAX, RATE_LIMIT_AUTH_WINDOW)) {
-    ERROR_REPLY_429;
-    return;
-  }
+  // if (mg_match(endpoint, mg_str("auth#"), NULL) &&
+  //     rate_limit_check(&c->rem, RATE_LIMIT_AUTH_MAX, RATE_LIMIT_AUTH_WINDOW))
+  //     {
+  //   ERROR_REPLY_429;
+  //   return;
+  // }
 
   for (size_t i = 0; routes[i].pattern != NULL; i++) {
     struct mg_str caps[4] = {0};
-    if (!mg_match(endpoint, mg_str(routes[i].pattern), caps)) continue;
+    if (!mg_match(endpoint, mg_str(routes[i].pattern), caps))
+      continue;
     if (routes[i].rl_max &&
         rate_limit_check(&c->rem, routes[i].rl_max, routes[i].rl_window)) {
       ERROR_REPLY_429;
@@ -423,15 +443,16 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       const char *cors_origin = getenv("CORS_ORIGIN");
       if (!cors_origin) {
         fprintf(stderr, "CORS_ORIGIN not set, CORS disabled\n");
-        cors_origin = "";
+        cors_origin = "*";
       }
-      snprintf(g_json_header, sizeof(g_json_header),
-               "Content-Type: application/json\r\n"
-               "Access-Control-Allow-Origin: %s\r\n"
-               "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
-               "Access-Control-Allow-Headers: Authorization, Content-Type\r\n"
-               "Access-Control-Max-Age: 86400\r\n",
-               cors_origin);
+      snprintf(
+          g_json_header, sizeof(g_json_header),
+          "Content-Type: application/json\r\n"
+          "Access-Control-Allow-Origin: %s\r\n"
+          "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+          "Access-Control-Allow-Headers: Authorization, Content-Type\r\n"
+          "Access-Control-Max-Age: 86400\r\n",
+          cors_origin);
 
       if (mg_match(msg->method, mg_str("OPTIONS"), NULL)) {
         mg_http_reply(c, 204, g_json_header, "");

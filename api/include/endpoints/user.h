@@ -28,8 +28,8 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
  * @brief Handles GET/PUT/DELETE /user/:id — fetch, update, or delete a user.
  *
  * GET: returns the full user object. Requires authentication.
- * PUT: updates the user and returns the updated object. Requires authentication.
- * DELETE: deletes the user. Requires authentication.
+ * PUT: updates the user and returns the updated object. Requires
+ * authentication. DELETE: deletes the user. Requires authentication.
  *
  * @param c           Active Mongoose connection.
  * @param msg         Parsed HTTP message.
@@ -54,3 +54,17 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
  */
 void send_user_count_res(struct mg_connection *c, struct mg_http_message *msg,
                          struct error_reply *error_reply, const char *secret);
+
+/**
+ * @brief Handles GET /user/current — returns the current user based on JWT auth
+ * token
+ *
+ * Requires authentication. Returns the current user.
+ *
+ * @param c           Active Mongoose connection.
+ * @param msg         Parsed HTTP message.
+ * @param error_reply Pre-allocated error reply structure.
+ * @param secret      JWT signing secret (not freed).
+ */
+void send_current_user_res(struct mg_connection *c, struct mg_http_message *msg,
+                           struct error_reply *error_reply, const char *secret);

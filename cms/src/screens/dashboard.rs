@@ -1,10 +1,9 @@
 use iced::alignment::{Horizontal, Vertical};
-use iced::font::Weight;
-use iced::widget::{button, column, row, text};
-use iced::{Element, Font, Length};
+use iced::widget::{column, row, text};
+use iced::{Element, Length};
 
 use crate::components::card::Card;
-use crate::data::users::get_nb_subscribers;
+use crate::components::typography::{TypographyStyle, typography};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
@@ -41,10 +40,7 @@ impl Dashboard {
 
         let nb_subscribers = Card {
             body: column![
-                text("Subscribers").font(Font {
-                    weight: Weight::Black,
-                    ..Default::default()
-                }),
+                typography(String::from("Subscribers"), TypographyStyle::SubTitle),
                 text(self.nb_subscribers).size(40),
             ]
             .align_x(Horizontal::Center)
@@ -52,10 +48,7 @@ impl Dashboard {
         };
         let nb_published_issues = Card {
             body: column![
-                text("Published Issues").font(Font {
-                    weight: Weight::Black,
-                    ..Default::default()
-                }),
+                typography(String::from("Published Issues"), TypographyStyle::SubTitle),
                 text(self.nb_published_issues).size(40)
             ]
             .align_x(Horizontal::Center)
@@ -63,10 +56,7 @@ impl Dashboard {
         };
         let nb_draft_issues = Card {
             body: column![
-                text("Draft Issues").font(Font {
-                    weight: Weight::Black,
-                    ..Default::default()
-                }),
+                typography(String::from("Draft Issues"), TypographyStyle::SubTitle),
                 text(self.nb_draft_issues).size(40)
             ]
             .align_x(Horizontal::Center)

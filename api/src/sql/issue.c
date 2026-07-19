@@ -24,7 +24,8 @@ extern sqlite3 *db;
 #define QUERY_COUNT_TMP "SELECT COUNT(*) FROM Issue"
 #define QUERY_EXISTS_TMP QUERY_COUNT_TMP " WHERE id = ?"
 #define QUERY_IDENTITY_EXISTS_TMP                                              \
-  QUERY_COUNT_TMP " WHERE title = ? OR slug = ? OR issueNumber = ?"
+  QUERY_COUNT_TMP                                                              \
+  " WHERE (title = ? OR slug = ? OR issueNumber = ?) AND id <> ?"
 #define QUERY_SELECT_TMP                                                       \
   "SELECT "                                                                    \
   "i.id, i.slug, i.title, i.subtitle, UNIXEPOCH(i.createdAt), "                \
@@ -33,9 +34,11 @@ extern sqlite3 *db;
   "i.content, "                                                                \
   "i.isSponsored, "                                                            \
   "i.status, i.openedMailCount, "                                              \
+  "COUNT(v.id), "                                                              \
   "m.id, m.textAlternatif, m.url, m.width, m.height "                          \
   "FROM Issue i "                                                              \
   "LEFT JOIN Media m ON m.id = i.cover "                                       \
+  "LEFT JOIN View v ON v.issueId = i.id "                                      \
   "LEFT JOIN IssueAuthor a ON a.issueId = i.id "                               \
   "LEFT JOIN IssueTag t ON t.issueId = i.id "                                  \
   "LEFT JOIN IssueSponsor s ON s.issueId = i.id "
@@ -48,20 +51,25 @@ extern sqlite3 *db;
   "i.content, "                                                                \
   "i.isSponsored, "                                                            \
   "i.status, i.openedMailCount, "                                              \
+  "COUNT(v.id), "                                                              \
   "m.id, m.textAlternatif, m.url, m.width, m.height "                          \
   "FROM Issue i "                                                              \
-  "LEFT JOIN Media m ON m.id = i.cover "
+  "LEFT JOIN Media m ON m.id = i.cover "                                       \
+  "LEFT JOIN View v ON v.issueId = i.id "
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE i.id = ?"
 #define QUERY_Q_TMP                                                            \
   " WHERE i.title LIKE ?100 OR CAST(i.issueNumber AS Text) LIKE ?100 OR "      \
   "i.content LIKE ?100"
 #define QUERY_SORT_TMP " ORDER BY i.title COLLATE NOCASE %s"
+#define QUERY_SORT_DEFAULT_TMP " ORDER BY i.issueNumber DESC"
 #define QUERY_STATUS_AND_TMP " AND i.status = ?101"
 #define QUERY_STATUS_WHERE_TMP " WHERE i.status = ?101"
 #define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
+#define QUERY_GROUP_BY " GROUP BY i.title"
 
 #define QUERY_POST_TMP                                                         \
-  "INSERT INTO Issue (title, slug, subtitle, cover, publishedAt, issueNumber, "\
+  "INSERT INTO Issue (title, slug, subtitle, cover, publishedAt, "             \
+  "issueNumber, "                                                              \
   "excerpt, content, isSponsored, status) "                                    \
   "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'DRAFT'));"
 #define QUERY_PUT_TMP                                                          \
@@ -80,7 +88,8 @@ extern sqlite3 *db;
 static char *build_in_clause(size_t count) {
   size_t sz = count * 2 + 2;
   char *s = malloc(sz);
-  if (!s) return NULL;
+  if (!s)
+    return NULL;
   s[0] = '(';
   for (size_t i = 0; i < count; i++) {
     s[1 + i * 2] = '?';
@@ -91,31 +100,58 @@ static char *build_in_clause(size_t count) {
 }
 
 static void load_tags_batch(size_t count, struct issue **arr) {
-  if (count == 0) return;
+  if (count == 0)
+    return;
+
   char *in = build_in_clause(count);
-  if (!in) return;
-  const char *pfx = "SELECT issueId, tagName FROM IssueTag WHERE issueId IN ";
+
+  if (!in)
+    return;
+
+  const char *pfx = "SELECT it.issueId, t.name, t.color FROM IssueTag it "
+                    "JOIN Tag t ON t.name = it.tagName "
+                    "WHERE it.issueId IN ";
   size_t qsz = strlen(pfx) + strlen(in) + 2;
   char *query = malloc(qsz);
-  if (!query) { free(in); return; }
+
+  if (!query) {
+    free(in);
+    return;
+  }
+
   snprintf(query, qsz, "%s%s;", pfx, in);
   free(in);
+
   sqlite3_stmt *stmt;
-  if (sqlite3_prepare_v2(db, query, -1, &stmt, NULL) != SQLITE_OK) {
-    free(query); return;
+  int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    free(query);
+    return;
   }
+
   free(query);
+
   for (size_t i = 0; i < count; i++)
     sqlite3_bind_int(stmt, (int)i + 1, arr[i]->id);
+
+  GET_EXPANDED_QUERY(stmt);
+
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     int issue_id = sqlite3_column_int(stmt, 0);
     for (size_t j = 0; j < count; j++) {
-      if (arr[j]->id != issue_id) continue;
-      struct issue_tag *t = malloc(sizeof(struct issue_tag));
-      if (issue_tag_init(t) != 0) { free(t); break; }
-      issue_tag_map(t, stmt, 0, 1);
+      if (arr[j]->id != issue_id)
+        continue;
+      struct tag *t = malloc(sizeof(struct tag));
+      if (tag_init(t) != 0) {
+        free(t);
+        break;
+      }
+      tag_map(t, stmt, 1, 2);
+      printf("tag\t%s\t%s\n", t->name, t->color);
       arr[j]->tags = realloc(arr[j]->tags,
-          (arr[j]->tags_count + 1) * sizeof(struct issue_tag *));
+                             (arr[j]->tags_count + 1) * sizeof(struct tag *));
       arr[j]->tags[arr[j]->tags_count++] = t;
       break;
     }
@@ -124,9 +160,11 @@ static void load_tags_batch(size_t count, struct issue **arr) {
 }
 
 static void load_authors_batch(size_t count, struct issue **arr) {
-  if (count == 0) return;
+  if (count == 0)
+    return;
   char *in = build_in_clause(count);
-  if (!in) return;
+  if (!in)
+    return;
   const char *pfx =
       "SELECT ia.issueId, u.id, u.username, u.email, u.role, u.link, "
       "UNIXEPOCH(u.subscribedAt), u.isSupporter, UNIXEPOCH(u.createdAt), "
@@ -137,12 +175,16 @@ static void load_authors_batch(size_t count, struct issue **arr) {
       "WHERE ia.issueId IN ";
   size_t qsz = strlen(pfx) + strlen(in) + 2;
   char *query = malloc(qsz);
-  if (!query) { free(in); return; }
+  if (!query) {
+    free(in);
+    return;
+  }
   snprintf(query, qsz, "%s%s;", pfx, in);
   free(in);
   sqlite3_stmt *stmt;
   if (sqlite3_prepare_v2(db, query, -1, &stmt, NULL) != SQLITE_OK) {
-    free(query); return;
+    free(query);
+    return;
   }
   free(query);
   for (size_t i = 0; i < count; i++)
@@ -150,18 +192,25 @@ static void load_authors_batch(size_t count, struct issue **arr) {
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     int issue_id = sqlite3_column_int(stmt, 0);
     for (size_t j = 0; j < count; j++) {
-      if (arr[j]->id != issue_id) continue;
+      if (arr[j]->id != issue_id)
+        continue;
       struct user *u = malloc(sizeof(struct user));
-      if (user_init(u) != 0) { free(u); break; }
-      if (user_map(u, stmt, 1, 8) != 0) { free(u); break; }
+      if (user_init(u) != 0) {
+        free(u);
+        break;
+      }
+      if (user_map(u, stmt, 1, 8) != 0) {
+        free(u);
+        break;
+      }
       struct media *m = malloc(sizeof(struct media));
       if (media_map(m, stmt, 9, 13) != 0) {
         free(m);
       } else {
         u->picture = m;
       }
-      arr[j]->authors = realloc(arr[j]->authors,
-          (arr[j]->authors_count + 1) * sizeof(struct user *));
+      arr[j]->authors = realloc(arr[j]->authors, (arr[j]->authors_count + 1) *
+                                                     sizeof(struct user *));
       arr[j]->authors[arr[j]->authors_count++] = u;
       break;
     }
@@ -170,32 +219,59 @@ static void load_authors_batch(size_t count, struct issue **arr) {
 }
 
 static void load_sponsors_batch(size_t count, struct issue **arr) {
-  if (count == 0) return;
+  if (count == 0)
+    return;
+
   char *in = build_in_clause(count);
-  if (!in) return;
-  const char *pfx =
-      "SELECT issueId, sponsorName, link FROM IssueSponsor WHERE issueId IN ";
+  if (!in)
+    return;
+
+  printf(TERMINAL_SQL_MESSAGE("=== GET ISSUE SPONSORS SQL ==="));
+
+  const char *pfx = "SELECT i.issueId, s.name, i.link AS issueLink, s.link "
+                    "FROM IssueSponsor i "
+                    "JOIN Sponsor s ON s.name = i.sponsorName "
+                    "WHERE issueId IN ";
   size_t qsz = strlen(pfx) + strlen(in) + 2;
   char *query = malloc(qsz);
-  if (!query) { free(in); return; }
+
+  if (!query) {
+    free(in);
+    return;
+  }
+
   snprintf(query, qsz, "%s%s;", pfx, in);
   free(in);
+
   sqlite3_stmt *stmt;
-  if (sqlite3_prepare_v2(db, query, -1, &stmt, NULL) != SQLITE_OK) {
-    free(query); return;
+  int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+  if (query_rc != SQLITE_OK) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
+            sqlite3_errmsg(db));
+    free(query);
+    return;
   }
   free(query);
+
   for (size_t i = 0; i < count; i++)
     sqlite3_bind_int(stmt, (int)i + 1, arr[i]->id);
+
+  GET_EXPANDED_QUERY(stmt);
+
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     int issue_id = sqlite3_column_int(stmt, 0);
     for (size_t j = 0; j < count; j++) {
-      if (arr[j]->id != issue_id) continue;
+      if (arr[j]->id != issue_id)
+        continue;
       struct issue_sponsor *s = malloc(sizeof(struct issue_sponsor));
-      if (issue_sponsor_init(s) != 0) { free(s); break; }
-      issue_sponsor_map(s, stmt, 0, 2);
-      arr[j]->sponsors = realloc(arr[j]->sponsors,
-          (arr[j]->sponsors_count + 1) * sizeof(struct issue_sponsor *));
+      if (issue_sponsor_init(s) != 0) {
+        free(s);
+        break;
+      }
+      issue_sponsor_map(s, stmt, 0, 3);
+      arr[j]->sponsors =
+          realloc(arr[j]->sponsors, (arr[j]->sponsors_count + 1) *
+                                        sizeof(struct issue_sponsor *));
       arr[j]->sponsors[arr[j]->sponsors_count++] = s;
       break;
     }
@@ -249,7 +325,7 @@ int issue_exists(int id) {
   return issues_count > 0;
 }
 
-int issue_identity_exists(char *title, int issue_number, char *slug) {
+int issue_identity_exists(char *title, int issue_number, char *slug, int id) {
   if (title == NULL && issue_number <= 0 && slug == NULL) {
     return -1;
   }
@@ -267,6 +343,7 @@ int issue_identity_exists(char *title, int issue_number, char *slug) {
   sqlite3_bind_text(stmt, 1, title, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 2, slug, -1, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 3, issue_number);
+  sqlite3_bind_int(stmt, 4, id);
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -297,7 +374,8 @@ int get_issues_count(const char *status) {
   int query_len = strlen(QUERY_COUNT_TMP) + (where ? strlen(where) : 0) + 2;
   char *query = malloc(query_len);
   strcpy(query, QUERY_COUNT_TMP);
-  if (where) strcat(query, where);
+  if (where)
+    strcat(query, where);
   strcat(query, ";");
 
   int issues_count = 0;
@@ -349,7 +427,8 @@ int get_issues_len(const struct mg_str *q, const char *status) {
     sprintf(q_str, "%%%.*s%%", (int)q->len, q->buf);
 
     query_len += strlen(query_q_tmp);
-    if (status != NULL) query_len += strlen(QUERY_STATUS_AND_TMP);
+    if (status != NULL)
+      query_len += strlen(QUERY_STATUS_AND_TMP);
   } else if (status != NULL) {
     query_len += strlen(QUERY_STATUS_WHERE_TMP);
   }
@@ -358,7 +437,8 @@ int get_issues_len(const struct mg_str *q, const char *status) {
   strcpy(query, query_tmp);
   if (q->len > 0) {
     strcat(query, query_q_tmp);
-    if (status != NULL) strcat(query, QUERY_STATUS_AND_TMP);
+    if (status != NULL)
+      strcat(query, QUERY_STATUS_AND_TMP);
   } else if (status != NULL) {
     strcat(query, QUERY_STATUS_WHERE_TMP);
   }
@@ -422,6 +502,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
 
   char *query_tmp = QUERY_SELECT_NOREL_TMP;
   char *query_params_tmp = QUERY_Q_TMP;
+  char *query_group_by = QUERY_GROUP_BY;
   char *query_pagination_tmp = QUERY_PAGINATION_TMP;
 
   // Sort tmp
@@ -444,18 +525,21 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
 
   char *q_str = NULL;
 
-  int query_len = strlen(query_tmp) + 2;
+  int query_len = strlen(query_tmp) + strlen(query_group_by) + 2;
   if (q->len > 0) {
     q_str = malloc(q->len + 2);
     sprintf(q_str, "%%%.*s%%", (int)q->len, q->buf);
 
     query_len += strlen(query_params_tmp);
-    if (status != NULL) query_len += strlen(QUERY_STATUS_AND_TMP);
+    if (status != NULL)
+      query_len += strlen(QUERY_STATUS_AND_TMP);
   } else if (status != NULL) {
     query_len += strlen(QUERY_STATUS_WHERE_TMP);
   }
   if (sort->len > 0) {
     query_len += strlen(query_sort_tmp);
+  } else {
+    query_len += strlen(QUERY_SORT_DEFAULT_TMP);
   }
   if (page > 0) {
     query_len += strlen(query_pagination_tmp);
@@ -465,12 +549,16 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
   strcpy(query, query_tmp);
   if (q->len > 0) {
     strcat(query, query_params_tmp);
-    if (status != NULL) strcat(query, QUERY_STATUS_AND_TMP);
+    if (status != NULL)
+      strcat(query, QUERY_STATUS_AND_TMP);
   } else if (status != NULL) {
     strcat(query, QUERY_STATUS_WHERE_TMP);
   }
+  strcat(query, query_group_by);
   if (sort->len > 0) {
     strcat(query, query_sort_tmp);
+  } else {
+    strcat(query, QUERY_SORT_DEFAULT_TMP);
   }
   if (page > 0) {
     strcat(query, query_pagination_tmp);
@@ -531,7 +619,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int issue_rc = issue_map(u, stmt, 0, 7);
+    int issue_rc = issue_map(u, stmt, 0, 13);
     if (issue_rc != 0) {
       free(m);
       free(u);
@@ -544,7 +632,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     }
 
     // Picture
-    int cover_rc = media_map(m, stmt, 13, 17);
+    int cover_rc = media_map(m, stmt, 14, 17);
     if (cover_rc != 0) {
       free(m);
     } else {

@@ -19,9 +19,11 @@
 #include <structs.h>
 #include <utils.h>
 
+// @param token -> clone the token from the req auth header. If NULL nothing
+// happens
 void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret,
-                    int *user_logged) {
+                    int *user_logged, struct user *user_dst) {
   struct mg_str *auth_header = mg_http_get_header(msg, "Authorization");
   if (auth_header == NULL) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("AUTHORIZATION HEADER MISSING"));
@@ -39,6 +41,7 @@ void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
   jwt_t *decoded = NULL;
   int is_decoded =
       jwt_decode(&decoded, token, (unsigned char *)secret, strlen(secret));
+  free(token);
 
   if (is_decoded != 0) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE(BAD_JWT_MESSAGE));
@@ -76,6 +79,7 @@ void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
   struct user *user = malloc(sizeof(struct user));
   int user_init_rc = user_init(user);
   if (user_init_rc != 0) {
+    free(user);
     ERROR_REPLY_500;
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER IS NULL"));
 
@@ -83,16 +87,43 @@ void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
   }
 
   int query_code = get_user_by_email(user, (char *)email);
-  if (query_code <= 0) {
+  if (query_code != 0) {
+    free(user);
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER NOT FIND"));
     return;
   }
 
   // Check if user is an author
   if (strcmp(user->role, "AUTHOR") != 0) {
+    free(user);
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER NOT AUTHOR"));
     return;
   }
+
+  if (user_dst != NULL) {
+    printf("%s %s\n", user->email, user->username);
+
+    struct media *picture = NULL;
+    if (user->picture != NULL) {
+      picture = malloc(sizeof(struct media));
+      picture->id = user->picture->id;
+      picture->alternative_text = user->picture->alternative_text;
+      picture->url = user->picture->url;
+      picture->width = user->picture->width;
+      picture->height = user->picture->height;
+    }
+
+    user_dst->id = user->id;
+    user_dst->username = user->username;
+    user_dst->email = user->email;
+    user_dst->role = user->role;
+    user_dst->link = user->link;
+    user_dst->picture = picture;
+    user_dst->subscribed_at = user->subscribed_at;
+    user_dst->is_supporter = user->is_supporter;
+    user_dst->created_at = user->created_at;
+  }
+  free(user);
 
   jwt_free(decoded);
   *user_logged = 1;
@@ -294,7 +325,7 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
 
   // Check if user logged
   int user_logged = 0;
-  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
   if (user_logged == 0) {
     ERROR_REPLY_401;
@@ -407,7 +438,7 @@ void generate_totpseed_user(struct mg_connection *c,
 
   // Check if user logged
   int user_logged = 0;
-  is_user_logged(c, msg, error_reply, secret, &user_logged);
+  is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
 
   if (user_logged == 0) {
     ERROR_REPLY_401;
@@ -591,6 +622,126 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
   return;
 }
 
+void refresh_token(struct mg_connection *c, struct mg_http_message *msg,
+                   struct error_reply *error_reply, const char *secret) {
+  struct error_reply _er = {0};
+  error_reply = &_er;
+
+  // Check if POST
+  if (mg_match(msg->method, mg_str("POST"), NULL)) {
+    printf(TERMINAL_ENDPOINT_MESSAGE("=== REFRESH TOKEN ==="));
+
+    // Check if body and validate JSON
+    if (msg->body.len <= 0) {
+      ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
+      return;
+    } else if (!mg_validateJSON(msg->body)) {
+      ERROR_REPLY_400(JSON_ERROR_MESSAGE);
+      return;
+    }
+
+    // refresh_token mandatory
+    int offset, length;
+    char *token = NULL;
+    offset = mg_json_get(msg->body, "$.refresh_token", &length);
+    if (offset < 0) {
+      ERROR_REPLY_400(TOKEN_REQUIRED_MESSAGE);
+      return;
+    }
+    token = strndup(msg->body.buf + offset + 1, length - 2);
+
+    // Check JWT
+    jwt_t *decoded = NULL;
+    int is_decoded =
+        jwt_decode(&decoded, token, (unsigned char *)secret, strlen(secret));
+    free(token);
+
+    if (is_decoded != 0) {
+      ERROR_REPLY_500;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE(BAD_JWT_MESSAGE));
+      return;
+    }
+
+    // Check JWT expired
+    long exp = jwt_get_grant_int(decoded, "exp");
+    if (time(NULL) > exp) {
+      ERROR_REPLY_400(JWT_EXPIRED_MESSAGE);
+      jwt_free(decoded);
+      return;
+    }
+
+    // Check JWT type
+    int type = jwt_get_grant_int(decoded, "type");
+    if (type != REFRESH) {
+      ERROR_REPLY_400(WRONG_JWT_TYPE_MESSAGE);
+      jwt_free(decoded);
+      return;
+    }
+
+    // Get Email from JWT
+    // Will be freed with jwt_free
+    const char *email = jwt_get_grant(decoded, "email");
+
+    // Check if email validity
+    int email_valid = check_email_validity((char *)email);
+    if (email_valid != 0) {
+      ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+      jwt_free(decoded);
+      return;
+    }
+
+    // Check the user still exists (account may have been deleted since)
+    struct user *user = malloc(sizeof(struct user));
+    user_init(user);
+    int query_code = get_user_by_email(user, (char *)email);
+    if (query_code != 0) {
+      free_user(user);
+      ERROR_REPLY_401;
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER NOT FOUND"));
+      jwt_free(decoded);
+      return;
+    }
+    free_user(user);
+
+    // Generate new access JWT (SESSION, 30 min)
+    jwt_t *jwt = NULL;
+    jwt_new(&jwt);
+    jwt_add_grant(jwt, "email", email);
+    jwt_add_grant_int(jwt, "type", SESSION);
+    jwt_add_grant_int(jwt, "exp", time(NULL) + 1800);
+    jwt_set_alg(jwt, JWT_ALG_HS256, (unsigned char *)secret, strlen(secret));
+    char *jwt_str = jwt_encode_str(jwt);
+    jwt_free(jwt);
+
+    // Rotate refresh token: issue a new REFRESH JWT (30 days) that supersedes
+    // the one just consumed
+    jwt_t *new_refresh_jwt = NULL;
+    jwt_new(&new_refresh_jwt);
+    jwt_add_grant(new_refresh_jwt, "email", email);
+    jwt_add_grant_int(new_refresh_jwt, "type", REFRESH);
+    jwt_add_grant_int(new_refresh_jwt, "exp", time(NULL) + 2592000);
+    jwt_set_alg(new_refresh_jwt, JWT_ALG_HS256, (unsigned char *)secret,
+                strlen(secret));
+    char *new_refresh_jwt_str = jwt_encode_str(new_refresh_jwt);
+    jwt_free(new_refresh_jwt);
+
+    printf(TERMINAL_SUCCESS_MESSAGE("=== TOKEN SUCCESSFULLY REFRESHED ==="));
+    cJSON *refresh_obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(refresh_obj, "token", jwt_str);
+    cJSON_AddStringToObject(refresh_obj, "refresh_token", new_refresh_jwt_str);
+    char *refresh_json = cJSON_PrintUnformatted(refresh_obj);
+    cJSON_Delete(refresh_obj);
+    SUCCESS_REPLY_200(refresh_json);
+    free(refresh_json);
+    jwt_free(decoded);
+    return;
+  }
+
+  ERROR_REPLY_405;
+  fprintf(stderr, TERMINAL_ERROR_MESSAGE("METHOD NOT ALLOWED"));
+  return;
+}
+
 void login_user(struct mg_connection *c, struct mg_http_message *msg,
                 struct error_reply *error_reply, const char *secret) {
   int query_code;
@@ -630,7 +781,9 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
       return;
     } else {
       char *code_str = strndup(msg->body.buf + offset + 1, length - 2);
+
       code = strtol(code_str, (char **)NULL, 10);
+      printf("str: %s\tcode: %d\n", code_str, code);
       free(code_str);
       if (!code) {
         ERROR_REPLY_400("Code is not a number.");
@@ -696,6 +849,8 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
     uint32_t totp_curr = totp_generate(seed, 30);
     uint32_t totp_next = totp_generate_at(seed, 30, now + 30);
 
+    printf("prev: %d\tcurr: %d\tnext: %d\tcode: %d\n", totp_prev, totp_curr,
+           totp_next, code);
     if ((uint32_t)code != totp_prev && (uint32_t)code != totp_curr &&
         (uint32_t)code != totp_next) {
       ERROR_REPLY_400("Invalid or expired TOTP code");
@@ -704,20 +859,33 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    // Generate session JWT - email + exp
+    // Generate access JWT (SESSION, 30 min)
     jwt_t *jwt = NULL;
     jwt_new(&jwt);
     jwt_add_grant(jwt, "email", email);
     jwt_add_grant_int(jwt, "type", SESSION);
-    jwt_add_grant_int(jwt, "exp", time(NULL) + 86400);
+    jwt_add_grant_int(jwt, "exp", time(NULL) + 1800);
     jwt_set_alg(jwt, JWT_ALG_HS256, (unsigned char *)secret, strlen(secret));
-
-    // Send session JWT
     char *jwt_str = jwt_encode_str(jwt);
+    jwt_free(jwt);
+
+    // Generate refresh JWT (REFRESH, 30 days)
+    jwt_t *refresh_jwt = NULL;
+    jwt_new(&refresh_jwt);
+    jwt_add_grant(refresh_jwt, "email", email);
+    jwt_add_grant_int(refresh_jwt, "type", REFRESH);
+    jwt_add_grant_int(refresh_jwt, "exp", time(NULL) + 2592000);
+    jwt_set_alg(refresh_jwt, JWT_ALG_HS256, (unsigned char *)secret,
+                strlen(secret));
+    char *refresh_jwt_str = jwt_encode_str(refresh_jwt);
+    jwt_free(refresh_jwt);
+
+    // Send session + refresh JWT
     printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY LOGGED IN ==="));
     cJSON *login_obj = cJSON_CreateObject();
     cJSON_AddStringToObject(login_obj, "message", "Successfully logged in");
     cJSON_AddStringToObject(login_obj, "token", jwt_str);
+    cJSON_AddStringToObject(login_obj, "refresh_token", refresh_jwt_str);
     char *login_json = cJSON_PrintUnformatted(login_obj);
     cJSON_Delete(login_obj);
     SUCCESS_REPLY_200(login_json);

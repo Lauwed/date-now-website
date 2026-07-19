@@ -19,7 +19,6 @@
 #include <structs.h>
 #include <utils.h>
 
-
 void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
   int query_code;
@@ -29,7 +28,7 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     // Auth required for GET
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged);
+    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
     if (user_logged == 0) {
       ERROR_REPLY_401;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));

@@ -106,6 +106,23 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
                 struct error_reply *error_reply, const char *secret);
 
 /**
+ * @brief Handles POST /auth/refresh — issues a new SESSION token from a
+ *        REFRESH token.
+ *
+ * Reads the "refresh_token" field from the body, verifies it is a valid,
+ * non-expired REFRESH JWT, and checks the user still exists. Replies 200
+ * with a fresh SESSION token and a rotated REFRESH token (the previous
+ * refresh token is not persisted anywhere so it is simply superseded).
+ *
+ * @param c           Active Mongoose connection.
+ * @param msg         Parsed HTTP message.
+ * @param error_reply Pre-allocated error reply structure.
+ * @param secret      JWT signing secret (not freed).
+ */
+void refresh_token(struct mg_connection *c, struct mg_http_message *msg,
+                   struct error_reply *error_reply, const char *secret);
+
+/**
  * @brief Checks whether the current request carries a valid SESSION JWT.
  *
  * Reads the Authorization header, verifies the JWT signature and type, and
@@ -117,7 +134,9 @@ void login_user(struct mg_connection *c, struct mg_http_message *msg,
  * @param error_reply Pre-allocated error reply structure.
  * @param secret      JWT signing secret (not freed).
  * @param user_logged Output flag: set to 1 if authenticated, 0 otherwise.
+ * @param token_dst   Output token: clone the token from the request
+ * Authorization header
  */
 void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret,
-                    int *user_logged);
+                    int *user_logged, struct user *user_dst);
