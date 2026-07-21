@@ -8,6 +8,7 @@ use rslug::slugify;
 use crate::{
     components::{
         form_control::{form_control, form_control_switch},
+        markdown_editor::{self, MarkdownEditor},
         toast::Status,
         typography::typography,
     },
@@ -22,7 +23,7 @@ use crate::{
 pub struct NewIssue {
     pub item: IssueType,
     pub session: Session,
-    pub content: text_editor::Content,
+    pub content: MarkdownEditor,
     pub auto_slug: bool,
 }
 
@@ -35,7 +36,7 @@ pub enum Message {
     IssueNumberChanged(String),
     SubtitleChanged(String),
     ExcerptChanged(String),
-    ContentChanged(text_editor::Action),
+    ContentEditor(markdown_editor::Message),
     IsSponsoredChanged(bool),
     ResetSlug,
 }
@@ -51,7 +52,7 @@ impl NewIssue {
         Self {
             item: IssueType::default(),
             session,
-            content: text_editor::Content::new(),
+            content: MarkdownEditor::new(""),
             auto_slug: true,
         }
     }
@@ -140,8 +141,8 @@ impl NewIssue {
 
                 Action::None
             }
-            Message::ContentChanged(action) => {
-                self.content.perform(action);
+            Message::ContentEditor(action) => {
+                self.content.update(action);
                 Action::None
             }
             Message::IsSponsoredChanged(value) => {
@@ -229,9 +230,7 @@ impl NewIssue {
             String::from("Content"),
             crate::components::typography::TypographyStyle::Label,
         );
-        let content_input = text_editor(&self.content)
-            .on_action(Message::ContentChanged)
-            .height(Length::Fixed(100.0));
+        let content_input = self.content.view().map(Message::ContentEditor);
         let content_form = column![content_label, content_input].spacing(4);
 
         let form = column![

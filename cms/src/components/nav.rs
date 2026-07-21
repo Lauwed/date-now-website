@@ -4,7 +4,6 @@ use iced::widget::{button, column, container, image, row, text};
 use iced::{Color, Element, Font, Length, Shadow, Task, Theme};
 
 use crate::data::sessions::Session;
-use crate::data::users::User;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
@@ -97,7 +96,7 @@ impl Nav {
 
         container(column![header, nav_buttons, current_user_button, settings_button].spacing(32))
             .height(Length::Fill)
-            .width(Length::FillPortion(1))
+            .width(Length::Fixed(200.0))
             .padding(20)
             .style(|theme: &Theme| {
                 let palette = theme.extended_palette();

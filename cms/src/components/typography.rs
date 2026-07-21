@@ -14,31 +14,39 @@ pub enum TypographyStyle {
 pub fn typography<'a, M>(value: String, style: TypographyStyle) -> Element<'a, M> {
     let s = match style {
         TypographyStyle::Title => Font {
+            family: Font::with_name("General Sans Variable").family,
             weight: Weight::Black,
             ..Default::default()
         },
         TypographyStyle::SubTitle => Font {
+            family: Font::with_name("General Sans Variable").family,
             ..Default::default()
         },
         TypographyStyle::H1 => Font {
+            family: Font::with_name("General Sans Variable").family,
             weight: Weight::Black,
             ..Default::default()
         },
         TypographyStyle::H2 => Font {
+            family: Font::with_name("General Sans Variable").family,
             weight: Weight::Black,
             ..Default::default()
         },
         TypographyStyle::H3 => Font {
+            family: Font::with_name("General Sans Variable").family,
             weight: Weight::Black,
             ..Default::default()
         },
         TypographyStyle::Body => Font {
+            family: Font::with_name("General Sans Variable").family,
             ..Default::default()
         },
         TypographyStyle::Small => Font {
+            family: Font::with_name("General Sans Variable").family,
             ..Default::default()
         },
         TypographyStyle::Label => Font {
+            family: Font::with_name("General Sans Variable").family,
             ..Default::default()
         },
     };

@@ -1,7 +1,7 @@
 use iced::{
     Alignment::Center,
     Element, Length,
-    widget::{button, column, container, row, space::horizontal, text_editor},
+    widget::{button, column, container, row, space::horizontal},
 };
 use rslug::slugify;
 
@@ -9,6 +9,7 @@ use crate::{
     components::{
         badge::badge,
         form_control::{form_control, form_control_switch},
+        markdown_editor::{self, MarkdownEditor},
         toast::Status,
         typography::typography,
     },
@@ -25,7 +26,7 @@ pub struct Issue {
     pub id: u32,
     pub item: Option<IssueType>,
     pub session: Session,
-    pub content: text_editor::Content,
+    pub content: MarkdownEditor,
     pub auto_slug: bool,
 }
 
@@ -38,7 +39,7 @@ pub enum Message {
     IssueNumberChanged(String),
     SubtitleChanged(String),
     ExcerptChanged(String),
-    ContentChanged(text_editor::Action),
+    ContentEditor(markdown_editor::Message),
     IsSponsoredChanged(bool),
     ResetSlug,
 }
@@ -68,12 +69,8 @@ impl Issue {
             item: item.clone(),
             session,
             content: match &item {
-                Some(data) => {
-                    println!("{}", data.content);
-
-                    text_editor::Content::with_text(&data.content)
-                }
-                None => text_editor::Content::new(),
+                Some(data) => MarkdownEditor::new(&data.content),
+                None => MarkdownEditor::new(""),
             },
             auto_slug: match &item {
                 Some(data) => slugify!(&data.title) == data.slug,
@@ -186,8 +183,8 @@ impl Issue {
                 }
                 Action::None
             }
-            Message::ContentChanged(action) => {
-                self.content.perform(action);
+            Message::ContentEditor(action) => {
+                self.content.update(action);
                 Action::None
             }
             Message::IsSponsoredChanged(value) => {
@@ -317,9 +314,7 @@ impl Issue {
                 String::from("Content"),
                 crate::components::typography::TypographyStyle::Label,
             );
-            let content_input = text_editor(&self.content)
-                .on_action(Message::ContentChanged)
-                .height(Length::Fixed(100.0));
+            let content_input = self.content.view().map(Message::ContentEditor);
             let content_form = column![content_label, content_input].spacing(4);
 
             let form = column![

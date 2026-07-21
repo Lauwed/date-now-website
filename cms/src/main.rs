@@ -1,5 +1,6 @@
 use iced::widget::{button, container, row, text};
 use iced::{Element, Font, Length, Settings, Task, Theme};
+use lucide_icons::LUCIDE_FONT_BYTES;
 use std::borrow::Cow;
 use std::env;
 use std::sync::OnceLock;
@@ -277,6 +278,7 @@ fn main() -> iced::Result {
     };
 
     let settings = Settings {
+        fonts: vec![LUCIDE_FONT_BYTES.into()],
         default_font: Font::with_name("General Sans Variable"),
         ..Settings::default()
     };
