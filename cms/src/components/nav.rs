@@ -5,7 +5,7 @@ use iced::{Color, Element, Font, Length, Shadow, Task, Theme};
 
 use crate::data::sessions::Session;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum Screen {
     #[default]
     Dashboard,
@@ -13,15 +13,17 @@ pub enum Screen {
     Issue(u32),
     NewIssue,
     Login,
+    Tags,
+    Tag(String),
+    NewTag,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Message {
     OnScreenPressed(Screen),
-    GoTo(Screen),
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone)]
 pub struct Nav {
     pub current_screen: Screen,
 }
@@ -52,9 +54,6 @@ impl Nav {
             Message::OnScreenPressed(screen) => {
                 self.current_screen = screen;
             }
-            Message::GoTo(screen) => {
-                self.current_screen = screen;
-            }
         };
 
         Task::none()
@@ -74,7 +73,9 @@ impl Nav {
 
         let dashboard_button = self.nav_button("Dashboard", Screen::Dashboard);
         let issues_button = self.nav_button("Issues", Screen::Issues);
-        let nav_buttons = column![dashboard_button, issues_button].height(Length::Fill);
+        let tags_button = self.nav_button("Tags", Screen::Tags);
+        let nav_buttons =
+            column![dashboard_button, issues_button, tags_button].height(Length::Fill);
 
         let username = match current_user.user.username.clone() {
             Some(u) => u,

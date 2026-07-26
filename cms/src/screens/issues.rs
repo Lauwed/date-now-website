@@ -8,7 +8,7 @@ use crate::components::table::{Table, TableActions, TableColumn};
 use crate::components::typography::{TypographyStyle, typography};
 use crate::data::issues::{Issue, get_issues};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Message {
     Table(crate::components::table::Message),
     NewIssue,
@@ -73,8 +73,8 @@ impl Default for Issues {
         ];
 
         let actions = Some(TableActions {
-            edit: true,
-            delete: false,
+            edit: Some(String::from("id")),
+            delete: None,
         });
 
         let mut table = Table::new(columns, actions);
@@ -97,7 +97,10 @@ impl Issues {
             Message::Table(table_msg) => {
                 println!("message table");
                 match self.table.update(table_msg) {
-                    components::table::Action::Edit(id) => Action::OpenIssue(id),
+                    components::table::Action::Edit(val) => match val.parse::<u32>() {
+                        Ok(id) => Action::OpenIssue(id),
+                        Err(_) => Action::None,
+                    },
                     _ => Action::None,
                 }
             }

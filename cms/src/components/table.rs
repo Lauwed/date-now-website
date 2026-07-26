@@ -1,6 +1,6 @@
 use iced::Alignment::Center;
-use iced::widget::{Column, Row, button, column, container, scrollable, text};
-use iced::{Background, Element, Length, Task, Theme, border};
+use iced::widget::{Column, Row, button, column, container, row, scrollable, text};
+use iced::{Background, Element, Length, Theme, border};
 
 use crate::components::typography::{TypographyStyle, typography};
 use crate::data::traits;
@@ -15,26 +15,26 @@ pub struct TableColumn<'a> {
 
 #[derive(Clone)]
 pub struct TableActions {
-    pub edit: bool,
-    pub delete: bool,
+    pub edit: Option<String>,
+    pub delete: Option<String>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum Message {
-    EditPressed(Option<u32>),
-    DeletePressed(Option<u32>),
+    EditPressed(Option<String>),
+    DeletePressed(Option<String>),
 }
 
 pub enum Action {
     None,
-    Edit(u32),
-    Delete(u32),
+    Edit(String),
+    Delete(String),
 }
 
 #[derive(Clone)]
 pub struct Table<T> {
     pub data: Vec<T>,
-    pub loading_id: Option<u32>,
+    pub loading_id: Option<String>,
     columns: Vec<TableColumn<'static>>,
     actions: Option<TableActions>,
 }
@@ -55,15 +55,30 @@ where
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::EditPressed(Some(id)) => {
-                self.loading_id = Some(id);
+                self.loading_id = Some(id.clone());
                 Action::Edit(id)
+            }
+            Message::DeletePressed(Some(id)) => {
+                self.loading_id = Some(id.clone());
+                Action::Delete(id)
             }
             _ => Action::None,
         }
     }
 
     pub fn view<'a>(&self) -> Element<'a, Message> {
-        const ACTIONS_WIDTH: Length = Length::Fixed(100.0);
+        const ACTIONS_WIDTH: f32 = 75.0;
+        let actions_width = if let Some(TableActions { edit, delete }) = &self.actions {
+            if let Some(_) = *edit
+                && let Some(_) = *delete
+            {
+                ACTIONS_WIDTH * 2.0
+            } else {
+                ACTIONS_WIDTH
+            }
+        } else {
+            0.0
+        };
 
         let mut header = self
             .columns
@@ -79,11 +94,11 @@ where
             })
             .collect::<Row<'_, Message>>();
 
-        if let Some(_) = self.actions {
+        if let Some(_) = &self.actions {
             header = header.push(
                 container(typography(String::from("Actions"), TypographyStyle::Body))
                     .padding([0, 10])
-                    .width(ACTIONS_WIDTH),
+                    .width(Length::Fixed(actions_width)),
             );
         }
 
@@ -122,41 +137,29 @@ where
                         .align_y(Center);
 
                     if let Some(TableActions { edit, delete }) = &self.actions {
-                        if *edit == true {
-                            content = content.push(
-                                container(button("Edit").on_press(Message::EditPressed(
-                                    match d.value_from_key("id").parse::<u32>() {
-                                        Ok(id) => Some(id),
-                                        Err(_) => {
-                                            eprintln!(
-                                                "Error while try parsing ID: {}",
-                                                d.value_from_key("id")
-                                            );
-                                            None
-                                        }
-                                    },
-                                )))
-                                .padding([0, 10])
-                                .width(ACTIONS_WIDTH),
+                        let mut actions_cell = row![].spacing(6);
+
+                        if let Some(key) = edit {
+                            actions_cell = actions_cell.push(button("Edit").on_press(
+                                Message::EditPressed(Some(d.value_from_key(key).clone())),
+                            ));
+                        }
+
+                        if let Some(key) = delete {
+                            actions_cell = actions_cell.push(
+                                button("Delete")
+                                    .on_press(Message::DeletePressed(Some(
+                                        d.value_from_key(key).clone(),
+                                    )))
+                                    .style(button::danger),
                             );
                         }
 
-                        if *delete == true {
-                            content = content.push(
-                                container(
-                                    button("Delete")
-                                        .on_press(Message::DeletePressed(
-                                            match d.value_from_key("id").parse::<u32>() {
-                                                Ok(id) => Some(id),
-                                                Err(_) => None,
-                                            },
-                                        ))
-                                        .style(button::danger),
-                                )
+                        content = content.push(
+                            container(actions_cell)
                                 .padding([0, 10])
-                                .width(ACTIONS_WIDTH),
-                            );
-                        }
+                                .width(Length::Fixed(actions_width)),
+                        );
                     }
 
                     container(content).padding(10).width(Length::Fill).into()

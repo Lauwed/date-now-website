@@ -4,7 +4,6 @@ use iced::{Color, Element};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap};
 use serde;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::str::FromStr;
 
 use crate::components::badge::{BadgeStyle, badge};

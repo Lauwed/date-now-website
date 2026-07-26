@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 chrono = "0.4.45"
 iced = { version = "0.14.0", features = ["image", "advanced", ] }
+iced_aw = { version = "0.14.0", features = ["color_picker"] }
 frostmark = "0.3.0"
 reqwest = { version = "0.13.2", features = ["blocking", "json"] }
 serde = { version = "1.0.228", features = ["derive"] }

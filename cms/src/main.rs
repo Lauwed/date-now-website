@@ -1,5 +1,5 @@
-use iced::widget::{button, container, row, text};
-use iced::{Element, Font, Length, Settings, Task, Theme};
+use iced::widget::{button, center, container, mouse_area, opaque, row, stack, text};
+use iced::{Color, Element, Font, Length, Settings, Task, Theme};
 use lucide_icons::LUCIDE_FONT_BYTES;
 use std::borrow::Cow;
 use std::env;
@@ -26,6 +26,9 @@ use crate::data::sessions::{
     Session, clear_session, load_session, refresh_access_token, save_session,
 };
 use crate::screens::new_issue::{self, NewIssue};
+use crate::screens::new_tag::{self, NewTag};
+use crate::screens::tag::{self, Tag};
+use crate::screens::tags::{self, Tags};
 use crate::screens::{issue, issues};
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
@@ -42,6 +45,9 @@ struct State {
     login: Login,
     current_user: Option<Session>,
     nav: Nav,
+    tags: Tags,
+    tag: Tag,
+    new_tag: NewTag,
     toasts: Vec<Toast>,
 }
 
@@ -147,6 +153,9 @@ enum Message {
     Issue(screens::issue::Message),
     NewIssue(screens::new_issue::Message),
     Login(screens::login::Message),
+    Tags(screens::tags::Message),
+    Tag(screens::tag::Message),
+    NewTag(screens::new_tag::Message),
     Nav(components::nav::Message),
     DismissToast(usize),
 }
@@ -165,6 +174,50 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             state.dashboard.update(message);
             Task::none()
         }
+        Message::Tags(message) => {
+            if let Some(session) = &state.current_user {
+                match state.tags.update(message) {
+                    tags::Action::None => Task::none(),
+                    tags::Action::Run(task) => task.map(Message::Tags),
+                    tags::Action::OpenTag(id) => {
+                        state.tag = Tag::new(id.clone(), session.clone());
+                        state.nav.current_screen = nav::Screen::Tag(id.clone());
+                        Task::none()
+                    }
+                    tags::Action::NewTag => {
+                        state.new_tag = NewTag::new(session.clone());
+                        state.nav.current_screen = nav::Screen::NewTag;
+                        Task::none()
+                    }
+                }
+            } else {
+                Task::none()
+            }
+        }
+        Message::Tag(message) => match state.tag.update(message) {
+            tag::Action::BackToList => {
+                state.tags = Tags::default();
+                state.nav.current_screen = nav::Screen::Tags;
+                Task::none()
+            }
+            tag::Action::Toast(title, content, status) => {
+                push_toast(state, title, content, status);
+                Task::none()
+            }
+            tag::Action::None => Task::none(),
+        },
+        Message::NewTag(message) => match state.new_tag.update(message) {
+            new_tag::Action::BackToList => {
+                state.tags = Tags::default();
+                state.nav.current_screen = nav::Screen::Tags;
+                Task::none()
+            }
+            new_tag::Action::Toast(title, content, status) => {
+                push_toast(state, title, content, status);
+                Task::none()
+            }
+            new_tag::Action::None => Task::none(),
+        },
         Message::Issues(message) => {
             if let Some(session) = &state.current_user {
                 match state.issues.update(message) {
@@ -234,6 +287,9 @@ fn view(state: &State) -> Element<'_, Message> {
                 nav::Screen::Issue(_) => state.issue.view().map(Message::Issue),
                 nav::Screen::NewIssue => state.new_issue.view().map(Message::NewIssue),
                 nav::Screen::Login => state.login.view().map(Message::Login),
+                nav::Screen::Tags => state.tags.view().map(Message::Tags),
+                nav::Screen::Tag(_) => state.tag.view().map(Message::Tag),
+                nav::Screen::NewTag => state.new_tag.view().map(Message::NewTag),
             };
             let main_container = container(main_content).width(Length::FillPortion(5));
 
@@ -243,9 +299,9 @@ fn view(state: &State) -> Element<'_, Message> {
                 main_container,
             ];
 
-            toast::Manager::new(content, &state.toasts, Message::DismissToast)
+            return toast::Manager::new(content, &state.toasts, Message::DismissToast)
                 .timeout(toast::DEFAULT_TIMEOUT)
-                .into()
+                .into();
         }
         None => state.login.view().map(Message::Login),
     }

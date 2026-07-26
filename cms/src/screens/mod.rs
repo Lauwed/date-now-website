@@ -4,3 +4,6 @@ pub mod issues;
 pub mod loading;
 pub mod login;
 pub mod new_issue;
+pub mod new_tag;
+pub mod tag;
+pub mod tags;
