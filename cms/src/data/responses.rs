@@ -27,6 +27,11 @@ impl fmt::Display for ResponseError {
 }
 
 #[derive(Deserialize)]
+pub struct ResponseMessage {
+    pub message: String,
+}
+
+#[derive(Deserialize)]
 #[serde(untagged)]
 pub enum Response<T> {
     Error(ResponseError),

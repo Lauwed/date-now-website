@@ -31,7 +31,7 @@ RUN mkdir -p bin obj/lib obj/endpoints obj/sql /var/www/uploads/media
 
 COPY . .
 
-RUN npx tabula-docs@0.1.4 validate docs/api.json
+RUN npx tabula-docs@0.1.6 validate docs/api.json
 
 RUN bear -- make
 

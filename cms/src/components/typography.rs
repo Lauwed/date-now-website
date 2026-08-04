@@ -1,4 +1,5 @@
-use iced::{Element, Font, font::Weight, widget::text};
+use iced::{Color, Element, Font, font::Weight, widget::text};
+use std::str::FromStr;
 
 pub enum TypographyStyle {
     Title,
@@ -9,6 +10,7 @@ pub enum TypographyStyle {
     Body,
     Small,
     Label,
+    DangerSmall,
 }
 
 pub fn typography<'a, M>(value: String, style: TypographyStyle) -> Element<'a, M> {
@@ -49,6 +51,10 @@ pub fn typography<'a, M>(value: String, style: TypographyStyle) -> Element<'a, M
             family: Font::with_name("General Sans Variable").family,
             ..Default::default()
         },
+        TypographyStyle::DangerSmall => Font {
+            family: Font::with_name("General Sans Variable").family,
+            ..Default::default()
+        },
     };
 
     let size = match style {
@@ -60,12 +66,20 @@ pub fn typography<'a, M>(value: String, style: TypographyStyle) -> Element<'a, M
         TypographyStyle::Body => 14,
         TypographyStyle::Small => 12,
         TypographyStyle::Label => 14,
+        TypographyStyle::DangerSmall => 12,
     };
 
     let v = match style {
         TypographyStyle::SubTitle => value.to_uppercase(),
-        default => String::from(value),
+        _ => String::from(value),
     };
 
-    text(v).font(s).size(size).into()
+    text(v)
+        .color(match style {
+            TypographyStyle::DangerSmall => Color::from_str("#D9281C").unwrap(),
+            _ => Color::BLACK,
+        })
+        .font(s)
+        .size(size)
+        .into()
 }

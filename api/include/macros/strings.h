@@ -12,16 +12,24 @@
 #define EMAIL_SUBSCRIPTION_SUBJECT                                             \
   "Confirm subscription to Date.now()'s Newsletter"
 #define EMAIL_SUBSCRIPTION_BODY_FMT                                            \
-  "Clique ici pour confirmer : <a href='%s/confirm?token=%s'>Confirmer</a>"
+  "Clique ici pour confirmer : <a href='%s/confirm?token=%s'>Confirmer</a>"    \
+  "<br>Si le lien ne s'affiche pas, copie cette URL : %s/confirm?token=%s"
 
 /* Magic-link login email — format args: app_url, jwt_token */
 #define EMAIL_LOGIN_SUBJECT "Log in request to Date.now()"
 #define EMAIL_LOGIN_BODY_FMT                                                   \
-  "Clique ici pour te connecter : <a href='%s'>Log in</a>\nSi le lien ne "     \
-  "s'affiche pas, veuillez entrer cette URL : %s"
+  "Clique ici pour te connecter : <a href='%s/auth/totp?token=%s'>Log "        \
+  "in</a>. If the link "                                                       \
+  "doesn't show, copy this link: %s/auth/totp?token=%s."
 
 /* Newsletter issue notification — format args: issue_title (subject), app_url,
  * issue_title (body) */
 #define EMAIL_NEWSLETTER_SUBJECT_FMT "Date.now() - %s"
 #define EMAIL_NEWSLETTER_BODY_FMT                                              \
-  "Un nouveau numero est disponible : <a href=%s>%s</a>"
+  "Un nouveau numero est disponible : <a href=%s>%s</a> </br><div "            \
+  "style=" width : 5px;                                                        \
+  height:                                                                      \
+  5px;                                                                         \
+  background:                                                                  \
+  black;                                                                       \
+  "></div>"

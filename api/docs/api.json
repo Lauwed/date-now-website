@@ -89,7 +89,7 @@
           "uri": "/subscribe",
           "method": "POST",
           "tokenRequired": false,
-          "body": { "email": "string" },
+          "body": { "email": "string"},
           "responses": [
             {
               "code": 200,
@@ -130,6 +130,12 @@
               "label": "Token",
               "name": "token",
               "type": "string",
+              "required": true
+            },
+            {
+              "label": "Tracker pixel consent",
+              "name": "trackerPixelConsent",
+              "type": "boolean",
               "required": true
             }
           ],

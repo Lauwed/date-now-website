@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { PUBLIC_API_URL } from '$env/static/public';
 	import Card from '$lib/components/Card.svelte';
 
 	async function handleSubmit(
@@ -20,7 +21,7 @@
 				code: event.target?.querySelector('#totp').value
 			};
 
-			const response = await fetch('http://localhost:8000/api/auth/login/totp', {
+			const response = await fetch(`${PUBLIC_API_URL}/api/auth/login/totp`, {
 				method: 'POST',
 				body: JSON.stringify(data)
 			});

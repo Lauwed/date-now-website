@@ -1,6 +1,6 @@
 use iced::{
     Alignment::Center,
-    Element, Length,
+    Element, Length, Theme,
     widget::{button, column, container, row, space::horizontal, text_input, toggler},
 };
 
@@ -13,6 +13,7 @@ pub fn form_control<'a, M: 'a>(
     msg: Option<fn(String) -> M>,
     width: Length,
     action: Option<(String, M)>,
+    error: Option<String>,
 ) -> Element<'a, M>
 where
     M: Clone,
@@ -31,11 +32,32 @@ where
         label_row = label_row.push(action_btn);
     }
 
-    let input = text_input(placeholder, value).on_input_maybe(msg);
+    let has_error = error.is_some();
 
-    container(column![label_row, input].spacing(4))
-        .width(width)
-        .into()
+    let input = text_input(placeholder, value)
+        .style(move |theme: &Theme, status| {
+            let palette = theme.extended_palette();
+            let mut style = text_input::default(theme, status); // style de base selon Active/Hovered/etc.
+
+            if has_error {
+                style.border.color = palette.danger.base.color;
+                style.border.width = 2.0;
+            }
+
+            style
+        })
+        .on_input_maybe(msg);
+
+    let mut content = column![label_row, input].spacing(4);
+
+    if let Some(err) = error {
+        content = content.push(typography(
+            err.to_string(),
+            crate::components::typography::TypographyStyle::DangerSmall,
+        ))
+    }
+
+    container(content).width(width).into()
 }
 
 pub fn form_control_switch<'a, M: 'a>(

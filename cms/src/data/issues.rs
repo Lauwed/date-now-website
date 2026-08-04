@@ -1,14 +1,14 @@
 use core::fmt;
 use iced::widget::{Row, text};
 use iced::{Color, Element};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap};
+use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, HeaderMap};
 use serde;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use crate::components::badge::{BadgeStyle, badge};
 use crate::data::medias::Media;
-use crate::data::responses::{Response, ResponseMany};
+use crate::data::responses::{Response, ResponseMany, ResponseMessage};
 use crate::data::sponsors::Sponsor;
 use crate::data::tags::Tag;
 use crate::data::traits;
@@ -16,7 +16,7 @@ use crate::data::users::User;
 use crate::g_config;
 use crate::utils::datetime::get_datetime_str;
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum IssueStatus {
     #[default]
@@ -275,6 +275,49 @@ pub fn update_issue(id: u32, item: Issue, token: String) -> Result<Response<Issu
                     eprintln!("Error parsing: {}", json_parse_err);
 
                     match serde_json::from_str::<Response<Issue>>(&text) {
+                        Ok(json) => Ok(json),
+                        Err(user_parse_err) => {
+                            eprintln!("Error parsing issue: {}", user_parse_err);
+                            return Err(format!("Error parsing: {}", user_parse_err));
+                        }
+                    }
+                }
+            },
+            Err(text_err) => Err(format!("Error parsing text response: {}", text_err)),
+        },
+        Err(req_err) => {
+            println!("error request: {}", req_err);
+            Err(format!("Error request: {}", req_err))
+        }
+    }
+}
+
+pub fn publish_issue(id: u32, token: String) -> Result<ResponseMessage, String> {
+    let config = g_config();
+    let url = format!("{}/api/issue/{}/publish", config.api_url, id);
+
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+    headers.insert(CONTENT_LENGTH, "0".parse().unwrap());
+
+    let client = reqwest::blocking::Client::new();
+    let res = client.post(url).headers(headers).send();
+
+    match res {
+        Ok(r) => match r.text() {
+            Ok(text) => match serde_json::from_str::<Response<ResponseMessage>>(&text) {
+                Ok(Response::Success(msg)) => Ok(msg),
+                Ok(Response::Error(res_err)) => {
+                    println!("Error response: {} - {}", res_err.code, res_err.message);
+                    return Err(format!(
+                        "Error response: {} - {}",
+                        res_err.code, res_err.message
+                    ));
+                }
+                Err(json_parse_err) => {
+                    eprintln!("Error parsing: {}", json_parse_err);
+
+                    match serde_json::from_str::<ResponseMessage>(&text) {
                         Ok(json) => Ok(json),
                         Err(user_parse_err) => {
                             eprintln!("Error parsing issue: {}", user_parse_err);

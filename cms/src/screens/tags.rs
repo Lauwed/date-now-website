@@ -5,8 +5,11 @@ use iced::{Element, Task};
 
 use crate::components;
 use crate::components::table::{Table, TableActions, TableColumn};
+use crate::components::toast::Status;
 use crate::components::typography::{TypographyStyle, typography};
-use crate::data::tags::{Tag, get_tags};
+use crate::data::responses::Response;
+use crate::data::sessions::Session;
+use crate::data::tags::{Tag, delete_tag, get_tag, get_tags};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -16,9 +19,9 @@ pub enum Message {
 
 pub enum Action {
     None,
-    OpenTag(String),
-    DeleteTag(String),
+    OpenTag(String, Tag),
     NewTag,
+    DeleteTag(String),
 }
 
 pub struct Tags {
@@ -27,6 +30,14 @@ pub struct Tags {
 
 impl Default for Tags {
     fn default() -> Self {
+        let table: Table<Tag> = Table::new(vec![], None);
+
+        Self { table }
+    }
+}
+
+impl Tags {
+    pub fn new() -> Self {
         let columns: Vec<TableColumn> = vec![
             TableColumn {
                 key: "name",
@@ -57,28 +68,38 @@ impl Default for Tags {
             }
         };
 
-        println!("{}", &table.data.len());
-        for t in &table.data {
-            println!("{}", t);
-        }
-
         Self { table }
     }
-}
-
-impl Tags {
+    pub fn reload_data(&mut self) {
+        self.table.data = match get_tags() {
+            Ok(i) => i.data,
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                vec![]
+            }
+        };
+    }
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Table(table_msg) => {
                 println!("message table");
                 match self.table.update(table_msg) {
-                    components::table::Action::Edit(id) => Action::OpenTag(id),
-                    components::table::Action::Delete(id) => Action::DeleteTag(id)
+                    components::table::Action::Edit(id) => match get_tag(&id) {
+                        Ok(Response::Success(i)) => Action::OpenTag(id, i),
+                        Ok(Response::Error(e)) => {
+                            eprintln!("Error: {}", e);
+                            Action::None
+                        }
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            Action::None
+                        }
+                    },
+                    components::table::Action::Delete(id) => Action::DeleteTag(id),
                     _ => Action::None,
                 }
             }
             Message::NewTag => Action::NewTag,
-        
         }
     }
     pub fn view(&self) -> Element<'_, Message> {

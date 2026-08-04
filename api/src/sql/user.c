@@ -24,7 +24,8 @@ extern sqlite3 *db;
 #define QUERY_SELECT_TMP                                                       \
   "SELECT "                                                                    \
   "u.id, u.username, u.email, u.role, u.link, UNIXEPOCH(u.subscribedAt), "     \
-  "u.isSupporter, UNIXEPOCH(u.createdAt), m.id, m.textAlternatif, m.url, "     \
+  "u.isSupporter, UNIXEPOCH(u.createdAt), "                                    \
+  "UNIXEPOCH(u.trackerPixelConsentDate), m.id, m.textAlternatif, m.url, "      \
   "m.width, m.height "                                                         \
   "FROM User u LEFT JOIN Media m ON m.id = u.picture"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE u.id = ?"
@@ -38,12 +39,15 @@ extern sqlite3 *db;
 
 #define QUERY_POST_TMP                                                         \
   "INSERT INTO User (username, email, role, link, totpSeed, subscribedAt, "    \
+  "trackerPixelConsentDate, "                                                  \
   "picture) "                                                                  \
-  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?, DATETIME(?, 'unixepoch'), ?);";
+  "VALUES (?, ?, COALESCE(?, 'USER'), ?, ?, DATETIME(?, 'unixepoch'), "        \
+  "DATETIME(?, 'unixepoch'), ?);";
 #define QUERY_PUT_TMP                                                          \
   "UPDATE User "                                                               \
   "SET username = ?, email = ?, role = COALESCE(?, 'USER'), "                  \
-  "link = ?, isSupporter = ?, totpSeed = ?, picture = ? "                      \
+  "link = ?, isSupporter = ?, totpSeed = ?, trackerPixelConsentDate = "        \
+  "DATETIME(?, 'unixepoch'), picture = ? "                                     \
   "WHERE id = ?;";
 
 #define QUERY_DELETE_TMP "DELETE FROM User WHERE id = ?;"
@@ -358,7 +362,7 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int user_rc = user_map(u, stmt, 0, 7);
+    int user_rc = user_map(u, stmt, 0, 8);
     if (user_rc != 0) {
       free(u);
 
@@ -371,7 +375,7 @@ int get_users(size_t len, struct user **arr, const struct mg_str *q,
     }
 
     // Picture
-    int picture_rc = media_map(m, stmt, 8, 12);
+    int picture_rc = media_map(m, stmt, 9, 12);
     if (picture_rc != 0) {
       free(m);
     } else {
@@ -441,7 +445,7 @@ int get_user(struct user *user, int id) {
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int user_rc = user_map(user, stmt, 0, 7);
+    int user_rc = user_map(user, stmt, 0, 8);
     if (user_rc != 0) {
       free(user);
 
@@ -450,7 +454,7 @@ int get_user(struct user *user, int id) {
     }
 
     // Picture
-    int picture_rc = media_map(m, stmt, 8, 12);
+    int picture_rc = media_map(m, stmt, 9, 12);
     if (picture_rc != 0) {
       free(m);
     } else {
@@ -514,7 +518,7 @@ int get_user_by_email(struct user *user, char *email) {
     struct media *m = NULL;
     m = malloc(sizeof(struct media));
 
-    int user_rc = user_map(user, stmt, 0, 7);
+    int user_rc = user_map(user, stmt, 0, 8);
     if (user_rc != 0) {
       free(user);
 
@@ -523,7 +527,7 @@ int get_user_by_email(struct user *user, char *email) {
     }
 
     // Picture
-    int picture_rc = media_map(m, stmt, 8, 12);
+    int picture_rc = media_map(m, stmt, 9, 12);
     if (picture_rc != 0) {
       free(m);
     } else {
@@ -615,8 +619,9 @@ int add_user(struct user *user) {
   sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 5, user->totp_seed, -1, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 6, user->subscribed_at);
+  sqlite3_bind_int(stmt, 7, user->tracker_pixel_consent_date);
   if (user->picture != NULL && user->picture->id > 0) {
-    sqlite3_bind_int(stmt, 7, user->picture->id);
+    sqlite3_bind_int(stmt, 8, user->picture->id);
   }
 
   GET_EXPANDED_QUERY(stmt);
@@ -657,10 +662,11 @@ int edit_user(struct user *user) {
   sqlite3_bind_text(stmt, 4, user->link, -1, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 5, user->is_supporter);
   sqlite3_bind_text(stmt, 6, user->totp_seed, -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 7, user->tracker_pixel_consent_date);
   if (user->picture != NULL && user->picture->id > 0) {
-    sqlite3_bind_int(stmt, 7, user->picture->id);
+    sqlite3_bind_int(stmt, 8, user->picture->id);
   }
-  sqlite3_bind_int(stmt, 8, user->id);
+  sqlite3_bind_int(stmt, 9, user->id);
 
   GET_EXPANDED_QUERY(stmt);
 
@@ -710,12 +716,10 @@ int delete_user(int id) {
   return 0;
 }
 
-
 int get_subscriber_emails(size_t *len, char ***emails) {
   printf(TERMINAL_SQL_MESSAGE("=== GET SUBSCRIBER EMAILS SQL ==="));
 
-  const char *query =
-      "SELECT email FROM User WHERE subscribedAt IS NOT NULL;";
+  const char *query = "SELECT email FROM User WHERE subscribedAt IS NOT NULL;";
 
   sqlite3_stmt *stmt;
   int query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);

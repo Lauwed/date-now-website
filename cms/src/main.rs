@@ -1,4 +1,4 @@
-use iced::widget::{button, center, container, mouse_area, opaque, row, stack, text};
+use iced::widget::{button, center, column, container, mouse_area, opaque, row, stack, text};
 use iced::{Color, Element, Font, Length, Settings, Task, Theme};
 use lucide_icons::LUCIDE_FONT_BYTES;
 use std::borrow::Cow;
@@ -20,14 +20,16 @@ use screens::issue::Issue;
 use screens::issues::Issues;
 use screens::login::Login;
 
+use crate::components::forms::tag::TagForm;
 use crate::components::toast;
 use crate::data::config::Config;
 use crate::data::sessions::{
     Session, clear_session, load_session, refresh_access_token, save_session,
 };
+use crate::data::tags::Tag;
+use crate::screens::listing::{self, Listing};
 use crate::screens::new_issue::{self, NewIssue};
-use crate::screens::new_tag::{self, NewTag};
-use crate::screens::tag::{self, Tag};
+use crate::screens::sponsors::{self, Sponsors};
 use crate::screens::tags::{self, Tags};
 use crate::screens::{issue, issues};
 
@@ -36,19 +38,48 @@ pub fn g_config() -> &'static Config {
     CONFIG.get().unwrap()
 }
 
+#[derive(Debug, Clone, Default)]
+enum ModalKind {
+    #[default]
+    None,
+    ConfirmDeleteTag(String),
+    EditTag(String),
+    NewTag,
+    ConfirmPublishIssue(u32),
+    ConfirmSendIssue(u32),
+    ConfirmArchiveIssue(u32),
+    ConfirmDeleteUser(String),
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub enum Screen {
+    #[default]
+    Dashboard,
+    Issues,
+    Issue(u32),
+    NewIssue,
+    Listing,
+    Login,
+    Tags,
+    Sponsors,
+}
+
 #[derive(Default)]
 struct State {
     dashboard: Dashboard,
     issues: Issues,
     issue: Issue,
     new_issue: NewIssue,
+    listing: Listing,
     login: Login,
     current_user: Option<Session>,
+    current_screen: Screen,
     nav: Nav,
     tags: Tags,
-    tag: Tag,
-    new_tag: NewTag,
+    sponsors: Sponsors,
     toasts: Vec<Toast>,
+    modal: ModalKind,
+    tag_form: TagForm,
 }
 
 impl State {
@@ -152,12 +183,21 @@ enum Message {
     Issues(screens::issues::Message),
     Issue(screens::issue::Message),
     NewIssue(screens::new_issue::Message),
+    Listing(screens::listing::Message),
     Login(screens::login::Message),
     Tags(screens::tags::Message),
-    Tag(screens::tag::Message),
-    NewTag(screens::new_tag::Message),
+    TagForm(components::forms::tag::Message),
+    Sponsors(screens::sponsors::Message),
     Nav(components::nav::Message),
     DismissToast(usize),
+    CloseModal,
+    ConfirmDeleteTag(String),
+    ConfirmEditTag(String),
+    ConfirmNewTag,
+    ConfirmPublishIssue(u32),
+    ConfirmSendIssue(u32),
+    ConfirmArchiveIssue(u32),
+    ConfirmDeleteUser(String),
 }
 
 fn push_toast(state: &mut State, title: String, content: String, status: Status) {
@@ -174,50 +214,27 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             state.dashboard.update(message);
             Task::none()
         }
-        Message::Tags(message) => {
-            if let Some(session) = &state.current_user {
-                match state.tags.update(message) {
-                    tags::Action::None => Task::none(),
-                    tags::Action::Run(task) => task.map(Message::Tags),
-                    tags::Action::OpenTag(id) => {
-                        state.tag = Tag::new(id.clone(), session.clone());
-                        state.nav.current_screen = nav::Screen::Tag(id.clone());
-                        Task::none()
-                    }
-                    tags::Action::NewTag => {
-                        state.new_tag = NewTag::new(session.clone());
-                        state.nav.current_screen = nav::Screen::NewTag;
-                        Task::none()
-                    }
-                }
-            } else {
+        Message::Tags(message) => match state.tags.update(message) {
+            tags::Action::None => Task::none(),
+            tags::Action::OpenTag(id, item) => {
+                state.tag_form = TagForm::new(item.clone());
+                state.modal = ModalKind::EditTag(id);
                 Task::none()
             }
+            tags::Action::NewTag => {
+                state.tag_form = TagForm::new(Tag::default());
+                state.modal = ModalKind::NewTag;
+                Task::none()
+            }
+            tags::Action::DeleteTag(id) => {
+                state.modal = ModalKind::ConfirmDeleteTag(id);
+                Task::none()
+            }
+        },
+        Message::TagForm(message) => {
+            state.tag_form.update(message);
+            Task::none()
         }
-        Message::Tag(message) => match state.tag.update(message) {
-            tag::Action::BackToList => {
-                state.tags = Tags::default();
-                state.nav.current_screen = nav::Screen::Tags;
-                Task::none()
-            }
-            tag::Action::Toast(title, content, status) => {
-                push_toast(state, title, content, status);
-                Task::none()
-            }
-            tag::Action::None => Task::none(),
-        },
-        Message::NewTag(message) => match state.new_tag.update(message) {
-            new_tag::Action::BackToList => {
-                state.tags = Tags::default();
-                state.nav.current_screen = nav::Screen::Tags;
-                Task::none()
-            }
-            new_tag::Action::Toast(title, content, status) => {
-                push_toast(state, title, content, status);
-                Task::none()
-            }
-            new_tag::Action::None => Task::none(),
-        },
         Message::Issues(message) => {
             if let Some(session) = &state.current_user {
                 match state.issues.update(message) {
@@ -225,12 +242,12 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                     issues::Action::Run(task) => task.map(Message::Issues),
                     issues::Action::OpenIssue(id) => {
                         state.issue = Issue::new(id, session.clone());
-                        state.nav.current_screen = nav::Screen::Issue(id);
+                        state.current_screen = Screen::Issue(id);
                         Task::none()
                     }
                     issues::Action::NewIssue => {
                         state.new_issue = NewIssue::new(session.clone());
-                        state.nav.current_screen = nav::Screen::NewIssue;
+                        state.current_screen = Screen::NewIssue;
                         Task::none()
                     }
                 }
@@ -241,11 +258,23 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::Issue(message) => match state.issue.update(message) {
             issue::Action::BackToList => {
                 state.issues = Issues::default();
-                state.nav.current_screen = nav::Screen::Issues;
+                state.current_screen = Screen::Issues;
                 Task::none()
             }
             issue::Action::Toast(title, content, status) => {
                 push_toast(state, title, content, status);
+                Task::none()
+            }
+            issue::Action::ConfirmPublish(id) => {
+                state.modal = ModalKind::ConfirmPublishIssue(id);
+                Task::none()
+            }
+            issue::Action::ConfirmSend(id) => {
+                state.modal = ModalKind::ConfirmSendIssue(id);
+                Task::none()
+            }
+            issue::Action::ConfirmArchive(id) => {
+                state.modal = ModalKind::ConfirmArchiveIssue(id);
                 Task::none()
             }
             issue::Action::None => Task::none(),
@@ -253,7 +282,7 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::NewIssue(message) => match state.new_issue.update(message) {
             new_issue::Action::BackToList => {
                 state.issues = Issues::default();
-                state.nav.current_screen = nav::Screen::Issues;
+                state.current_screen = Screen::Issues;
                 Task::none()
             }
             new_issue::Action::Toast(title, content, status) => {
@@ -262,8 +291,40 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             }
             new_issue::Action::None => Task::none(),
         },
+        Message::Sponsors(message) => match state.sponsors.update(message) {
+            sponsors::Action::None => Task::none(),
+            sponsors::Action::OpenSponsor(_) => Task::none(),
+            sponsors::Action::NewSponsor => Task::none(),
+            sponsors::Action::Toast(title, content, status) => {
+                push_toast(state, title, content, status);
+                Task::none()
+            }
+        },
+        Message::Listing(message) => match state.listing.update(message) {
+            listing::Action::None => Task::none(),
+            listing::Action::DeleteUser(id) => {
+                state.modal = ModalKind::ConfirmDeleteUser(id);
+                Task::none()
+            }
+        },
         Message::Nav(message) => {
-            let _ = state.nav.update(message);
+            if let Some(session) = &state.current_user {
+                match state.nav.update(message) {
+                    nav::Action::GoToScreen(screen) => {
+                        if screen == Screen::Sponsors {
+                            state.sponsors = Sponsors::new(session.clone());
+                        }
+                        if screen == Screen::Tags {
+                            state.tags = Tags::new();
+                        }
+                        if screen == Screen::Listing {
+                            state.listing = Listing::new();
+                        }
+                        state.current_screen = screen;
+                    }
+                    nav::Action::None => (),
+                }
+            }
             Task::none()
         }
         Message::Login(message) => {
@@ -274,34 +335,252 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             state.toasts.remove(index);
             Task::none()
         }
+        Message::CloseModal => {
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmDeleteTag(id) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::tags::delete_tag(id, session.token.clone()) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "Le tag a été supprimé.".to_string(),
+                            Status::Success,
+                        );
+
+                        state.tags.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmEditTag(id) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::tags::update_tag(
+                    &id,
+                    state.tag_form.get_tag(),
+                    session.token.clone(),
+                ) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "The tag has been successfully updated".to_string(),
+                            Status::Success,
+                        );
+
+                        state.tags.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmNewTag => {
+            if let Some(session) = &state.current_user {
+                match crate::data::tags::create_tag(state.tag_form.get_tag(), session.token.clone())
+                {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "The tag has been successfully created".to_string(),
+                            Status::Success,
+                        );
+
+                        state.tags.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmPublishIssue(id) => {
+            if let Some(session) = state.current_user.clone() {
+                match crate::data::issues::publish_issue(id, session.token.clone()) {
+                    Ok(res) => {
+                        push_toast(state, "Success".to_string(), res.message, Status::Success);
+                        state.issue = Issue::new(id, session);
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmSendIssue(id) => {
+            if let Some(session) = state.current_user.clone() {
+                match crate::data::issues::publish_issue(id, session.token.clone()) {
+                    Ok(res) => {
+                        push_toast(state, "Success".to_string(), res.message, Status::Success);
+                        state.issue = Issue::new(id, session);
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmArchiveIssue(id) => {
+            if let Some(session) = &state.current_user {
+                if let Some(mut item) = state.issue.item.clone() {
+                    item.status = crate::data::issues::IssueStatus::Archive;
+                    match crate::data::issues::update_issue(id, item, session.token.clone()) {
+                        Ok(crate::data::responses::Response::Success(new_issue)) => {
+                            state.issue.item = Some(new_issue);
+                            push_toast(
+                                state,
+                                "Success".to_string(),
+                                "L'issue a été archivée.".to_string(),
+                                Status::Success,
+                            );
+                        }
+                        Ok(crate::data::responses::Response::Error(e)) => {
+                            push_toast(state, "Error".to_string(), e.message, Status::Danger)
+                        }
+                        Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                    }
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmDeleteUser(id) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::users::delete_user(id, session.token.clone()) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "L'utilisateur a été supprimé.".to_string(),
+                            Status::Success,
+                        );
+
+                        state.listing.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
     }
 }
 
 fn view(state: &State) -> Element<'_, Message> {
     match &state.current_user {
-        Some(current_user) => {
+        Some(_) => {
             // Content
-            let main_content = match state.nav.current_screen {
-                nav::Screen::Dashboard => state.dashboard.view().map(Message::Dashboard),
-                nav::Screen::Issues => state.issues.view().map(Message::Issues),
-                nav::Screen::Issue(_) => state.issue.view().map(Message::Issue),
-                nav::Screen::NewIssue => state.new_issue.view().map(Message::NewIssue),
-                nav::Screen::Login => state.login.view().map(Message::Login),
-                nav::Screen::Tags => state.tags.view().map(Message::Tags),
-                nav::Screen::Tag(_) => state.tag.view().map(Message::Tag),
-                nav::Screen::NewTag => state.new_tag.view().map(Message::NewTag),
+            let main_content = match state.current_screen {
+                Screen::Dashboard => state.dashboard.view().map(Message::Dashboard),
+                Screen::Issues => state.issues.view().map(Message::Issues),
+                Screen::Issue(_) => state.issue.view().map(Message::Issue),
+                Screen::NewIssue => state.new_issue.view().map(Message::NewIssue),
+                Screen::Listing => state.listing.view().map(Message::Listing),
+                Screen::Login => state.login.view().map(Message::Login),
+                Screen::Tags => state.tags.view().map(Message::Tags),
+                Screen::Sponsors => state.sponsors.view().map(Message::Sponsors),
             };
             let main_container = container(main_content).width(Length::FillPortion(5));
 
             // Return composed layout
             let content = row![
-                state.nav.view(current_user).map(Message::Nav),
+                state.nav.view(&state.current_screen).map(Message::Nav),
                 main_container,
             ];
 
-            return toast::Manager::new(content, &state.toasts, Message::DismissToast)
+            // Layer the modal (if any) underneath the toast overlay, so that
+            // `toast::Manager` stays the root widget across frames — keeping
+            // a modal open/close from reshaping the tree at the exact moment
+            // a toast is pushed, which was breaking the toast's close button.
+            let content: Element<'_, Message> = match &state.modal {
+                ModalKind::None => content.into(),
+                ModalKind::ConfirmDeleteTag(id) => {
+                    let modal_content: Element<'_, Message> =
+                        column![text(format!("Supprimer le tag « {} » ?", id.clone())),].into();
+
+                    components::modal::modal(
+                        content,
+                        Some("Confirmation".to_string()),
+                        modal_content,
+                        Message::CloseModal,
+                        Some(Message::CloseModal),
+                        Some(Message::ConfirmDeleteTag(id.clone())),
+                    )
+                }
+                ModalKind::EditTag(id) => components::modal::modal(
+                    content,
+                    Some(format!("Tag {}", id)),
+                    state.tag_form.view().map(Message::TagForm),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::ConfirmEditTag(id.clone())),
+                ),
+                ModalKind::NewTag => components::modal::modal(
+                    content,
+                    Some("New tag".to_string()),
+                    state.tag_form.view().map(Message::TagForm),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::ConfirmNewTag),
+                ),
+                ModalKind::ConfirmPublishIssue(id) => {
+                    let message = format!(
+                        "Publish issue #{}? The newsletter will be automatically send",
+                        id
+                    );
+                    components::modal::modal(
+                        content,
+                        Some("Confirmation".to_string()),
+                        text(message).into(),
+                        Message::CloseModal,
+                        Some(Message::CloseModal),
+                        Some(Message::ConfirmPublishIssue(*id)),
+                    )
+                }
+                ModalKind::ConfirmSendIssue(id) => {
+                    let message = format!("Send issue #{}? It will be also published.", id);
+                    components::modal::modal(
+                        content,
+                        Some("Confirmation".to_string()),
+                        text(message).into(),
+                        Message::CloseModal,
+                        Some(Message::CloseModal),
+                        Some(Message::ConfirmSendIssue(*id)),
+                    )
+                }
+                ModalKind::ConfirmArchiveIssue(id) => components::modal::modal(
+                    content,
+                    Some("Confirmation".to_string()),
+                    text(format!("Archive issue #{}?", id)).into(),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::ConfirmArchiveIssue(*id)),
+                ),
+                ModalKind::ConfirmDeleteUser(id) => {
+                    let modal_content: Element<'_, Message> =
+                        column![text(format!("Delete user #{}?", id.clone())),].into();
+
+                    components::modal::modal(
+                        content,
+                        Some("Confirmation".to_string()),
+                        modal_content,
+                        Message::CloseModal,
+                        Some(Message::CloseModal),
+                        Some(Message::ConfirmDeleteUser(id.clone())),
+                    )
+                }
+            };
+
+            toast::Manager::new(content, &state.toasts, Message::DismissToast)
                 .timeout(toast::DEFAULT_TIMEOUT)
-                .into();
+                .into()
         }
         None => state.login.view().map(Message::Login),
     }

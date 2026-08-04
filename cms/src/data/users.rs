@@ -1,10 +1,17 @@
-use crate::g_config;
+use std::fmt;
 
-use super::medias::Media;
-use super::responses::Response;
-use reqwest::header::AUTHORIZATION;
+use iced::Element;
+use iced::widget::text;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap};
 use serde;
 use serde::{Deserialize, Serialize};
+
+use crate::data::responses::{Response, ResponseMany, ResponseMessage};
+use crate::data::traits::Table;
+use crate::g_config;
+use crate::utils::datetime::get_datetime_str;
+
+use super::medias::Media;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub enum UserRole {
@@ -16,7 +23,7 @@ pub enum UserRole {
 #[derive(Serialize, Default, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
-    id: u8,
+    id: u32,
     pub username: Option<String>,
     pub email: String,
     role: UserRole,
@@ -27,22 +34,33 @@ pub struct User {
 
     created_at: u64,
     subscribed_at: u64,
+    tracker_pixel_consent_date: u64,
 }
 
-pub fn get_users_vec(users_str: String) -> Vec<User> {
-    let deserializer = serde_json::Deserializer::from_str(&users_str).into_iter::<User>();
-
-    let mut users = Vec::new();
-    for value in deserializer {
-        // println!("{:?}", value.unwrap());
-
-        match value {
-            Ok(user) => users.push(user),
-            Err(e) => println!("Error deserialization: {}", e),
+impl Table for User {
+    fn value_from_key(&self, key: &str) -> String {
+        match key {
+            "id" => self.id.to_string(),
+            "email" => self.email.clone(),
+            "username" => self.username.clone().unwrap_or_default(),
+            "role" => format!("{:?}", self.role),
+            "subscribed_at" => get_datetime_str(self.subscribed_at),
+            "tracker_pixel_consent_date" => match self.tracker_pixel_consent_date {
+                0 => String::from("-"),
+                _ => get_datetime_str(self.tracker_pixel_consent_date),
+            },
+            _ => String::from("Key not found"),
         }
     }
+    fn render<'a, M: 'a>(&self, _key: &str) -> Element<'a, M> {
+        text("No render set").into()
+    }
+}
 
-    users
+impl fmt::Display for User {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.email)
+    }
 }
 
 pub fn get_current_user(token: &str) -> Result<User, String> {
@@ -57,31 +75,26 @@ pub fn get_current_user(token: &str) -> Result<User, String> {
 
     match res {
         Ok(r) => match r.text() {
-            Ok(text) => {
-                println!("response: {}", text);
-
-                match serde_json::from_str::<Response<User>>(&text) {
-                    Ok(Response::Success(user)) => Ok(user),
-                    Ok(Response::Error(res_err)) => {
-                        println!("Error response: {} - {}", res_err.code, res_err.message);
-                        return Err(format!(
-                            "Error response: {} - {}",
-                            res_err.code, res_err.message
-                        ));
-                    }
-                    Err(json_parse_err) => {
-                        println!("Error parsing: {}", json_parse_err);
-
-                        match serde_json::from_str::<User>(&text) {
-                            Ok(json) => Ok(json),
-                            Err(user_parse_err) => {
-                                println!("Error parsing user: {}", user_parse_err);
-                                return Err(format!("Error parsing: {}", user_parse_err));
-                            }
+            Ok(text) => match serde_json::from_str::<Response<User>>(&text) {
+                Ok(Response::Success(user)) => Ok(user),
+                Ok(Response::Error(res_err)) => {
+                    println!("Error response: {} - {}", res_err.code, res_err.message);
+                    return Err(format!(
+                        "Error response: {} - {}",
+                        res_err.code, res_err.message
+                    ));
+                }
+                Err(json_parse_err) => {
+                    println!("Error parsing: {}", json_parse_err);
+                    match serde_json::from_str::<User>(&text) {
+                        Ok(json) => Ok(json),
+                        Err(user_parse_err) => {
+                            println!("Error parsing user: {}", user_parse_err);
+                            return Err(format!("Error parsing: {}", user_parse_err));
                         }
                     }
                 }
-            }
+            },
             Err(text_err) => Err(format!("Error parsing text response: {}", text_err)),
         },
         Err(req_err) => {
@@ -91,17 +104,82 @@ pub fn get_current_user(token: &str) -> Result<User, String> {
     }
 }
 
-pub fn get_nb_subscribers() -> Result<Vec<User>, String> {
+pub fn get_users() -> Result<ResponseMany<User>, String> {
     let config = g_config();
     let url = format!("{}/api/user", config.api_url);
 
-    let res = reqwest::blocking::get(url);
+    let client = reqwest::blocking::Client::new();
+    let res = client.get(url).send();
 
     match res {
         Ok(r) => match r.text() {
-            Ok(b) => Ok(get_users_vec(b)),
-            Err(b_err) => Err(format!("body failed: {}", b_err)),
+            Ok(text) => match serde_json::from_str::<Response<ResponseMany<User>>>(&text) {
+                Ok(Response::Success(users)) => Ok(users),
+                Ok(Response::Error(res_err)) => {
+                    println!("Error response: {} - {}", res_err.code, res_err.message);
+                    return Err(format!(
+                        "Error response: {} - {}",
+                        res_err.code, res_err.message
+                    ));
+                }
+                Err(json_parse_err) => {
+                    eprintln!("Error parsing: {}", json_parse_err);
+                    match serde_json::from_str::<ResponseMany<User>>(&text) {
+                        Ok(json) => Ok(json),
+                        Err(user_parse_err) => {
+                            eprintln!("Error parsing user: {}", user_parse_err);
+                            return Err(format!("Error parsing: {}", user_parse_err));
+                        }
+                    }
+                }
+            },
+            Err(text_err) => Err(format!("Error parsing text response: {}", text_err)),
         },
-        Err(req_err) => Err(format!("request failed: {}", req_err)),
+        Err(req_err) => {
+            println!("error request: {}", req_err);
+            Err(format!("Error request: {}", req_err))
+        }
+    }
+}
+
+pub fn delete_user(id: String, token: String) -> Result<ResponseMessage, String> {
+    let config = g_config();
+    let url = format!("{}/api/user/{}", config.api_url, id);
+
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+    headers.insert(CONTENT_TYPE, "application/json".parse().unwrap());
+
+    let client = reqwest::blocking::Client::new();
+    let res = client.delete(url).headers(headers).send();
+
+    match res {
+        Ok(r) => match r.text() {
+            Ok(text) => match serde_json::from_str::<Response<ResponseMessage>>(&text) {
+                Ok(Response::Success(msg)) => Ok(msg),
+                Ok(Response::Error(res_err)) => {
+                    println!("Error response: {} - {}", res_err.code, res_err.message);
+                    return Err(format!(
+                        "Error response: {} - {}",
+                        res_err.code, res_err.message
+                    ));
+                }
+                Err(json_parse_err) => {
+                    eprintln!("Error parsing: {}", json_parse_err);
+                    match serde_json::from_str::<ResponseMessage>(&text) {
+                        Ok(json) => Ok(json),
+                        Err(user_parse_err) => {
+                            eprintln!("Error parsing user: {}", user_parse_err);
+                            return Err(format!("Error parsing: {}", user_parse_err));
+                        }
+                    }
+                }
+            },
+            Err(text_err) => Err(format!("Error parsing text response: {}", text_err)),
+        },
+        Err(req_err) => {
+            println!("error request: {}", req_err);
+            Err(format!("Error request: {}", req_err))
+        }
     }
 }

@@ -82,6 +82,9 @@ struct user {
                         subscribed). */
   int is_supporter;  /**< 1 if the user is a supporter, 0 otherwise. */
   int created_at;    /**< Account creation timestamp (Unix). */
+  int tracker_pixel_consent_date; /**< Consent of presence pixel tracker in mail
+                                     to be able to count views. Timestamp of the
+                                     consent (0 = no consent) */
 };
 
 /**

@@ -173,6 +173,7 @@ impl NewIssue {
             Some(Message::IssueNumberChanged),
             Length::Fixed(150.0),
             None,
+            None,
         );
 
         let slug_action = if !self.auto_slug {
@@ -187,6 +188,7 @@ impl NewIssue {
             Some(Message::SlugChanged),
             Length::Fill,
             slug_action,
+            None,
         );
         let slug_row = row![issue_number_input, slug_input]
             .align_y(Center)
@@ -199,6 +201,7 @@ impl NewIssue {
             Some(Message::TitleChanged),
             Length::Fill,
             None,
+            None,
         );
         let subtitle_input = form_control(
             "Subtitle",
@@ -206,6 +209,7 @@ impl NewIssue {
             &self.item.subtitle,
             Some(Message::SubtitleChanged),
             Length::Fill,
+            None,
             None,
         );
         let title_row = row![title_input, subtitle_input]
@@ -223,6 +227,7 @@ impl NewIssue {
             &self.item.excerpt,
             Some(Message::ExcerptChanged),
             Length::Fill,
+            None,
             None,
         );
 

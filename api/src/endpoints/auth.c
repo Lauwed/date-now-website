@@ -122,6 +122,7 @@ void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
     user_dst->subscribed_at = user->subscribed_at;
     user_dst->is_supporter = user->is_supporter;
     user_dst->created_at = user->created_at;
+    user_dst->tracker_pixel_consent_date = user->tracker_pixel_consent_date;
   }
   free(user);
 
@@ -198,7 +199,8 @@ void send_subscription_mail(struct mg_connection *c,
       app_url = "https://datenow.com";
 
     char html[512];
-    snprintf(html, sizeof(html), EMAIL_SUBSCRIPTION_BODY_FMT, app_url, jwt_str);
+    snprintf(html, sizeof(html), EMAIL_SUBSCRIPTION_BODY_FMT, app_url, jwt_str,
+             app_url, jwt_str);
     int mail_sent = send_mail(email, EMAIL_SUBSCRIPTION_SUBJECT, html);
 
     free(email);
@@ -286,14 +288,39 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
+    // Check if already subscribed
+    struct user *existing_user = malloc(sizeof(struct user));
+    user_init(existing_user);
+    int existing_rc = get_user_by_email(existing_user, (char *)email);
+    if (existing_rc == 0 && existing_user->subscribed_at > 0) {
+      free_user(existing_user);
+      jwt_free(decoded);
+      ERROR_REPLY_409("Email already subscribed");
+      return;
+    }
+    free_user(existing_user);
+
     printf("TOKEN GRANTS:\tEXP: %ld\tEMAIL: %s\n", exp, email);
 
+    // Get consent date for pixel tracker
+    bool tracker_pixel_consent = false;
+    mg_json_get_bool(msg->body, "$.trackerPixelConsent",
+                     &tracker_pixel_consent);
+
+    int tracker_pixel_consent_date = 0;
+    if (tracker_pixel_consent) {
+      tracker_pixel_consent_date = time(NULL);
+    }
+
     // Create user in DB
-    struct user user = {
-        .email = (char *)email, .role = "USER", .subscribed_at = time(NULL)};
+    struct user user = {.email = (char *)email,
+                        .role = "USER",
+                        .subscribed_at = time(NULL),
+                        .tracker_pixel_consent_date =
+                            tracker_pixel_consent_date};
     int query_code = add_user(&user);
     if (query_code != 0) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USERS"));
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR CREATING USER"));
       HANDLE_QUERY_CODE;
       jwt_free(decoded);
     } else {
@@ -599,11 +626,9 @@ void send_login_mail(struct mg_connection *c, struct mg_http_message *msg,
     if (!app_url)
       app_url = "https://datenow.com";
 
-    char url[512];
-    snprintf(url, sizeof(url), "%s/auth/totp?token=%s", app_url, jwt_str);
-
     char html[1532];
-    snprintf(html, sizeof(html), EMAIL_LOGIN_BODY_FMT, url, url);
+    snprintf(html, sizeof(html), EMAIL_LOGIN_BODY_FMT, app_url, jwt_str,
+             app_url, jwt_str);
     int mail_sent = send_mail(email, EMAIL_LOGIN_SUBJECT, html);
 
     free(email);

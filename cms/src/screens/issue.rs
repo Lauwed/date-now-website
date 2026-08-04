@@ -14,7 +14,7 @@ use crate::{
         typography::typography,
     },
     data::{
-        issues::{Issue as IssueType, get_issue, update_issue},
+        issues::{Issue as IssueType, IssueStatus, get_issue, update_issue},
         responses::Response,
         sessions::Session,
         traits::Table,
@@ -42,12 +42,18 @@ pub enum Message {
     ContentEditor(markdown_editor::Message),
     IsSponsoredChanged(bool),
     ResetSlug,
+    RequestPublish,
+    RequestSend,
+    RequestArchive,
 }
 
 pub enum Action {
     None,
     BackToList,
     Toast(String, String, Status),
+    ConfirmPublish(u32),
+    ConfirmSend(u32),
+    ConfirmArchive(u32),
 }
 
 impl Issue {
@@ -196,14 +202,26 @@ impl Issue {
                 }
                 Action::None
             }
+            Message::RequestPublish => Action::ConfirmPublish(self.id),
+            Message::RequestSend => Action::ConfirmSend(self.id),
+            Message::RequestArchive => Action::ConfirmArchive(self.id),
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
         if let Some(item) = &self.item {
             let back_button = button("← Back to issues").on_press(Message::BackToList);
+            let mut header = row![back_button, horizontal(),].align_y(Center).spacing(10);
+
+            if item.status != IssueStatus::Archive {
+                header = header.push(button("Archive").on_press(Message::RequestArchive));
+            }
+            if item.status != IssueStatus::Published {
+                header = header.push(button("Publish").on_press(Message::RequestPublish));
+            }
+
             let submit = button("Save").on_press(Message::Submit);
-            let header = row![back_button, horizontal(), submit].align_y(Center);
+            header = header.push(submit);
 
             let title = typography(
                 format!("Issue Number {}", item.issue_number),
@@ -257,6 +275,7 @@ impl Issue {
                 Some(Message::IssueNumberChanged),
                 Length::Fixed(150.0),
                 None,
+                None,
             );
 
             let slug_action = if !self.auto_slug {
@@ -271,6 +290,7 @@ impl Issue {
                 Some(Message::SlugChanged),
                 Length::Fill,
                 slug_action,
+                None,
             );
             let slug_row = row![issue_number_input, slug_input]
                 .align_y(Center)
@@ -283,6 +303,7 @@ impl Issue {
                 Some(Message::TitleChanged),
                 Length::Fill,
                 None,
+                None,
             );
             let subtitle_input = form_control(
                 "Subtitle",
@@ -290,6 +311,7 @@ impl Issue {
                 &item.subtitle,
                 Some(Message::SubtitleChanged),
                 Length::Fill,
+                None,
                 None,
             );
             let title_row = row![title_input, subtitle_input]
@@ -307,6 +329,7 @@ impl Issue {
                 &item.excerpt,
                 Some(Message::ExcerptChanged),
                 Length::Fill,
+                None,
                 None,
             );
 

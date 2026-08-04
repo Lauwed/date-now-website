@@ -220,6 +220,8 @@ static cJSON *user_to_cjson(struct user *user) {
   cJSON_AddItemToObject(obj, "isSupporter",
                         cJSON_CreateBool(user->is_supporter));
   cJSON_AddNumberToObject(obj, "createdAt", user->created_at);
+  cJSON_AddNumberToObject(obj, "trackerPixelConsentDate",
+                          user->tracker_pixel_consent_date);
   return obj;
 }
 
@@ -803,6 +805,9 @@ int user_map(struct user *user, sqlite3_stmt *stmt, int start_index,
   // Created at
   MAP_INT(user->created_at, stmt, start_index + 7, 1);
 
+  // Tracker consent
+  MAP_INT(user->tracker_pixel_consent_date, stmt, start_index + 8, 0);
+
   return 0;
 }
 
@@ -1227,6 +1232,7 @@ int user_init(struct user *user) {
 
   user->subscribed_at = 0;
   user->is_supporter = 0;
+  user->tracker_pixel_consent_date = 0;
 
   return 0;
 }

@@ -222,7 +222,7 @@ extern char g_json_header[]; // défini dans main.c
  */
 #define REQUIRED_BODY_PROPERTY(prop, message)                                  \
   offset = mg_json_get(msg->body, "$." prop, &length);                         \
-  if (offset < 0) {                                                            \
+  if (offset < 0 || length - 2 <= 0) {                                         \
     ERROR_REPLY_400(message);                                                  \
     return;                                                                    \
   }

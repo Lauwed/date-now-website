@@ -67,7 +67,7 @@ where
     }
 
     pub fn view<'a>(&self) -> Element<'a, Message> {
-        const ACTIONS_WIDTH: f32 = 75.0;
+        const ACTIONS_WIDTH: f32 = 100.0;
         let actions_width = if let Some(TableActions { edit, delete }) = &self.actions {
             if let Some(_) = *edit
                 && let Some(_) = *delete
