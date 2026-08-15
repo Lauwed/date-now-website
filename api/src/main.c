@@ -61,6 +61,7 @@ struct route_entry {
   route_fn handler;
   int rl_max; /* 0 = no per-route rate limit */
   int rl_window;
+  const char *cache_control; /* NULL = no cache header (GET only) */
 };
 
 /* ---- helpers ---- */
@@ -563,28 +564,31 @@ static const struct route_entry routes[] = {
     {"issue/*/sponsor", r_issue_sponsors, 0, 0},
     {"issue/*/publish", r_issue_publish, 0, 0},
     {"issue/count", r_issue_count, 0, 0},
-    {"issue/slug/*", r_issue_by_slug, 0, 0},
-    {"issue/*", r_issue, 0, 0},
-    {"issue", r_issues, 0, 0},
+    {"issue/slug/*", r_issue_by_slug, 0, 0,
+     "public, max-age=120, stale-while-revalidate=60"},
+    {"issue/*", r_issue, 0, 0,
+     "public, max-age=120, stale-while-revalidate=60"},
+    {"issue", r_issues, 0, 0,
+     "public, max-age=120, stale-while-revalidate=60"},
     /* remaining resources */
     {"user/current", r_current_user, 0, 0},
     {"user/count", r_user_count, 0, 0},
     {"user/*", r_user, 0, 0},
     {"user", r_users, 0, 0},
-    {"tag/*", r_tag, 0, 0},
-    {"tag", r_tags, 0, 0},
+    {"tag/*", r_tag, 0, 0, "public, max-age=3600"},
+    {"tag", r_tags, 0, 0, "public, max-age=3600"},
     {"category/*", r_category, 0, 0},
     {"category", r_categories, 0, 0},
     {"feed/*/tag/*", r_feed_tag, 0, 0},
     {"feed/*/tag", r_feed_tags, 0, 0},
-    {"feed/*", r_feed, 0, 0},
-    {"feed", r_feeds, 0, 0},
+    {"feed/*", r_feed, 0, 0, "public, max-age=300, stale-while-revalidate=60"},
+    {"feed", r_feeds, 0, 0, "public, max-age=300, stale-while-revalidate=60"},
     {"sponsor/*", r_sponsor, 0, 0},
     {"sponsor", r_sponsors, 0, 0},
-    {"media/*", r_media, 0, 0},
-    {"media", r_medias, 0, 0},
+    {"media/*", r_media, 0, 0, "public, max-age=86400, immutable"},
+    {"media", r_medias, 0, 0, "public, max-age=300"},
     {"view", r_views, 0, 0},
-    {NULL, NULL, 0, 0},
+    {NULL, NULL, 0, 0, NULL},
 };
 
 static void dispatch(struct mg_connection *c, struct mg_http_message *msg,
@@ -606,6 +610,12 @@ static void dispatch(struct mg_connection *c, struct mg_http_message *msg,
         rate_limit_check(&c->rem, routes[i].rl_max, routes[i].rl_window)) {
       ERROR_REPLY_429;
       return;
+    }
+    if (routes[i].cache_control &&
+        mg_match(msg->method, mg_str("GET"), NULL)) {
+      size_t len = strlen(g_json_header);
+      snprintf(g_json_header + len, sizeof(g_json_header) - len,
+               "Cache-Control: %s\r\n", routes[i].cache_control);
     }
     routes[i].handler(c, msg, caps, er, secret);
     return;
