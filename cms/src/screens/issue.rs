@@ -9,7 +9,6 @@ use crate::{
     components::{
         badge::badge,
         form_control::{form_control, form_control_switch},
-        markdown_editor::{self, MarkdownEditor},
         toast::Status,
         typography::typography,
     },
@@ -26,7 +25,6 @@ pub struct Issue {
     pub id: u32,
     pub item: Option<IssueType>,
     pub session: Session,
-    pub content: MarkdownEditor,
     pub auto_slug: bool,
 }
 
@@ -39,7 +37,7 @@ pub enum Message {
     IssueNumberChanged(String),
     SubtitleChanged(String),
     ExcerptChanged(String),
-    ContentEditor(markdown_editor::Message),
+    VodUrlChanged(String),
     IsSponsoredChanged(bool),
     ResetSlug,
     RequestPublish,
@@ -72,10 +70,6 @@ impl Issue {
             id,
             item: item.clone(),
             session,
-            content: match &item {
-                Some(data) => MarkdownEditor::new(&data.content),
-                None => MarkdownEditor::new(""),
-            },
             auto_slug: match &item {
                 Some(data) => slugify!(&data.title) == data.slug,
                 None => true,
@@ -88,8 +82,6 @@ impl Issue {
             Message::BackToList => Action::BackToList,
             Message::Submit => {
                 if let Some(issue) = &mut self.item {
-                    issue.content = self.content.text();
-
                     // Save in API
                     match update_issue(self.id, issue.clone(), self.session.token.clone()) {
                         Ok(Response::Success(new_issue)) => {
@@ -187,8 +179,13 @@ impl Issue {
                 }
                 Action::None
             }
-            Message::ContentEditor(action) => {
-                self.content.update(action);
+            Message::VodUrlChanged(value) => {
+                if let Some(item) = &self.item {
+                    self.item = Some(IssueType {
+                        vod_url: value,
+                        ..item.clone()
+                    });
+                }
                 Action::None
             }
             Message::IsSponsoredChanged(value) => {
@@ -207,161 +204,150 @@ impl Issue {
 
     pub fn view(&self) -> Element<'_, Message> {
         if let Some(item) = &self.item {
-            if (self.content.fullscreen == true) {
-                let content_label = typography(
-                    String::from("Content"),
-                    crate::components::typography::TypographyStyle::Label,
-                );
-                let content_input = self.content.view().map(Message::ContentEditor);
-                let content_form = column![content_label, content_input].spacing(4);
+            let back_button = button("← Back to issues").on_press(Message::BackToList);
+            let mut header = row![back_button, horizontal(),].align_y(Center).spacing(10);
 
-                let form = column![content_form,].spacing(10);
+            if item.status != IssueStatus::Archive {
+                header = header.push(button("Archive").on_press(Message::RequestArchive));
+            }
+            if item.status != IssueStatus::Published {
+                header = header.push(button("Publish").on_press(Message::RequestPublish));
+            }
 
-                return container(column![form].spacing(6)).padding(20).into();
-            } else {
-                let back_button = button("← Back to issues").on_press(Message::BackToList);
-                let mut header = row![back_button, horizontal(),].align_y(Center).spacing(10);
+            let submit = button("Save").on_press(Message::Submit);
+            header = header.push(submit);
 
-                if item.status != IssueStatus::Archive {
-                    header = header.push(button("Archive").on_press(Message::RequestArchive));
-                }
-                if item.status != IssueStatus::Published {
-                    header = header.push(button("Publish").on_press(Message::RequestPublish));
-                }
-
-                let submit = button("Save").on_press(Message::Submit);
-                header = header.push(submit);
-
-                let title = typography(
-                    format!("Issue Number {}", item.issue_number),
-                    crate::components::typography::TypographyStyle::Title,
-                );
-                let status = row![
-                    typography(
-                        String::from("Status: "),
-                        crate::components::typography::TypographyStyle::Small
-                    ),
-                    item.render("status")
-                ]
-                .align_y(Center);
-                let id = row![
-                    typography(
-                        String::from("ID: "),
-                        crate::components::typography::TypographyStyle::Small,
-                    ),
-                    badge(
-                        item.id.to_string(),
-                        crate::components::badge::BadgeStyle::Ghost
-                    )
-                ]
-                .align_y(Center);
-                let created_at = typography(
-                    format!("Created at: {}", &item.value_from_key("created_at")),
+            let title = typography(
+                format!("Issue Number {}", item.issue_number),
+                crate::components::typography::TypographyStyle::Title,
+            );
+            let status = row![
+                typography(
+                    String::from("Status: "),
+                    crate::components::typography::TypographyStyle::Small
+                ),
+                item.render("status")
+            ]
+            .align_y(Center);
+            let id = row![
+                typography(
+                    String::from("ID: "),
                     crate::components::typography::TypographyStyle::Small,
-                );
-                let updated_at = typography(
-                    format!("Update at: {}", &item.value_from_key("updated_at")),
-                    crate::components::typography::TypographyStyle::Small,
-                );
-                let metadata = row![status, id, created_at, updated_at]
-                    .align_y(Center)
-                    .spacing(10);
-
-                let views = typography(
-                    format!("Views: {}", item.views),
-                    crate::components::typography::TypographyStyle::Small,
-                );
-                let opened_mail_count = typography(
-                    format!("Opened mail: {}", item.opened_mail_count.to_string()),
-                    crate::components::typography::TypographyStyle::Small,
-                );
-                let stats = row![views, opened_mail_count].align_y(Center).spacing(10);
-
-                let issue_number_input = form_control(
-                    "Issue Number",
-                    "issue number",
-                    &item.issue_number.to_string(),
-                    Some(Message::IssueNumberChanged),
-                    Length::Fixed(150.0),
-                    None,
-                    None,
-                );
-
-                let slug_action = if !self.auto_slug {
-                    Some((String::from("Reset to Title"), Message::ResetSlug))
-                } else {
-                    None
-                };
-                let slug_input = form_control(
-                    "Slug",
-                    "slug",
-                    &item.slug,
-                    Some(Message::SlugChanged),
-                    Length::Fill,
-                    slug_action,
-                    None,
-                );
-                let slug_row = row![issue_number_input, slug_input]
-                    .align_y(Center)
-                    .spacing(10);
-
-                let title_input = form_control(
-                    "Title",
-                    "title",
-                    &item.title,
-                    Some(Message::TitleChanged),
-                    Length::Fill,
-                    None,
-                    None,
-                );
-                let subtitle_input = form_control(
-                    "Subtitle",
-                    "subtitle",
-                    &item.subtitle,
-                    Some(Message::SubtitleChanged),
-                    Length::Fill,
-                    None,
-                    None,
-                );
-                let title_row = row![title_input, subtitle_input]
-                    .align_y(Center)
-                    .spacing(10);
-
-                let is_sponsored_input = form_control_switch(
-                    "Is sponsored?",
-                    item.is_sponsored,
-                    Some(Message::IsSponsoredChanged),
-                );
-                let excerpt_input = form_control(
-                    "Excerpt",
-                    "excerpt",
-                    &item.excerpt,
-                    Some(Message::ExcerptChanged),
-                    Length::Fill,
-                    None,
-                    None,
-                );
-
-                let content_label = typography(
-                    String::from("Content"),
-                    crate::components::typography::TypographyStyle::Label,
-                );
-                let content_input = self.content.view().map(Message::ContentEditor);
-                let content_form = column![content_label, content_input].spacing(4);
-
-                let form = column![
-                    slug_row,
-                    title_row,
-                    is_sponsored_input,
-                    excerpt_input,
-                    content_form,
-                ]
+                ),
+                badge(
+                    item.id.to_string(),
+                    crate::components::badge::BadgeStyle::Ghost
+                )
+            ]
+            .align_y(Center);
+            let created_at = typography(
+                format!("Created at: {}", &item.value_from_key("created_at")),
+                crate::components::typography::TypographyStyle::Small,
+            );
+            let updated_at = typography(
+                format!("Update at: {}", &item.value_from_key("updated_at")),
+                crate::components::typography::TypographyStyle::Small,
+            );
+            let metadata = row![status, id, created_at, updated_at]
+                .align_y(Center)
                 .spacing(10);
 
-                return container(column![header, title, metadata, stats, form].spacing(6))
-                    .padding(20)
-                    .into();
-            }
+            let views = typography(
+                format!("Views: {}", item.views),
+                crate::components::typography::TypographyStyle::Small,
+            );
+            let opened_mail_count = typography(
+                format!("Opened mail: {}", item.opened_mail_count.to_string()),
+                crate::components::typography::TypographyStyle::Small,
+            );
+            let stats = row![views, opened_mail_count].align_y(Center).spacing(10);
+
+            let issue_number_input = form_control(
+                "Issue Number",
+                "issue number",
+                &item.issue_number.to_string(),
+                Some(Message::IssueNumberChanged),
+                Length::Fixed(150.0),
+                None,
+                None,
+            );
+
+            let slug_action = if !self.auto_slug {
+                Some((String::from("Reset to Title"), Message::ResetSlug))
+            } else {
+                None
+            };
+            let slug_input = form_control(
+                "Slug",
+                "slug",
+                &item.slug,
+                Some(Message::SlugChanged),
+                Length::Fill,
+                slug_action,
+                None,
+            );
+            let slug_row = row![issue_number_input, slug_input]
+                .align_y(Center)
+                .spacing(10);
+
+            let title_input = form_control(
+                "Title",
+                "title",
+                &item.title,
+                Some(Message::TitleChanged),
+                Length::Fill,
+                None,
+                None,
+            );
+            let subtitle_input = form_control(
+                "Subtitle",
+                "subtitle",
+                &item.subtitle,
+                Some(Message::SubtitleChanged),
+                Length::Fill,
+                None,
+                None,
+            );
+            let title_row = row![title_input, subtitle_input]
+                .align_y(Center)
+                .spacing(10);
+
+            let is_sponsored_input = form_control_switch(
+                "Is sponsored?",
+                item.is_sponsored,
+                Some(Message::IsSponsoredChanged),
+            );
+            let excerpt_input = form_control(
+                "Excerpt",
+                "excerpt",
+                &item.excerpt,
+                Some(Message::ExcerptChanged),
+                Length::Fill,
+                None,
+                None,
+            );
+            let vod_url_input = form_control(
+                "VOD URL",
+                "vod url",
+                &item.vod_url,
+                Some(Message::VodUrlChanged),
+                Length::Fill,
+                None,
+                None,
+            );
+
+            let form = column![
+                slug_row,
+                title_row,
+                is_sponsored_input,
+                excerpt_input,
+                vod_url_input,
+            ]
+            .spacing(10);
+
+            container(column![header, title, metadata, stats, form].spacing(6))
+                .padding(20)
+                .into()
         } else {
             // TODO Redirection
             return container("Error").into();

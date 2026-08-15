@@ -236,6 +236,9 @@ struct issue {
   int issue_number;    /**< Sequential issue number. */
   char *excerpt; /**< Short summary. @note Dynamically allocated — freed by
                     free_issue(). */
+  char *vod_url; /**< YouTube video-on-demand URL for the issue (may be
+                    NULL). @note Dynamically allocated — freed by
+                    free_issue(). */
   int is_sponsored; /**< 1 if the issue has sponsors. */
   char *status;     /**< Status: "DRAFT", "PUBLISHED", or "ARCHIVE". @note
                        Dynamically allocated — freed by free_issue(). */

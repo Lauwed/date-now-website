@@ -1175,7 +1175,8 @@
         "excerpt": "string",
         "isSponsored": "boolean",
         "status": "DRAFT | PUBLISHED | ARCHIVE",
-        "openedMailCount": "integer"
+        "openedMailCount": "integer",
+        "vodUrl": "string?"
       },
       "includedEndpoints": [
         "GET-list",
@@ -1205,6 +1206,7 @@
           "isSponsored": "boolean",
           "status": "DRAFT | PUBLISHED | ARCHIVE",
           "openedMailCount": "integer",
+          "vodUrl": "string?",
           "views": "integer",
           "authors": "array-user",
           "tags": "array-tag",
@@ -1258,7 +1260,8 @@
               "excerpt": "string",
               "isSponsored": "boolean?",
               "status": "DRAFT | PUBLISHED | ARCHIVE",
-              "cover": "integer?"
+              "cover": "integer?",
+              "vodUrl": "string?"
             },
             "defaultValue": "{\n\t\"title\": \"My first issue\",\n\t\"subtitle\": \"A great subtitle\",\n\t\"issueNumber\": 1,\n\t\"excerpt\": \"A short excerpt\",\n\t\"status\": \"DRAFT\"\n}"
           },
@@ -1276,7 +1279,8 @@
                 "excerpt": "string",
                 "isSponsored": "boolean",
                 "status": "DRAFT | PUBLISHED | ARCHIVE",
-                "openedMailCount": "integer"
+                "openedMailCount": "integer",
+                "vodUrl": "string?"
               }
             },
             {
@@ -1299,7 +1303,8 @@
               "excerpt": "string",
               "isSponsored": "boolean?",
               "status": "DRAFT | PUBLISHED | ARCHIVE",
-              "cover": "integer?"
+              "cover": "integer?",
+              "vodUrl": "string?"
             },
             "defaultValue": "{\n\t\"title\": \"My first issue\",\n\t\"subtitle\": \"A great subtitle\",\n\t\"issueNumber\": 1,\n\t\"excerpt\": \"A short excerpt\",\n\t\"status\": \"DRAFT\"\n}"
           },
@@ -1319,7 +1324,8 @@
                 "excerpt": "string",
                 "isSponsored": "boolean",
                 "status": "DRAFT | PUBLISHED | ARCHIVE",
-                "openedMailCount": "integer"
+                "openedMailCount": "integer",
+                "vodUrl": "string?"
               }
             },
             {
@@ -1367,6 +1373,7 @@
                 "isSponsored": "boolean",
                 "status": "DRAFT | PUBLISHED | ARCHIVE",
                 "openedMailCount": "integer",
+                "vodUrl": "string?",
                 "views": "integer",
                 "authors": "array-user",
                 "tags": "array-tag",

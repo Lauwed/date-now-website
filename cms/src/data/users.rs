@@ -1,11 +1,12 @@
 use std::fmt;
 
 use iced::Element;
-use iced::widget::text;
+use iced::widget::{checkbox, text};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap};
 use serde;
 use serde::{Deserialize, Serialize};
 
+use crate::components::badge::{BadgeStyle, badge};
 use crate::data::responses::{Response, ResponseMany, ResponseMessage};
 use crate::data::traits::Table;
 use crate::g_config;
@@ -18,6 +19,19 @@ pub enum UserRole {
     AUTHOR,
     #[default]
     USER,
+}
+
+impl fmt::Display for UserRole {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                UserRole::AUTHOR => String::from("Author"),
+                UserRole::USER => String::from("User"),
+            }
+        )
+    }
 }
 
 #[derive(Serialize, Default, Deserialize, Debug, Clone)]
@@ -52,8 +66,19 @@ impl Table for User {
             _ => String::from("Key not found"),
         }
     }
-    fn render<'a, M: 'a>(&self, _key: &str) -> Element<'a, M> {
-        text("No render set").into()
+    fn render<'a, M: 'a>(&self, key: &str) -> Element<'a, M> {
+        match key {
+            "is_supporter" => checkbox(self.is_supporter).into(),
+            "role" => badge(
+                self.role.to_string(),
+                match self.role {
+                    UserRole::AUTHOR => BadgeStyle::Primary,
+                    UserRole::USER => BadgeStyle::Success,
+                },
+            )
+            .into(),
+            _ => text("No render set").into(),
+        }
     }
 }
 

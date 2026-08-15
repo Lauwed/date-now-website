@@ -1,14 +1,13 @@
 use iced::{
     Alignment::Center,
     Element, Length,
-    widget::{button, column, container, row, space::horizontal, text_editor},
+    widget::{button, column, container, row, space::horizontal},
 };
 use rslug::slugify;
 
 use crate::{
     components::{
         form_control::{form_control, form_control_switch},
-        markdown_editor::{self, MarkdownEditor},
         toast::Status,
         typography::typography,
     },
@@ -23,7 +22,6 @@ use crate::{
 pub struct NewIssue {
     pub item: IssueType,
     pub session: Session,
-    pub content: MarkdownEditor,
     pub auto_slug: bool,
 }
 
@@ -36,7 +34,7 @@ pub enum Message {
     IssueNumberChanged(String),
     SubtitleChanged(String),
     ExcerptChanged(String),
-    ContentEditor(markdown_editor::Message),
+    VodUrlChanged(String),
     IsSponsoredChanged(bool),
     ResetSlug,
 }
@@ -52,7 +50,6 @@ impl NewIssue {
         Self {
             item: IssueType::default(),
             session,
-            content: MarkdownEditor::new(""),
             auto_slug: true,
         }
     }
@@ -61,8 +58,6 @@ impl NewIssue {
         match message {
             Message::BackToList => Action::BackToList,
             Message::Submit => {
-                self.item.content = self.content.text();
-
                 // Save in API
                 match create_issue(self.item.clone(), self.session.token.clone()) {
                     Ok(Response::Success(new_issue)) => {
@@ -141,8 +136,12 @@ impl NewIssue {
 
                 Action::None
             }
-            Message::ContentEditor(action) => {
-                self.content.update(action);
+            Message::VodUrlChanged(value) => {
+                self.item = IssueType {
+                    vod_url: value,
+                    ..self.item.clone()
+                };
+
                 Action::None
             }
             Message::IsSponsoredChanged(value) => {
@@ -231,19 +230,22 @@ impl NewIssue {
             None,
         );
 
-        let content_label = typography(
-            String::from("Content"),
-            crate::components::typography::TypographyStyle::Label,
+        let vod_url_input = form_control(
+            "VOD URL",
+            "vod url",
+            &self.item.vod_url,
+            Some(Message::VodUrlChanged),
+            Length::Fill,
+            None,
+            None,
         );
-        let content_input = self.content.view().map(Message::ContentEditor);
-        let content_form = column![content_label, content_input].spacing(4);
 
         let form = column![
             slug_row,
             title_row,
             is_sponsored_input,
             excerpt_input,
-            content_form,
+            vod_url_input,
         ]
         .spacing(10);
 

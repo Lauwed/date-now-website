@@ -40,8 +40,14 @@ impl Listing {
             TableColumn {
                 key: "role",
                 name: "Role",
-                width: None,
-                render: false,
+                width: Some(100),
+                render: true,
+            },
+            TableColumn {
+                key: "is_supporter",
+                name: "Supporter",
+                width: Some(100),
+                render: true,
             },
             TableColumn {
                 key: "subscribed_at",

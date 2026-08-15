@@ -32,7 +32,7 @@
   "EXTRACT(EPOCH FROM i.publishedAt)::BIGINT, "                                \
   "EXTRACT(EPOCH FROM i.updatedAt)::BIGINT, i.issueNumber, i.excerpt, "        \
   "i.isSponsored, "                                                            \
-  "i.status, i.openedMailCount, "                                              \
+  "i.status, i.openedMailCount, i.vodUrl, "                                    \
   "COUNT(v.id), "                                                              \
   "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl "              \
   "FROM Issue i "                                                              \
@@ -48,14 +48,20 @@
   "EXTRACT(EPOCH FROM i.publishedAt)::BIGINT, "                                \
   "EXTRACT(EPOCH FROM i.updatedAt)::BIGINT, i.issueNumber, i.excerpt, "        \
   "i.isSponsored, "                                                            \
-  "i.status, i.openedMailCount, "                                              \
+  "i.status, i.openedMailCount, i.vodUrl, "                                    \
   "COUNT(v.id), "                                                              \
   "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl "              \
   "FROM Issue i "                                                              \
   "LEFT JOIN Media m ON m.id = i.cover "                                       \
   "LEFT JOIN View v ON v.issueId = i.id "
-#define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE i.id = $1"
-#define QUERY_SELECT_SLUG_TMP QUERY_SELECT_TMP " WHERE i.slug = $1"
+/* Postgres requires strict GROUP BY (unlike SQLite's lenient extension) —
+ * grouping by each table's primary key makes all of its other selected
+ * columns functionally dependent, so no other column needs to be listed. */
+#define QUERY_GROUP_BY " GROUP BY i.id, m.id"
+#define QUERY_SELECT_SINGLE_TMP                                               \
+  QUERY_SELECT_TMP " WHERE i.id = $1" QUERY_GROUP_BY
+#define QUERY_SELECT_SLUG_TMP                                                 \
+  QUERY_SELECT_TMP " WHERE i.slug = $1" QUERY_GROUP_BY
 #define QUERY_Q_TMP                                                            \
   " WHERE i.title LIKE $%1$d OR CAST(i.issueNumber AS TEXT) LIKE $%1$d"
 #define QUERY_SORT_TMP " ORDER BY LOWER(i.title) %s"
@@ -63,16 +69,12 @@
 #define QUERY_STATUS_AND_TMP " AND i.status = $%d"
 #define QUERY_STATUS_WHERE_TMP " WHERE i.status = $%d"
 #define QUERY_PAGINATION_TMP " LIMIT $%d OFFSET $%d"
-/* Postgres requires strict GROUP BY (unlike SQLite's lenient extension) —
- * grouping by each table's primary key makes all of its other selected
- * columns functionally dependent, so no other column needs to be listed. */
-#define QUERY_GROUP_BY " GROUP BY i.id, m.id"
 
 #define QUERY_POST_TMP                                                         \
   "INSERT INTO Issue (title, slug, subtitle, cover, publishedAt, "             \
   "issueNumber, "                                                              \
-  "excerpt, isSponsored, status) "                                             \
-  "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'DRAFT')) "            \
+  "excerpt, isSponsored, status, vodUrl) "                                     \
+  "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'DRAFT'), $10) "       \
   "RETURNING id;"
 #define QUERY_PUT_TMP                                                          \
   "UPDATE Issue "                                                              \
@@ -81,8 +83,9 @@
   "WHEN status = 'PUBLISHED' THEN CURRENT_TIMESTAMP ELSE NULL END), "          \
   "issueNumber = $6, "                                                         \
   "excerpt = $7, isSponsored = $8, status = COALESCE($9, 'DRAFT'), "           \
+  "vodUrl = $10, "                                                             \
   "updatedAt = CURRENT_TIMESTAMP "                                             \
-  "WHERE id = $10;"
+  "WHERE id = $11;"
 
 #define QUERY_DELETE_TMP "DELETE FROM Issue WHERE id = $1;"
 
@@ -658,7 +661,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     m->thumb_url = NULL;
 
     pg_row_t row = {res, i};
-    int issue_rc = issue_map(u, &row, 0, 12);
+    int issue_rc = issue_map(u, &row, 0, 13);
     if (issue_rc != 0) {
       free(m);
       free(u);
@@ -667,7 +670,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     }
 
     // Picture
-    int cover_rc = media_map(m, &row, 13, 18);
+    int cover_rc = media_map(m, &row, 14, 19);
     if (cover_rc != 0) {
       free(m);
     } else {
@@ -722,14 +725,14 @@ int get_issue(struct issue *issue, int id) {
   struct media *m = malloc(sizeof(struct media));
   m->thumb_url = NULL;
   pg_row_t row = {res, 0};
-  int issue_rc = issue_map(issue, &row, 0, 12);
+  int issue_rc = issue_map(issue, &row, 0, 13);
   if (issue_rc != 0) {
     free(m);
     PQclear(res);
     return HTTP_INTERNAL_ERROR;
   }
 
-  int cover_rc = media_map(m, &row, 13, 18);
+  int cover_rc = media_map(m, &row, 14, 19);
   if (cover_rc != 0) {
     free(m);
   } else {
@@ -777,14 +780,14 @@ int get_issue_by_slug(struct issue *issue, char *slug) {
   struct media *m = malloc(sizeof(struct media));
   m->thumb_url = NULL;
   pg_row_t row = {res, 0};
-  int issue_rc = issue_map(issue, &row, 0, 12);
+  int issue_rc = issue_map(issue, &row, 0, 13);
   if (issue_rc != 0) {
     free(m);
     PQclear(res);
     return HTTP_INTERNAL_ERROR;
   }
 
-  int cover_rc = media_map(m, &row, 13, 18);
+  int cover_rc = media_map(m, &row, 14, 19);
   if (cover_rc != 0) {
     free(m);
   } else {
@@ -826,13 +829,14 @@ int add_issue(struct issue *issue) {
   snprintf(is_sponsored_str, sizeof(is_sponsored_str), "%d",
            issue->is_sponsored);
 
-  const char *values[9] = {
+  const char *values[10] = {
       issue->title,     issue->slug,      issue->subtitle,
       cover_val,        published_at_val, issue_number_str,
-      issue->excerpt,   is_sponsored_str, issue->status};
-  GET_EXPANDED_QUERY(QUERY_POST_TMP, 9, values);
+      issue->excerpt,   is_sponsored_str, issue->status,
+      issue->vod_url};
+  GET_EXPANDED_QUERY(QUERY_POST_TMP, 10, values);
 
-  PGresult *res = pg_exec(QUERY_POST_TMP, 9, values);
+  PGresult *res = pg_exec(QUERY_POST_TMP, 10, values);
   if (res == NULL) {
     return HTTP_INTERNAL_ERROR;
   }
@@ -868,14 +872,14 @@ int edit_issue(struct issue *issue) {
            issue->is_sponsored);
   snprintf(id_str, sizeof(id_str), "%d", issue->id);
 
-  const char *values[10] = {
+  const char *values[11] = {
       issue->title,     issue->slug,      issue->subtitle,
       cover_val,        published_at_val, issue_number_str,
       issue->excerpt,   is_sponsored_str, issue->status,
-      id_str};
-  GET_EXPANDED_QUERY(QUERY_PUT_TMP, 10, values);
+      issue->vod_url,   id_str};
+  GET_EXPANDED_QUERY(QUERY_PUT_TMP, 11, values);
 
-  PGresult *res = pg_exec(QUERY_PUT_TMP, 10, values);
+  PGresult *res = pg_exec(QUERY_PUT_TMP, 11, values);
   if (res == NULL) {
     return HTTP_INTERNAL_ERROR;
   }

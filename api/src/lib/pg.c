@@ -10,9 +10,24 @@
 PGconn *db = NULL;
 
 PGresult *pg_exec(const char *sql, int n_params, const char *const *values) {
-  PGresult *res = PQexecParams(db, sql, n_params, NULL, values, NULL, NULL, 0);
+  /* Providers like Neon suspend the compute (and drop the TCP connection)
+   * after idle periods — reconnect before running if that's happened. */
+  if (PQstatus(db) != CONNECTION_OK) {
+    PQreset(db);
+  }
 
+  PGresult *res = PQexecParams(db, sql, n_params, NULL, values, NULL, NULL, 0);
   ExecStatusType status = PQresultStatus(res);
+
+  if (status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK &&
+      PQstatus(db) != CONNECTION_OK) {
+    /* Connection died mid-query — reconnect and retry once. */
+    PQclear(res);
+    PQreset(db);
+    res = PQexecParams(db, sql, n_params, NULL, values, NULL, NULL, 0);
+    status = PQresultStatus(res);
+  }
+
   if (status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("pg query error: %s\n"),
             PQerrorMessage(db));

@@ -685,6 +685,8 @@ static cJSON *issue_to_cjson(struct issue *issue) {
                         cJSON_CreateBool(issue->is_sponsored));
   cJSON_AddStringToObject(obj, "status", issue->status);
   cJSON_AddNumberToObject(obj, "openedMailCount", issue->opened_mail_count);
+  if (issue->vod_url != NULL)
+    cJSON_AddStringToObject(obj, "vodUrl", issue->vod_url);
 
   cJSON *tags_arr = cJSON_CreateArray();
   for (size_t i = 0; i < issue->tags_count; i++)
@@ -788,6 +790,7 @@ int free_issue(struct issue *issue) {
   free(issue->subtitle);
   free(issue->excerpt);
   free(issue->status);
+  free(issue->vod_url);
 
   if (issue->cover != NULL) {
     free_media(issue->cover);
@@ -811,6 +814,7 @@ int free_issue(struct issue *issue) {
   issue->subtitle = NULL;
   issue->excerpt = NULL;
   issue->status = NULL;
+  issue->vod_url = NULL;
 
   free(issue);
   issue = NULL;
@@ -1274,7 +1278,8 @@ int issue_map(struct issue *issue, pg_row_t *row, int start_index,
   MAP_BOOL(issue->is_sponsored, row, start_index + 9, 0);
   MAP_TEXT(issue->status, row, start_index + 10, 1);
   MAP_INT(issue->opened_mail_count, row, start_index + 11, 0);
-  MAP_INT(issue->views, row, start_index + 12, 0);
+  MAP_TEXT(issue->vod_url, row, start_index + 12, 0);
+  MAP_INT(issue->views, row, start_index + 13, 0);
   printf("\n");
 
   return 0;
@@ -1543,6 +1548,10 @@ void issue_hydrate(struct mg_http_message *msg, struct issue *issue) {
       printf("EXCERPT: %.*s\n", (int)val.len, val.buf);
       issue->excerpt = malloc(val.len);
       sprintf(issue->excerpt, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"vodUrl\"")) == 0) {
+      printf("VOD URL: %.*s\n", (int)val.len, val.buf);
+      issue->vod_url = malloc(val.len);
+      sprintf(issue->vod_url, "%.*s", (int)val.len - 2, val.buf + 1);
     } else if (mg_strcmp(key, mg_str("\"id\"")) == 0) {
       number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
       if (number_parsed) {
@@ -1882,6 +1891,7 @@ int issue_init(struct issue *issue) {
 
   issue->excerpt = NULL;
   issue->status = NULL;
+  issue->vod_url = NULL;
 
   issue->published_at = 0;
   issue->updated_at = 0;

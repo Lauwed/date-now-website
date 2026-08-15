@@ -15,6 +15,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <sql/issue.h>
+#include <sql/issue_author.h>
 #include <sql/user.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -161,18 +162,22 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
   } else if (mg_match(msg->method, mg_str("POST"), NULL)) {
     // Check if user logged
     int user_logged = 0;
-    is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
+    struct user *current_user = malloc(sizeof(struct user));
+    is_user_logged(c, msg, error_reply, secret, &user_logged, current_user);
 
     if (user_logged == 0) {
+      free(current_user);
       ERROR_REPLY_401;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
       return;
     }
 
     if (msg->body.len <= 0) {
+      free_user(current_user);
       ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
       return;
     } else if (!mg_validateJSON(msg->body)) {
+      free_user(current_user);
       ERROR_REPLY_400(JSON_ERROR_MESSAGE);
       return;
     }
@@ -188,6 +193,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     // Title required
     offset = mg_json_get(msg->body, "$.title", &length);
     if (offset < 0 || length - 2 <= 0) {
+      free_user(current_user);
       ERROR_REPLY_400(TITLE_REQUIRED_MESSAGE);
       return;
     } else {
@@ -197,6 +203,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     // Issue number required
     offset = mg_json_get(msg->body, "$.issueNumber", &length);
     if (offset < 0) {
+      free_user(current_user);
       ERROR_REPLY_400(ISSUE_NUMBER_REQUIRED_MESSAGE);
       free(title);
       return;
@@ -209,6 +216,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
       issue_number = atoi(issue_number_str);
       free(issue_number_str);
       if (issue_number <= 0) {
+        free_user(current_user);
         ERROR_REPLY_400(ISSUE_NUMBER_REQUIRED_MESSAGE);
         free(title);
         return;
@@ -217,6 +225,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
 
     offset = mg_json_get(msg->body, "$.slug", &length);
     if (offset < 0 || length <= 2) {
+      free_user(current_user);
       ERROR_REPLY_400(SLUG_REQUIRED_MESSAGE);
       return;
     } else {
@@ -229,6 +238,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     free(title);
     free(slug);
     if (exists != 0) {
+      free_user(current_user);
       ERROR_REPLY_400(ISSUE_EXISTS_MESSAGE);
       return;
     };
@@ -237,6 +247,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     offset = mg_json_get(msg->body, "$.status", &length);
     char status[12];
     if (length > 12) {
+      free_user(current_user);
       ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
 
       return;
@@ -247,6 +258,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
 
       if (strcmp(status, "DRAFT") != 0 && strcmp(status, "PUBLISHED") != 0 &&
           strcmp(status, "ARCHIVE") != 0) {
+        free_user(current_user);
         ERROR_REPLY_400(STATUS_FORMAT_MESSAGE);
 
         return;
@@ -257,6 +269,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     struct issue *issue = malloc(sizeof(struct issue));
     int issue_init_rc = issue_init(issue);
     if (issue_init_rc != 0) {
+      free_user(current_user);
       ERROR_REPLY_500;
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ISSUE IS NULL"));
 
@@ -273,15 +286,26 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     // Store in DB
     query_code = add_issue(issue);
     if (query_code != 0) {
+      free_user(current_user);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
       HANDLE_QUERY_CODE;
       free_issue(issue);
       return;
     }
 
+    // Author the issue with the logged-in user
+    struct issue_author issue_author = {.user_id = current_user->id,
+                                        .issue_id = issue->id};
+    query_code = add_issue_author(&issue_author);
+    if (query_code != 0) {
+      fprintf(stderr,
+              TERMINAL_ERROR_MESSAGE("ERROR ADDING ISSUE AUTHOR"));
+    }
+
     struct issue *created = malloc(sizeof(struct issue));
     query_code = get_issue(created, issue->id);
     if (query_code != 0) {
+      free_user(current_user);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUES"));
       HANDLE_QUERY_CODE;
       free_issue(issue);
@@ -294,6 +318,7 @@ void send_issues_res(struct mg_connection *c, struct mg_http_message *msg,
     free(result);
     printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY ADDED ==="));
 
+    free_user(current_user);
     free_issue(created);
     free_issue(issue);
   } else {
