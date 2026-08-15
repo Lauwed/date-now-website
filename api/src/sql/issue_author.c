@@ -24,7 +24,7 @@
   "SELECT u.id, u.username, u.email, u.role, u.link, "                        \
   "EXTRACT(EPOCH FROM u.subscribedAt)::BIGINT, u.isSupporter, "               \
   "EXTRACT(EPOCH FROM u.createdAt)::BIGINT, "                                 \
-  "m.id, m.textAlternatif, m.url, m.width, m.height "                         \
+  "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl "             \
   "FROM IssueAuthor ia "                                                       \
   "JOIN AppUser u ON u.id = ia.userId "                                        \
   "LEFT JOIN Media m ON m.id = u.picture "                                     \
@@ -133,7 +133,8 @@ int get_issue_authors(size_t len, struct user **arr, int issue_id,
     }
 
     struct media *m = malloc(sizeof(struct media));
-    int cover_rc = media_map(m, &row, 8, 12);
+    m->thumb_url = NULL;
+    int cover_rc = media_map(m, &row, 8, 13);
     if (cover_rc != 0) {
       free(m);
     } else {

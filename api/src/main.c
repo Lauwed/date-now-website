@@ -652,19 +652,6 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
       return;
     }
 
-    if (mg_match(msg->uri, mg_str("/uploads/#"), NULL)) {
-      if (msg->uri.buf[msg->uri.len - 1] == '/') {
-        mg_http_reply(c, 403, JSON_HEADER,
-                      "{\"code\":403,\"error\":\"Forbidden\"}");
-        return;
-      }
-      struct mg_http_serve_opts opts = {
-          .root_dir = "/uploads=/var/www/uploads",
-          .extra_headers = "Cache-Control: public, max-age=2592000\r\n"};
-      mg_http_serve_dir(c, msg, &opts);
-      return;
-    }
-
     if (mg_match(msg->uri, mg_str("/docs#"), NULL)) {
       struct mg_http_serve_opts opts = {.root_dir = "/docs=./docs"};
       mg_http_serve_dir(c, msg, &opts);

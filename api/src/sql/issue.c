@@ -34,7 +34,7 @@
   "i.isSponsored, "                                                            \
   "i.status, i.openedMailCount, "                                              \
   "COUNT(v.id), "                                                              \
-  "m.id, m.textAlternatif, m.url, m.width, m.height "                         \
+  "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl "              \
   "FROM Issue i "                                                              \
   "LEFT JOIN Media m ON m.id = i.cover "                                       \
   "LEFT JOIN View v ON v.issueId = i.id "                                      \
@@ -50,7 +50,7 @@
   "i.isSponsored, "                                                            \
   "i.status, i.openedMailCount, "                                              \
   "COUNT(v.id), "                                                              \
-  "m.id, m.textAlternatif, m.url, m.width, m.height "                         \
+  "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl "              \
   "FROM Issue i "                                                              \
   "LEFT JOIN Media m ON m.id = i.cover "                                       \
   "LEFT JOIN View v ON v.issueId = i.id "
@@ -221,7 +221,8 @@ static void load_authors_batch(size_t count, struct issue **arr) {
         break;
       }
       struct media *m = malloc(sizeof(struct media));
-      if (media_map(m, &row, 9, 13) != 0) {
+      m->thumb_url = NULL;
+      if (media_map(m, &row, 9, 14) != 0) {
         free(m);
       } else {
         u->picture = m;
@@ -654,6 +655,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     }
 
     struct media *m = malloc(sizeof(struct media));
+    m->thumb_url = NULL;
 
     pg_row_t row = {res, i};
     int issue_rc = issue_map(u, &row, 0, 12);
@@ -665,7 +667,7 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
     }
 
     // Picture
-    int cover_rc = media_map(m, &row, 13, 17);
+    int cover_rc = media_map(m, &row, 13, 18);
     if (cover_rc != 0) {
       free(m);
     } else {
@@ -718,6 +720,7 @@ int get_issue(struct issue *issue, int id) {
   }
 
   struct media *m = malloc(sizeof(struct media));
+  m->thumb_url = NULL;
   pg_row_t row = {res, 0};
   int issue_rc = issue_map(issue, &row, 0, 12);
   if (issue_rc != 0) {
@@ -726,7 +729,7 @@ int get_issue(struct issue *issue, int id) {
     return HTTP_INTERNAL_ERROR;
   }
 
-  int cover_rc = media_map(m, &row, 13, 17);
+  int cover_rc = media_map(m, &row, 13, 18);
   if (cover_rc != 0) {
     free(m);
   } else {
@@ -772,6 +775,7 @@ int get_issue_by_slug(struct issue *issue, char *slug) {
   }
 
   struct media *m = malloc(sizeof(struct media));
+  m->thumb_url = NULL;
   pg_row_t row = {res, 0};
   int issue_rc = issue_map(issue, &row, 0, 12);
   if (issue_rc != 0) {
@@ -780,7 +784,7 @@ int get_issue_by_slug(struct issue *issue, char *slug) {
     return HTTP_INTERNAL_ERROR;
   }
 
-  int cover_rc = media_map(m, &row, 13, 17);
+  int cover_rc = media_map(m, &row, 13, 18);
   if (cover_rc != 0) {
     free(m);
   } else {

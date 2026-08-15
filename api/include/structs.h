@@ -50,8 +50,11 @@ struct media {
   unsigned id;            /**< Database identifier. */
   char *alternative_text; /**< Alt text. @note Allocated by map — freed by
                              free_media(). */
-  char *url;     /**< Relative file URL. @note Allocated by map — freed by
-                    free_media(). */
+  char *url;     /**< Absolute Vercel Blob URL of the full-size image. @note
+                    Allocated by map — freed by free_media(). */
+  char *thumb_url; /**< Absolute Vercel Blob URL of the thumbnail, or NULL if
+                      none was generated. @note Allocated by map — freed by
+                      free_media(). */
   double width;  /**< Width in pixels. */
   double height; /**< Height in pixels. */
 };

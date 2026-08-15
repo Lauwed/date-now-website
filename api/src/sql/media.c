@@ -17,12 +17,12 @@
 #define QUERY_COUNT_TMP "SELECT COUNT(*) FROM Media"
 #define QUERY_EXISTS_TMP QUERY_COUNT_TMP " WHERE id = $1"
 #define QUERY_SELECT_TMP \
-  "SELECT id, textAlternatif, url, width, height FROM Media"
+  "SELECT id, textAlternatif, url, width, height, thumbUrl FROM Media"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE id = $1"
 #define QUERY_POST_TMP \
   "INSERT INTO Media (textAlternatif, url, width, height) VALUES ($1, $2, $3, $4) RETURNING id;"
 #define QUERY_UPDATE_FILE_TMP \
-  "UPDATE Media SET url = $1, width = $2, height = $3 WHERE id = $4;"
+  "UPDATE Media SET url = $1, width = $2, height = $3, thumbUrl = $4 WHERE id = $5;"
 #define QUERY_UPDATE_ALT_TMP \
   "UPDATE Media SET textAlternatif = $1 WHERE id = $2;"
 #define QUERY_REFERENCED_TMP \
@@ -82,11 +82,12 @@ int get_medias(size_t len, struct media **arr) {
     m->id = 0;
     m->alternative_text = NULL;
     m->url = NULL;
+    m->thumb_url = NULL;
     m->width = 0.0;
     m->height = 0.0;
 
     pg_row_t row = {res, i};
-    int rc = media_map(m, &row, 0, 4);
+    int rc = media_map(m, &row, 0, 5);
     if (rc != 0) {
       free(m);
       continue;
@@ -123,7 +124,7 @@ int get_media(struct media *media, int id) {
   }
 
   pg_row_t row = {res, 0};
-  int rc = media_map(media, &row, 0, 4);
+  int rc = media_map(media, &row, 0, 5);
   PQclear(res);
   if (rc != 0) {
     return HTTP_INTERNAL_ERROR;
@@ -153,17 +154,18 @@ int add_media(struct media *media) {
   return 0;
 }
 
-int update_media_file(int id, const char *url, double width, double height) {
+int update_media_file(int id, const char *url, const char *thumb_url,
+                      double width, double height) {
   printf(TERMINAL_SQL_MESSAGE("=== UPDATE MEDIA FILE SQL ==="));
 
   char width_str[32], height_str[32], id_str[16];
   snprintf(width_str, sizeof(width_str), "%f", width);
   snprintf(height_str, sizeof(height_str), "%f", height);
   snprintf(id_str, sizeof(id_str), "%d", id);
-  const char *values[4] = {url, width_str, height_str, id_str};
-  GET_EXPANDED_QUERY(QUERY_UPDATE_FILE_TMP, 4, values);
+  const char *values[5] = {url, width_str, height_str, thumb_url, id_str};
+  GET_EXPANDED_QUERY(QUERY_UPDATE_FILE_TMP, 5, values);
 
-  PGresult *res = pg_exec(QUERY_UPDATE_FILE_TMP, 4, values);
+  PGresult *res = pg_exec(QUERY_UPDATE_FILE_TMP, 5, values);
   if (res == NULL) {
     return HTTP_INTERNAL_ERROR;
   }

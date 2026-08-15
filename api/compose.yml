@@ -9,7 +9,6 @@ services:
       - .env
     volumes:
       - ./data:/app/data
-      - uploads:/var/www/uploads
     cap_add:
       - SYS_PTRACE
     security_opt:
@@ -22,6 +21,3 @@ services:
           target: .
           ignore:
             - README.md
-
-volumes:
-  uploads:

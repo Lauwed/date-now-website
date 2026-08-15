@@ -27,7 +27,7 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-RUN mkdir -p bin obj/lib obj/endpoints obj/sql /var/www/uploads/media
+RUN mkdir -p bin obj/lib obj/endpoints obj/sql
 
 COPY . .
 
@@ -45,8 +45,6 @@ FROM base AS run
 RUN rm -rf /sbin/apk /etc/apk /lib/apk /usr/share/apk /var/lib/apk
 
 WORKDIR /app
-
-RUN mkdir -p /var/www/uploads/media
 
 COPY --from=dev /app/bin /app/bin
 COPY index.html .

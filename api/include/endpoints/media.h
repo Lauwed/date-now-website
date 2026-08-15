@@ -14,10 +14,12 @@
  * GET: returns a paginated JSON list of all media records. Requires
  *      authentication.
  * POST: accepts a multipart/form-data upload, validates the file type and
- *       size, converts the image to WebP via ImageMagick, stores the file,
- *       inserts the media record, and replies 201 with the created media
- *       object. Replies 413 if the file exceeds the size limit, 415 if the
- *       content type is not a supported image. Requires authentication.
+ *       size, inserts the media record, and replies 202 immediately with
+ *       the created media id. A background thread converts the image to
+ *       WebP (full-size + thumbnail) via ImageMagick and uploads both to
+ *       Vercel Blob, then updates the record's url/thumbUrl/width/height.
+ *       Replies 413 if the file exceeds the size limit, 415 if the content
+ *       type is not a supported image. Requires authentication.
  *
  * @param c           Active Mongoose connection.
  * @param msg         Parsed HTTP message.

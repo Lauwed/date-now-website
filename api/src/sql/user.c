@@ -34,7 +34,7 @@
   "EXTRACT(EPOCH FROM u.subscribedAt)::BIGINT, "                              \
   "u.isSupporter, EXTRACT(EPOCH FROM u.createdAt)::BIGINT, "                  \
   "EXTRACT(EPOCH FROM u.trackerPixelConsentDate)::BIGINT, "                   \
-  "m.id, m.textAlternatif, m.url, m.width, m.height "                        \
+  "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl "            \
   "FROM AppUser u LEFT JOIN Media m ON m.id = u.picture"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE u.id = $1"
 #define QUERY_SELECT_SINGLE_BY_EMAIL_TMP QUERY_SELECT_TMP " WHERE u.emailHash = $1"
@@ -158,6 +158,7 @@ static int fetch_all_users(struct user ***out, size_t *out_count) {
     }
 
     struct media *m = malloc(sizeof(struct media));
+    m->thumb_url = NULL;
     pg_row_t row = {res, i};
     if (user_map(u, &row, 0, 8) != 0) {
       free(m);
@@ -165,7 +166,7 @@ static int fetch_all_users(struct user ***out, size_t *out_count) {
       continue;
     }
 
-    if (media_map(m, &row, 9, 12) != 0) {
+    if (media_map(m, &row, 9, 13) != 0) {
       free(m);
     } else {
       u->picture = m;
@@ -355,6 +356,7 @@ int get_user(struct user *user, int id) {
   }
 
   struct media *m = malloc(sizeof(struct media));
+  m->thumb_url = NULL;
   pg_row_t row = {res, 0};
   int user_rc = user_map(user, &row, 0, 8);
   if (user_rc != 0) {
@@ -363,7 +365,7 @@ int get_user(struct user *user, int id) {
     return HTTP_INTERNAL_ERROR;
   }
 
-  int picture_rc = media_map(m, &row, 9, 12);
+  int picture_rc = media_map(m, &row, 9, 13);
   if (picture_rc != 0) {
     free(m);
   } else {
@@ -408,6 +410,7 @@ int get_user_by_email(struct user *user, char *email) {
   }
 
   struct media *m = malloc(sizeof(struct media));
+  m->thumb_url = NULL;
   pg_row_t row = {res, 0};
   int user_rc = user_map(user, &row, 0, 8);
   if (user_rc != 0) {
@@ -416,7 +419,7 @@ int get_user_by_email(struct user *user, char *email) {
     return HTTP_INTERNAL_ERROR;
   }
 
-  int picture_rc = media_map(m, &row, 9, 12);
+  int picture_rc = media_map(m, &row, 9, 13);
   if (picture_rc != 0) {
     free(m);
   } else {

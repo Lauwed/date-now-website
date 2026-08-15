@@ -247,6 +247,10 @@ static cJSON *media_to_cjson(struct media *media) {
   cJSON_AddNumberToObject(obj, "id", media->id);
   cJSON_AddStringToObject(obj, "alt", media->alternative_text);
   cJSON_AddStringToObject(obj, "url", media->url);
+  if (media->thumb_url != NULL)
+    cJSON_AddStringToObject(obj, "thumbUrl", media->thumb_url);
+  else
+    cJSON_AddNullToObject(obj, "thumbUrl");
   cJSON_AddNumberToObject(obj, "width", media->width);
   cJSON_AddNumberToObject(obj, "height", media->height);
   return obj;
@@ -732,9 +736,11 @@ char *issues_to_json(struct issue **issues, size_t len) {
 int free_media(struct media *media) {
   free(media->alternative_text);
   free(media->url);
+  free(media->thumb_url);
 
   media->alternative_text = NULL;
   media->url = NULL;
+  media->thumb_url = NULL;
 
   free(media);
   media = NULL;
@@ -1326,12 +1332,14 @@ int media_map(struct media *media, pg_row_t *row, int start_index,
   int url_index = start_index + 2;
   int width_index = start_index + 3;
   int height_index = start_index + 4;
+  int thumb_index = start_index + 5;
 
   MAP_INT(media->id, row, id_index, 1);
   MAP_TEXT(media->alternative_text, row, alt_index, 1);
   MAP_TEXT(media->url, row, url_index, 1);
   MAP_DOUBLE(media->width, row, width_index, 0);
   MAP_DOUBLE(media->height, row, height_index, 0);
+  MAP_TEXT(media->thumb_url, row, thumb_index, 0);
 
   return 0;
 }

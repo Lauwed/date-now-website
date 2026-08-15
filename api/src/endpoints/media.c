@@ -8,8 +8,8 @@
 #include <endpoints/auth.h>
 #include <endpoints/media.h>
 #include <enums.h>
-#include <errno.h>
 #include <fcntl.h>
+#include <lib/blob.h>
 #include <lib/mongoose.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
@@ -20,12 +20,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <structs.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <utils.h>
 
 #define MAX_UPLOAD_SIZE (5 * 1024 * 1024)
-#define UPLOAD_DIR "/var/www/uploads/media"
 
 static int is_image_data(const char *data, size_t len) {
   if (len < 4)
@@ -74,16 +72,6 @@ static void generate_uuid_v4(char out[37]) {
            bytes[13], bytes[14], bytes[15]);
 }
 
-static void remove_media_dir(const char *uuid) {
-  char img_path[512], thumb_path[512], dir_path[256];
-  snprintf(dir_path, sizeof(dir_path), UPLOAD_DIR "/%s", uuid);
-  snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%s/image.webp", uuid);
-  snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%s/thumb.webp", uuid);
-  unlink(img_path);
-  unlink(thumb_path);
-  rmdir(dir_path);
-}
-
 struct media_convert_ctx {
   unsigned media_id;
   char uuid[37];
@@ -93,17 +81,11 @@ struct media_convert_ctx {
 static void *media_convert_thread(void *arg) {
   struct media_convert_ctx *ctx = arg;
 
-  char img_path[512], thumb_path[512];
-  snprintf(img_path, sizeof(img_path), UPLOAD_DIR "/%s/image.webp", ctx->uuid);
-  snprintf(thumb_path, sizeof(thumb_path), UPLOAD_DIR "/%s/thumb.webp",
-           ctx->uuid);
-
   MagickWand *wand = NewMagickWand();
   if (MagickReadImage(wand, ctx->tmp_path) == MagickFalse) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK READ FAILED (async)"));
     DestroyMagickWand(wand);
     unlink(ctx->tmp_path);
-    remove_media_dir(ctx->uuid);
     delete_media((int)ctx->media_id);
     free(ctx);
     return NULL;
@@ -121,17 +103,34 @@ static void *media_convert_thread(void *arg) {
   int img_height = (int)h;
 
   MagickSetImageFormat(wand, "WEBP");
-  if (MagickWriteImage(wand, img_path) == MagickFalse) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK WRITE FAILED (async)"));
-    DestroyMagickWand(wand);
+  size_t img_blob_len = 0;
+  unsigned char *img_blob = MagickGetImageBlob(wand, &img_blob_len);
+  DestroyMagickWand(wand);
+  if (img_blob == NULL) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("MAGICK BLOB FAILED (async)"));
     unlink(ctx->tmp_path);
-    remove_media_dir(ctx->uuid);
     delete_media((int)ctx->media_id);
     free(ctx);
     return NULL;
   }
-  DestroyMagickWand(wand);
 
+  char img_pathname[256];
+  snprintf(img_pathname, sizeof(img_pathname), "media/%s/image.webp",
+           ctx->uuid);
+
+  char *img_url = NULL;
+  if (blob_upload(img_pathname, img_blob, img_blob_len, "image/webp",
+                  &img_url) != 0) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("BLOB IMAGE UPLOAD FAILED (async)"));
+    MagickRelinquishMemory(img_blob);
+    unlink(ctx->tmp_path);
+    delete_media((int)ctx->media_id);
+    free(ctx);
+    return NULL;
+  }
+  MagickRelinquishMemory(img_blob);
+
+  char *thumb_url = NULL;
   MagickWand *tn = NewMagickWand();
   if (MagickReadImage(tn, ctx->tmp_path) == MagickTrue) {
     size_t tw = MagickGetImageWidth(tn);
@@ -141,16 +140,30 @@ static void *media_convert_thread(void *arg) {
       MagickThumbnailImage(tn, 300, new_th);
     }
     MagickSetImageFormat(tn, "WEBP");
-    MagickWriteImage(tn, thumb_path);
+    size_t thumb_blob_len = 0;
+    unsigned char *thumb_blob = MagickGetImageBlob(tn, &thumb_blob_len);
+    if (thumb_blob != NULL) {
+      char thumb_pathname[256];
+      snprintf(thumb_pathname, sizeof(thumb_pathname), "media/%s/thumb.webp",
+               ctx->uuid);
+      if (blob_upload(thumb_pathname, thumb_blob, thumb_blob_len,
+                      "image/webp", &thumb_url) != 0) {
+        fprintf(stderr,
+                TERMINAL_ERROR_MESSAGE("BLOB THUMB UPLOAD FAILED (async)"));
+        thumb_url = NULL;
+      }
+      MagickRelinquishMemory(thumb_blob);
+    }
   }
   DestroyMagickWand(tn);
 
   unlink(ctx->tmp_path);
 
-  char url[256];
-  snprintf(url, sizeof(url), "/uploads/media/%s/image.webp", ctx->uuid);
-  update_media_file((int)ctx->media_id, url, (double)img_width,
-                    (double)img_height);
+  update_media_file((int)ctx->media_id, img_url, thumb_url,
+                    (double)img_width, (double)img_height);
+
+  free(img_url);
+  free(thumb_url);
 
   printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA CONVERSION COMPLETE ==="));
   free(ctx);
@@ -277,6 +290,7 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
     m->id = 0;
     m->alternative_text = alt_text;
     m->url = NULL;
+    m->thumb_url = NULL;
     m->width = 0.0;
     m->height = 0.0;
 
@@ -291,28 +305,15 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
 
     unsigned media_id = m->id;
 
-    /* Generate UUID for the upload directory */
+    /* Generate UUID used to namespace this upload's Blob pathname */
     char uuid[37];
     generate_uuid_v4(uuid);
 
-    /* Create upload directory */
-    char dir_path[256];
-    snprintf(dir_path, sizeof(dir_path), UPLOAD_DIR "/%s", uuid);
-    if (mkdir(dir_path, 0755) != 0 && errno != EEXIST) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR CREATING MEDIA DIR"));
-      delete_media((int)media_id);
-      ERROR_REPLY_500;
-      free(alt_text);
-      free(m);
-      return;
-    }
-
-    /* Write raw upload to a temp file */
+    /* Write raw upload to a temp file (MagickReadImage needs a path) */
     char tmp_path[] = "/tmp/media_upload_XXXXXX";
     int tmp_fd = mkstemp(tmp_path);
     if (tmp_fd < 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR CREATING TEMP FILE"));
-      remove_media_dir(uuid);
       delete_media((int)media_id);
       ERROR_REPLY_500;
       free(alt_text);
@@ -337,7 +338,6 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("THREAD CREATE FAILED"));
       free(ctx);
       unlink(tmp_path);
-      remove_media_dir(uuid);
       delete_media((int)media_id);
       ERROR_REPLY_500;
       free(alt_text);
@@ -382,6 +382,7 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
     m->id = 0;
     m->alternative_text = NULL;
     m->url = NULL;
+    m->thumb_url = NULL;
     m->width = 0.0;
     m->height = 0.0;
 
@@ -436,6 +437,7 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
     updated->id = 0;
     updated->alternative_text = NULL;
     updated->url = NULL;
+    updated->thumb_url = NULL;
     updated->width = 0.0;
     updated->height = 0.0;
 
@@ -473,23 +475,18 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    /* Fetch URL to extract UUID directory name before deleting from DB */
+    /* Fetch URLs before deleting from DB so the Blob objects can be removed */
     struct media *to_delete = malloc(sizeof(struct media));
     to_delete->id = 0;
     to_delete->alternative_text = NULL;
     to_delete->url = NULL;
+    to_delete->thumb_url = NULL;
     to_delete->width = 0.0;
     to_delete->height = 0.0;
-    if (get_media(to_delete, id) == 0 && to_delete->url != NULL) {
-      /* URL format: /uploads/media/{uuid}/image.webp */
-      const char *prefix = "/uploads/media/";
-      const char *p = to_delete->url + strlen(prefix);
-      const char *slash = strchr(p, '/');
-      char uuid[37] = {0};
-      if (slash && (size_t)(slash - p) == 36) {
-        memcpy(uuid, p, 36);
-        remove_media_dir(uuid);
-      }
+    if (get_media(to_delete, id) == 0) {
+      const char *urls[2] = {to_delete->url, to_delete->thumb_url};
+      if (blob_delete(urls, 2) != 0)
+        fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR DELETING FROM BLOB"));
     }
     free_media(to_delete);
 
