@@ -2,6 +2,7 @@
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
 
 	let status = $state<'consent' | 'loading' | 'success' | 'error'>('consent');
 	let errorMessage = $state('');
@@ -54,8 +55,7 @@
 
 		<Button onclick={confirmSubscribe}>I am ready to receive this amazing newsletter!</Button>
 	{:else if status === 'loading'}
-		<div class="spinner"></div>
-		<p>Confirming your subscription...</p>
+		<Spinner text="Confirming your subscription..." />
 	{:else if status === 'success'}
 		<h1>You have been successfully subscribed!</h1>
 
@@ -75,24 +75,6 @@
 </Card>
 
 <style lang="scss">
-	@use './../../lib/styles/variables' as *;
-
-	.spinner {
-		width: 40px;
-		height: 40px;
-		border: 4px solid rgba($blue-dark, 0.2);
-		border-top-color: $blue-dark;
-		border-radius: 50%;
-		animation: spin 0.8s linear infinite;
-		margin-bottom: 16px;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
 	.consent {
 		display: flex;
 		gap: 6px;

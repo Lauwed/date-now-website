@@ -46,7 +46,6 @@ enum ModalKind {
     EditTag(String),
     NewTag,
     ConfirmPublishIssue(u32),
-    ConfirmSendIssue(u32),
     ConfirmArchiveIssue(u32),
     ConfirmDeleteUser(String),
 }
@@ -267,10 +266,6 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             }
             issue::Action::ConfirmPublish(id) => {
                 state.modal = ModalKind::ConfirmPublishIssue(id);
-                Task::none()
-            }
-            issue::Action::ConfirmSend(id) => {
-                state.modal = ModalKind::ConfirmSendIssue(id);
                 Task::none()
             }
             issue::Action::ConfirmArchive(id) => {
@@ -542,17 +537,6 @@ fn view(state: &State) -> Element<'_, Message> {
                         Message::CloseModal,
                         Some(Message::CloseModal),
                         Some(Message::ConfirmPublishIssue(*id)),
-                    )
-                }
-                ModalKind::ConfirmSendIssue(id) => {
-                    let message = format!("Send issue #{}? It will be also published.", id);
-                    components::modal::modal(
-                        content,
-                        Some("Confirmation".to_string()),
-                        text(message).into(),
-                        Message::CloseModal,
-                        Some(Message::CloseModal),
-                        Some(Message::ConfirmSendIssue(*id)),
                     )
                 }
                 ModalKind::ConfirmArchiveIssue(id) => components::modal::modal(

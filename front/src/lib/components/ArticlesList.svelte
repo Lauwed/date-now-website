@@ -15,7 +15,7 @@
 	<h2 class="articles__title">{title}</h2>
 
 	<ul class="articles__list">
-		{#each articles as article}
+		{#each articles as article (article.id)}
 			<ArticlePreview {article} />
 		{:else}
 			<li class="articles__empty">No issue yet. Comme back later 😎</li>

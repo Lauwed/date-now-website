@@ -56,6 +56,14 @@ pub fn view(editor: &MarkdownEditor) -> Element<'_, Message> {
         icon_button(Icon::FileBracesCorner, action(ToolbarAction::CodeBlock)),
         icon_button(Icon::Link, action(ToolbarAction::Link)),
         iced::widget::space::horizontal(),
+        icon_button(
+            if editor.fullscreen == true {
+                Icon::Minimize
+            } else {
+                Icon::Maximize
+            },
+            action(ToolbarAction::Fullscreen)
+        ),
         icon_button(Icon::Pencil, Some(Message::ModeChanged(EditorMode::Edit))),
         icon_button(Icon::Eye, Some(Message::ModeChanged(EditorMode::Preview))),
         icon_button(Icon::Columns, Some(Message::ModeChanged(EditorMode::Split))),
@@ -117,5 +125,6 @@ pub fn apply(content: &mut iced::widget::text_editor::Content, action: ToolbarAc
         ToolbarAction::BulletList => prefix_lines(content, &|_| "- ".to_string()),
         ToolbarAction::NumberedList => prefix_lines(content, &|i| format!("{}. ", i + 1)),
         ToolbarAction::Quote => prefix_lines(content, &|_| "> ".to_string()),
+        _ => (),
     }
 }

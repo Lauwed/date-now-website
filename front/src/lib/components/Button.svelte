@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
-	type ButtonVariant = 'primary' | 'danger' | 'warning' | 'info' | 'success';
+	type ButtonVariant = 'primary' | 'ghost' | 'danger' | 'warning' | 'info' | 'success';
 
 	interface Props {
 		tag?: 'button' | 'a';
@@ -9,15 +9,23 @@
 		href?: string;
 		children: Snippet;
 		customClass?: string;
+		isIcon?: boolean;
 		[key: string]: unknown;
 	}
 
-	let { tag = 'button', variant, children, customClass, ...props }: Props = $props();
+	let {
+		tag = 'button',
+		isIcon = false,
+		variant,
+		children,
+		customClass,
+		...props
+	}: Props = $props();
 </script>
 
 <svelte:element
 	this={tag}
-	class={`button ${variant ? `button--${variant}` : ''} ${customClass ? customClass : ''}`}
+	class={`button ${variant ? `button--${variant}` : ''} ${customClass ? customClass : ''} ${isIcon ? 'button--icon' : ''}`}
 	{...props}
 >
 	{@render children()}
@@ -54,6 +62,20 @@
 			&:focus {
 				background: $blue-dark;
 			}
+		}
+
+		&--ghost {
+			background: transparent;
+			color: $black;
+
+			&:hover,
+			&:focus {
+				background: rgba($black, 0.1);
+			}
+		}
+
+		&--icon {
+			padding: 8px;
 		}
 	}
 </style>

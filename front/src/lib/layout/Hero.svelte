@@ -20,7 +20,9 @@
 	</div>
 
 	<div class="hero__buttons">
-		<Button variant="primary">Subscribe to the newsletter!</Button>
+		<Button variant="primary" commandfor="subscribe-modal" command="show-modal"
+			>Subscribe to the newsletter!</Button
+		>
 		<Button tag="a" href="/used-newsletters">List of the newsletters I use</Button>
 		<VODsButton />
 	</div>

@@ -1,12 +1,18 @@
 <script lang="ts">
+	import { PUBLIC_INSTAGRAM_URL, PUBLIC_TWITCH_URL, PUBLIC_YOUTUBE_URL } from '$env/static/public';
 	import Button from './Button.svelte';
+	import VODsButton from './VODsButton.svelte';
 </script>
 
 <ul class="socials">
-	<li class="socials__item"><Button variant="primary">Subscribe Now!</Button></li>
+	<li class="socials__item">
+		<Button variant="primary" commandfor="subscribe-modal" command="show-modal"
+			>Subscribe Now!</Button
+		>
+	</li>
 
 	<li class="socials__item">
-		<Button tag="a" href="www.twitch.tv/devgirl_" title="Twitch">
+		<Button isIcon tag="a" href={PUBLIC_TWITCH_URL} title="Twitch">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				viewBox="0 0 24 24"
@@ -19,7 +25,7 @@
 		</Button>
 	</li>
 	<li class="socials__item">
-		<Button tag="a" href="" title="Instagram">
+		<Button isIcon tag="a" href={PUBLIC_INSTAGRAM_URL} title="Instagram">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				width="24"
@@ -36,6 +42,9 @@
 			>
 		</Button>
 	</li>
+	<li class="socials__item">
+		<VODsButton icon />
+	</li>
 </ul>
 
 <style lang="scss">
@@ -47,6 +56,7 @@
 		&__item {
 			svg {
 				width: 18px;
+				aspect-ratio: 1/1;
 			}
 		}
 	}

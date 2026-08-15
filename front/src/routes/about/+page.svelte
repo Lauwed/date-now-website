@@ -1,4 +1,5 @@
 <script>
+	import { PUBLIC_TWITCH_URL } from '$env/static/public';
 	import Card from '$lib/components/Card.svelte';
 	import Tag from '$lib/components/Tag.svelte';
 </script>
@@ -7,9 +8,11 @@
 	<h1>About</h1>
 
 	<p>
-		Date.now() is a weekly show on <a href="https://twitch.tv/devgirl_">Twitch</a> every Thursday
-		morning, in <Tag --margin="0 4px">French</Tag>. Although, the newsletters and all the content
-		outside Twitch is in <Tag --margin="0 4px">English</Tag>
+		Date.now() is a weekly show on <a href={PUBLIC_TWITCH_URL}>Twitch</a> every Thursday morning, in <Tag
+			--margin="0 4px">French</Tag
+		>. Although, the newsletters and all the content outside Twitch is in <Tag --margin="0 4px"
+			>English</Tag
+		>
 	</p>
 
 	<p>

@@ -4,6 +4,7 @@
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import '../lib/styles/global.scss';
+	import SubscribeModal from '$lib/components/SubscribeModal.svelte';
 
 	let { children } = $props();
 </script>
@@ -16,6 +17,8 @@
 
 <main class="main">
 	{@render children()}
+
+	<SubscribeModal />
 </main>
 
 <Footer />

@@ -11,18 +11,34 @@ export interface Tag {
 
 export interface Block {
 	tag: keyof svelteHTML.IntrinsicElements;
-	content?: String;
+	content?: string;
 	children?: Block[];
 	class?: string;
 	attributes?: { [key: string]: string };
 }
 
+export interface Response<T> {
+	message?: string;
+	success: boolean;
+	data: T | null;
+	status: number;
+}
+
+export interface ResponseMany<T> {
+	data: T[];
+	total: number;
+	totalPages: number;
+	count: number;
+}
+
 export interface Article {
+	id: number;
+	slug: string;
 	coverURL?: string;
 	title: string;
 	subtitle?: string;
-	publishedDate: Date;
-	editionNumber: number;
+	publishedAt: number;
+	issueNumber: number;
 	excerpt: string;
 	content: Block[];
 	tags: Tag[];

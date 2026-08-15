@@ -25,6 +25,7 @@ pub enum ToolbarAction {
     Code,
     CodeBlock,
     Link,
+    Fullscreen,
 }
 
 #[derive(Clone, Debug)]
@@ -40,6 +41,7 @@ pub struct MarkdownEditor {
     pub content: text_editor::Content,
     pub mode: EditorMode,
     pub preview: MarkState,
+    pub fullscreen: bool,
 }
 
 impl Default for MarkdownEditor {
@@ -48,6 +50,7 @@ impl Default for MarkdownEditor {
             content: text_editor::Content::default(),
             mode: EditorMode::Split,
             preview: MarkState::with_html_and_markdown(""),
+            fullscreen: false,
         }
     }
 }
@@ -58,6 +61,7 @@ impl MarkdownEditor {
             content: text_editor::Content::with_text(initial_text),
             mode: EditorMode::Split,
             preview: MarkState::with_html_and_markdown(initial_text),
+            fullscreen: false,
         }
     }
 
@@ -79,7 +83,12 @@ impl MarkdownEditor {
                 self.mode = mode;
             }
             Message::ToolbarAction(action) => {
-                toolbar::apply(&mut self.content, action);
+                match action {
+                    ToolbarAction::Fullscreen => {
+                        self.fullscreen = !self.fullscreen;
+                    }
+                    _ => toolbar::apply(&mut self.content, action),
+                }
 
                 self.preview = MarkState::with_html_and_markdown(&self.content.text());
             }
