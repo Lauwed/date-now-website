@@ -21,7 +21,7 @@
 
 extern sqlite3 *db;
 
-#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM Issue"
+#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM Issue i"
 #define QUERY_EXISTS_TMP QUERY_COUNT_TMP " WHERE id = ?"
 #define QUERY_IDENTITY_EXISTS_TMP                                              \
   QUERY_COUNT_TMP                                                              \

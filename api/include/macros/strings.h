@@ -27,9 +27,4 @@
 #define EMAIL_NEWSLETTER_SUBJECT_FMT "Date.now() - %s"
 #define EMAIL_NEWSLETTER_BODY_FMT                                              \
   "Un nouveau numero est disponible : <a href=%s>%s</a> </br><div "            \
-  "style=" width : 5px;                                                        \
-  height:                                                                      \
-  5px;                                                                         \
-  background:                                                                  \
-  black;                                                                       \
-  "></div>"
+  "style=\"width : 5px; height: 5px; background: black;\"></div>"

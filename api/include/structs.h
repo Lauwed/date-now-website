@@ -205,3 +205,15 @@ struct view {
                       freed by free_view(). */
   int issue_id;    /**< Identifier of the visited issue. */
 };
+
+struct feed {
+  int id;
+  char *name;
+  char *link;
+  int is_rss_feed;
+};
+
+struct feed_tag {
+  int feed_int;
+  char *tag_name;
+};
