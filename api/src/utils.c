@@ -7,11 +7,11 @@
 
 #include <cjson/cJSON.h>
 #include <lib/mongoose.h>
+#include <lib/pg.h>
 #include <lib/validatejson.h>
 #include <macros/colors.h>
 #include <macros/utils.h>
 #include <regex.h>
-#include <sqlite3.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,30 +21,49 @@
 
 #define METHODS_LEN 4
 
-#define MAP_DOUBLE(dest, stmt, index, required)                                \
-  if (sqlite3_column_type(stmt, index) == SQLITE_FLOAT) {                      \
-    double d = sqlite3_column_double(stmt, index);                             \
-    printf("%s: %f, ", sqlite3_column_name(stmt, index), d);                   \
+/* Postgres row-fetch macros: `row` is a `pg_row_t *` (result set + row
+ * index), `index` is the 0-based column index. Values are always returned
+ * as text by libpq (unless binary format is requested, which we don't use)
+ * — parsed here into the destination's C type. */
+
+#define MAP_DOUBLE(dest, row, index, required)                                 \
+  if (!PQgetisnull((row)->res, (row)->row, index)) {                           \
+    double d = atof(PQgetvalue((row)->res, (row)->row, index));                \
+    printf("%s: %f, ", PQfname((row)->res, index), d);                         \
     dest = d;                                                                  \
   } else if (required) {                                                       \
     return 1;                                                                  \
   }
 
-#define MAP_TEXT(dest, stmt, index, required)                                  \
-  if (sqlite3_column_type(stmt, index) == SQLITE_TEXT) {                       \
-    const char *str = (const char *)sqlite3_column_text(stmt, index);          \
-    printf("%s: %s, ", sqlite3_column_name(stmt, index), str);                 \
+#define MAP_TEXT(dest, row, index, required)                                   \
+  if (!PQgetisnull((row)->res, (row)->row, index)) {                           \
+    const char *str = PQgetvalue((row)->res, (row)->row, index);               \
+    printf("%s: %s, ", PQfname((row)->res, index), str);                       \
     dest = strndup(str, strlen(str));                                          \
   } else if (required) {                                                       \
     return 1;                                                                  \
   }
 
-#define MAP_INT(dest, stmt, index, required)                                   \
-  printf("type int:  %d, \n", sqlite3_column_type(stmt, index));               \
-  if (sqlite3_column_type(stmt, index) == SQLITE_INTEGER) {                    \
-    int integer = sqlite3_column_int(stmt, index);                             \
-    printf("%s: %d, \n", sqlite3_column_name(stmt, index), integer);           \
+#define MAP_INT(dest, row, index, required)                                    \
+  if (!PQgetisnull((row)->res, (row)->row, index)) {                           \
+    int integer = atoi(PQgetvalue((row)->res, (row)->row, index));             \
+    printf("%s: %d, \n", PQfname((row)->res, index), integer);                 \
     dest = integer;                                                            \
+  } else if (required) {                                                       \
+    return 1;                                                                  \
+  } else {                                                                     \
+    dest = 0;                                                                  \
+  }
+
+/* Postgres BOOLEAN columns come back from PQgetvalue() as the literal text
+ * "t"/"f" — not "1"/"0" — so they need their own macro rather than
+ * MAP_INT. (Binding *out* to a BOOLEAN column still accepts "1"/"0" text,
+ * so no equivalent write-side macro is needed.) */
+#define MAP_BOOL(dest, row, index, required)                                   \
+  if (!PQgetisnull((row)->res, (row)->row, index)) {                           \
+    const char *b = PQgetvalue((row)->res, (row)->row, index);                 \
+    printf("%s: %s, \n", PQfname((row)->res, index), b);                       \
+    dest = (b[0] == 't');                                                      \
   } else if (required) {                                                       \
     return 1;                                                                  \
   } else {                                                                     \
@@ -1167,128 +1186,128 @@ int error_reply_map(struct error_reply *err, int code, char *message,
   return 0;
 }
 
-int user_map(struct user *user, sqlite3_stmt *stmt, int start_index,
+int user_map(struct user *user, pg_row_t *row, int start_index,
              int end_index) {
-  if (start_index > end_index || user == NULL || stmt == NULL) {
+  if (start_index > end_index || user == NULL || row == NULL) {
     return -1;
   }
 
   printf(ANSI_BACKGROUND_AMBER " USER " ANSI_RESET_ALL "\n");
   // ID
-  MAP_INT(user->id, stmt, start_index, 1);
+  MAP_INT(user->id, row, start_index, 1);
   // Username
-  MAP_TEXT(user->username, stmt, start_index + 1, 0);
+  MAP_TEXT(user->username, row, start_index + 1, 0);
   // Email
-  MAP_TEXT(user->email, stmt, start_index + 2, 1);
+  MAP_TEXT(user->email, row, start_index + 2, 1);
   // Role
-  MAP_TEXT(user->role, stmt, start_index + 3, 1);
+  MAP_TEXT(user->role, row, start_index + 3, 1);
 
   // Link
-  MAP_TEXT(user->link, stmt, start_index + 4, 0);
+  MAP_TEXT(user->link, row, start_index + 4, 0);
 
   // Subscribed at
-  MAP_INT(user->subscribed_at, stmt, start_index + 5, 0);
+  MAP_INT(user->subscribed_at, row, start_index + 5, 0);
   // Is supporter
-  MAP_INT(user->is_supporter, stmt, start_index + 6, 1);
+  MAP_BOOL(user->is_supporter, row, start_index + 6, 1);
 
   // Created at
-  MAP_INT(user->created_at, stmt, start_index + 7, 1);
+  MAP_INT(user->created_at, row, start_index + 7, 1);
 
   // Tracker consent
-  MAP_INT(user->tracker_pixel_consent_date, stmt, start_index + 8, 0);
+  MAP_INT(user->tracker_pixel_consent_date, row, start_index + 8, 0);
 
   return 0;
 }
 
-int view_map(struct view *view, sqlite3_stmt *stmt, int start_index,
+int view_map(struct view *view, pg_row_t *row, int start_index,
              int end_index) {
-  if (start_index > end_index || view == NULL || stmt == NULL) {
+  if (start_index > end_index || view == NULL || row == NULL) {
     return -1;
   }
 
   printf(ANSI_BACKGROUND_AMBER " USER " ANSI_RESET_ALL "\n");
   // ID
-  MAP_INT(view->id, stmt, start_index, 1);
+  MAP_INT(view->id, row, start_index, 1);
   // Username
-  MAP_INT(view->time, stmt, start_index + 1, 1);
+  MAP_INT(view->time, row, start_index + 1, 1);
   // Email
-  MAP_TEXT(view->hashed_ip, stmt, start_index + 2, 1);
+  MAP_TEXT(view->hashed_ip, row, start_index + 2, 1);
   // Role
-  MAP_INT(view->issue_id, stmt, start_index + 3, 1);
+  MAP_INT(view->issue_id, row, start_index + 3, 1);
 
   return 0;
 }
 
-int issue_map(struct issue *issue, sqlite3_stmt *stmt, int start_index,
+int issue_map(struct issue *issue, pg_row_t *row, int start_index,
               int end_index) {
-  if (start_index > end_index || issue == NULL || stmt == NULL) {
+  if (start_index > end_index || issue == NULL || row == NULL) {
     return -1;
   }
 
   printf(ANSI_BACKGROUND_AMBER " ISSUE " ANSI_RESET_ALL "\n");
   // ID
-  MAP_INT(issue->id, stmt, start_index, 1);
-  MAP_TEXT(issue->slug, stmt, start_index + 1, 1);
-  MAP_TEXT(issue->title, stmt, start_index + 2, 1);
-  MAP_TEXT(issue->subtitle, stmt, start_index + 3, 1);
-  MAP_INT(issue->created_at, stmt, start_index + 4, 1);
-  MAP_INT(issue->published_at, stmt, start_index + 5, 0);
-  MAP_INT(issue->updated_at, stmt, start_index + 6, 0);
-  MAP_INT(issue->issue_number, stmt, start_index + 7, 1);
-  MAP_TEXT(issue->excerpt, stmt, start_index + 8, 1);
-  MAP_INT(issue->is_sponsored, stmt, start_index + 9, 0);
-  MAP_TEXT(issue->status, stmt, start_index + 10, 1);
-  MAP_INT(issue->opened_mail_count, stmt, start_index + 11, 0);
-  MAP_INT(issue->views, stmt, start_index + 12, 0);
+  MAP_INT(issue->id, row, start_index, 1);
+  MAP_TEXT(issue->slug, row, start_index + 1, 1);
+  MAP_TEXT(issue->title, row, start_index + 2, 1);
+  MAP_TEXT(issue->subtitle, row, start_index + 3, 1);
+  MAP_INT(issue->created_at, row, start_index + 4, 1);
+  MAP_INT(issue->published_at, row, start_index + 5, 0);
+  MAP_INT(issue->updated_at, row, start_index + 6, 0);
+  MAP_INT(issue->issue_number, row, start_index + 7, 1);
+  MAP_TEXT(issue->excerpt, row, start_index + 8, 1);
+  MAP_BOOL(issue->is_sponsored, row, start_index + 9, 0);
+  MAP_TEXT(issue->status, row, start_index + 10, 1);
+  MAP_INT(issue->opened_mail_count, row, start_index + 11, 0);
+  MAP_INT(issue->views, row, start_index + 12, 0);
   printf("\n");
 
   return 0;
 }
-int issue_author_map(struct issue_author *issue, sqlite3_stmt *stmt,
+int issue_author_map(struct issue_author *issue, pg_row_t *row,
                      int start_index, int end_index) {
-  if (start_index > end_index || issue == NULL || stmt == NULL) {
+  if (start_index > end_index || issue == NULL || row == NULL) {
     return -1;
   }
 
   printf(ANSI_BACKGROUND_AMBER " ISSUE AUTHOR " ANSI_RESET_ALL "\n");
   // ID
-  MAP_INT(issue->issue_id, stmt, start_index, 1);
-  MAP_INT(issue->user_id, stmt, start_index + 1, 1);
+  MAP_INT(issue->issue_id, row, start_index, 1);
+  MAP_INT(issue->user_id, row, start_index + 1, 1);
 
   return 0;
 }
-int issue_sponsor_map(struct issue_sponsor *issue, sqlite3_stmt *stmt,
+int issue_sponsor_map(struct issue_sponsor *issue, pg_row_t *row,
                       int start_index, int end_index) {
-  if (start_index > end_index || issue == NULL || stmt == NULL) {
+  if (start_index > end_index || issue == NULL || row == NULL) {
     return -1;
   }
 
   printf(ANSI_BACKGROUND_AMBER " ISSUE SPONSOR " ANSI_RESET_ALL "\n");
   // ID
-  MAP_INT(issue->issue_id, stmt, start_index, 1);
-  MAP_TEXT(issue->sponsor_name, stmt, start_index + 1, 1);
-  MAP_TEXT(issue->issue_link, stmt, start_index + 2, 1);
-  MAP_TEXT(issue->link, stmt, start_index + 3, 1);
+  MAP_INT(issue->issue_id, row, start_index, 1);
+  MAP_TEXT(issue->sponsor_name, row, start_index + 1, 1);
+  MAP_TEXT(issue->issue_link, row, start_index + 2, 1);
+  MAP_TEXT(issue->link, row, start_index + 3, 1);
 
   return 0;
 }
-int issue_tag_map(struct issue_tag *issue, sqlite3_stmt *stmt, int start_index,
+int issue_tag_map(struct issue_tag *issue, pg_row_t *row, int start_index,
                   int end_index) {
-  if (start_index > end_index || issue == NULL || stmt == NULL) {
+  if (start_index > end_index || issue == NULL || row == NULL) {
     return -1;
   }
 
   printf(ANSI_BACKGROUND_AMBER " ISSUE TAG " ANSI_RESET_ALL "\n");
   // ID
-  MAP_INT(issue->issue_id, stmt, start_index, 1);
-  MAP_TEXT(issue->tag_name, stmt, start_index + 1, 1);
+  MAP_INT(issue->issue_id, row, start_index, 1);
+  MAP_TEXT(issue->tag_name, row, start_index + 1, 1);
 
   return 0;
 }
 
-int media_map(struct media *media, sqlite3_stmt *stmt, int start_index,
+int media_map(struct media *media, pg_row_t *row, int start_index,
               int end_index) {
-  if (start_index > end_index || media == NULL || stmt == NULL) {
+  if (start_index > end_index || media == NULL || row == NULL) {
     return -1;
   }
 
@@ -1298,112 +1317,112 @@ int media_map(struct media *media, sqlite3_stmt *stmt, int start_index,
   int width_index = start_index + 3;
   int height_index = start_index + 4;
 
-  MAP_INT(media->id, stmt, id_index, 1);
-  MAP_TEXT(media->alternative_text, stmt, alt_index, 1);
-  MAP_TEXT(media->url, stmt, url_index, 1);
-  MAP_DOUBLE(media->width, stmt, width_index, 0);
-  MAP_DOUBLE(media->height, stmt, height_index, 0);
+  MAP_INT(media->id, row, id_index, 1);
+  MAP_TEXT(media->alternative_text, row, alt_index, 1);
+  MAP_TEXT(media->url, row, url_index, 1);
+  MAP_DOUBLE(media->width, row, width_index, 0);
+  MAP_DOUBLE(media->height, row, height_index, 0);
 
   return 0;
 }
 
-int feed_map(struct feed *feed, sqlite3_stmt *stmt, int start_index,
+int feed_map(struct feed *feed, pg_row_t *row, int start_index,
             int end_index) {
-  if (start_index > end_index || feed == NULL || stmt == NULL) {
+  if (start_index > end_index || feed == NULL || row == NULL) {
     return -1;
   }
 
-  MAP_INT(feed->id, stmt, start_index, 1);
-  MAP_TEXT(feed->name, stmt, start_index + 1, 1);
-  MAP_TEXT(feed->link, stmt, start_index + 2, 1);
-  MAP_INT(feed->is_rss_feed, stmt, start_index + 3, 1);
+  MAP_INT(feed->id, row, start_index, 1);
+  MAP_TEXT(feed->name, row, start_index + 1, 1);
+  MAP_TEXT(feed->link, row, start_index + 2, 1);
+  MAP_BOOL(feed->is_rss_feed, row, start_index + 3, 1);
 
   return 0;
 }
 
-int feed_tag_map(struct feed_tag *feed_tag, sqlite3_stmt *stmt,
+int feed_tag_map(struct feed_tag *feed_tag, pg_row_t *row,
                  int start_index, int end_index) {
-  if (start_index > end_index || feed_tag == NULL || stmt == NULL) {
+  if (start_index > end_index || feed_tag == NULL || row == NULL) {
     return -1;
   }
 
-  MAP_INT(feed_tag->feed_id, stmt, start_index, 1);
-  MAP_TEXT(feed_tag->tag_name, stmt, start_index + 1, 1);
+  MAP_INT(feed_tag->feed_id, row, start_index, 1);
+  MAP_TEXT(feed_tag->tag_name, row, start_index + 1, 1);
 
   return 0;
 }
 
-int category_map(struct category *category, sqlite3_stmt *stmt,
+int category_map(struct category *category, pg_row_t *row,
                  int start_index, int end_index) {
-  if (start_index > end_index || category == NULL || stmt == NULL) {
+  if (start_index > end_index || category == NULL || row == NULL) {
     return -1;
   }
 
-  MAP_TEXT(category->name, stmt, start_index, 1);
-  MAP_TEXT(category->color, stmt, start_index + 1, 1);
+  MAP_TEXT(category->name, row, start_index, 1);
+  MAP_TEXT(category->color, row, start_index + 1, 1);
 
   return 0;
 }
 
-int article_map(struct article *article, sqlite3_stmt *stmt, int start_index,
+int article_map(struct article *article, pg_row_t *row, int start_index,
                 int end_index) {
-  if (start_index > end_index || article == NULL || stmt == NULL) {
+  if (start_index > end_index || article == NULL || row == NULL) {
     return -1;
   }
 
-  MAP_INT(article->id, stmt, start_index, 1);
-  MAP_INT(article->section_id, stmt, start_index + 1, 1);
-  MAP_INT(article->position, stmt, start_index + 2, 1);
-  MAP_TEXT(article->title, stmt, start_index + 3, 1);
-  MAP_TEXT(article->source_name, stmt, start_index + 4, 1);
-  MAP_TEXT(article->source_url, stmt, start_index + 5, 1);
-  MAP_TEXT(article->summary, stmt, start_index + 6, 1);
+  MAP_INT(article->id, row, start_index, 1);
+  MAP_INT(article->section_id, row, start_index + 1, 1);
+  MAP_INT(article->position, row, start_index + 2, 1);
+  MAP_TEXT(article->title, row, start_index + 3, 1);
+  MAP_TEXT(article->source_name, row, start_index + 4, 1);
+  MAP_TEXT(article->source_url, row, start_index + 5, 1);
+  MAP_TEXT(article->summary, row, start_index + 6, 1);
 
   return 0;
 }
 
-int issue_section_map(struct issue_section *section, sqlite3_stmt *stmt,
+int issue_section_map(struct issue_section *section, pg_row_t *row,
                       int start_index, int end_index) {
-  if (start_index > end_index || section == NULL || stmt == NULL) {
+  if (start_index > end_index || section == NULL || row == NULL) {
     return -1;
   }
 
-  MAP_INT(section->id, stmt, start_index, 1);
-  MAP_INT(section->issue_id, stmt, start_index + 1, 1);
-  MAP_INT(section->position, stmt, start_index + 2, 1);
-  MAP_TEXT(section->type, stmt, start_index + 3, 1);
-  MAP_TEXT(section->category_name, stmt, start_index + 4, 0);
-  MAP_TEXT(section->text_body, stmt, start_index + 5, 0);
+  MAP_INT(section->id, row, start_index, 1);
+  MAP_INT(section->issue_id, row, start_index + 1, 1);
+  MAP_INT(section->position, row, start_index + 2, 1);
+  MAP_TEXT(section->type, row, start_index + 3, 1);
+  MAP_TEXT(section->category_name, row, start_index + 4, 0);
+  MAP_TEXT(section->text_body, row, start_index + 5, 0);
 
   return 0;
 }
 
-int tag_map(struct tag *tag, sqlite3_stmt *stmt, int start_index,
+int tag_map(struct tag *tag, pg_row_t *row, int start_index,
             int end_index) {
-  if (start_index > end_index || tag == NULL || stmt == NULL) {
+  if (start_index > end_index || tag == NULL || row == NULL) {
     return -1;
   }
 
   int name_index = start_index;
   int color_index = start_index + 1;
 
-  MAP_TEXT(tag->name, stmt, name_index, 1);
-  MAP_TEXT(tag->color, stmt, color_index, 1);
+  MAP_TEXT(tag->name, row, name_index, 1);
+  MAP_TEXT(tag->color, row, color_index, 1);
 
   return 0;
 }
 
-int sponsor_map(struct sponsor *sponsor, sqlite3_stmt *stmt, int start_index,
+int sponsor_map(struct sponsor *sponsor, pg_row_t *row, int start_index,
                 int end_index) {
-  if (start_index > end_index || sponsor == NULL || stmt == NULL) {
+  if (start_index > end_index || sponsor == NULL || row == NULL) {
     return -1;
   }
 
   int name_index = start_index;
   int link_index = start_index + 1;
 
-  MAP_TEXT(sponsor->name, stmt, name_index, 1);
-  MAP_TEXT(sponsor->link, stmt, link_index, 1);
+  MAP_TEXT(sponsor->name, row, name_index, 1);
+  MAP_TEXT(sponsor->link, row, link_index, 1);
 
   return 0;
 }

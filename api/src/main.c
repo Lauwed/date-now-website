@@ -1,8 +1,8 @@
 /**
  * @file main.c
- * @brief Entry point: initialises SQLite and ImageMagick, opens the database,
- *        registers signal handlers, and runs the Mongoose HTTP event loop with
- *        a table-driven URL router.
+ * @brief Entry point: initialises Postgres and ImageMagick, opens the
+ *        database, registers signal handlers, and runs the Mongoose HTTP
+ *        event loop with a table-driven URL router.
  */
 
 #include <MagickWand/MagickWand.h>
@@ -22,20 +22,19 @@
 #include <endpoints/user.h>
 #include <endpoints/view.h>
 #include <lib/mongoose.h>
+#include <lib/pg.h>
 #include <lib/rate_limiter.h>
 #include <macros/colors.h>
 #include <macros/endpoints.h>
 #include <signal.h>
-#include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <structs.h>
 #include <utils.h>
 
-sqlite3 *db;
 char g_json_header[512];
 
-static void clean_db(void) { sqlite3_close(db); }
+static void clean_db(void) { PQfinish(db); }
 
 static void handle_shutdown(int code) {
   printf(">>> signal %d received — shutting down\n", code);
@@ -712,16 +711,21 @@ int main(void) {
   signal(SIGTERM, handle_shutdown);
   signal(SIGINT, handle_shutdown);
 
-  int db_rc = sqlite3_open("uwu.db", &db);
-  if (SQLITE_OK != db_rc) {
-    fprintf(stderr, "DB - Can't open database: %s\n", sqlite3_errmsg(db));
-    sqlite3_close(db);
+  const char *database_url = getenv("DATABASE_URL");
+  if (!database_url) {
+    fprintf(stderr, "DATABASE_URL not set\n");
+    return EXIT_FAILURE;
+  }
+
+  db = PQconnectdb(database_url);
+  if (PQstatus(db) != CONNECTION_OK) {
+    fprintf(stderr, "DB - Can't open database: %s\n", PQerrorMessage(db));
+    PQfinish(db);
     return EXIT_FAILURE;
   }
 
   printf("===\tDB - successfully opened!\t===\n");
-
-  sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+  /* Postgres enforces foreign keys by default — no PRAGMA equivalent needed. */
 
   struct mg_mgr mgr;
   mg_mgr_init(&mgr);

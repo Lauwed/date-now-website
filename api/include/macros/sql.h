@@ -2,24 +2,16 @@
 
 /**
  * @file sql.h
- * @brief Debug macro for printing an expanded SQLite query to stdout.
+ * @brief Debug macro for logging a parameterised Postgres query.
  */
 
 /**
- * @brief Prints the fully-expanded SQL text of a prepared statement.
+ * @brief Logs the SQL text and bound parameter values of a query about to
+ *        be executed via pg_exec(). No-op unless built with -DDEBUG (see
+ *        pg_log_query() in src/lib/pg.c).
  *
- * Calls sqlite3_expanded_sql() on @p stmt, prints the result, then frees
- * it with sqlite3_free(). Useful for debugging parameterised queries.
- *
- * @param stmt A `sqlite3_stmt *` that has been prepared and bound.
+ * @param sql    SQL text with `$1`, `$2`, ... placeholders.
+ * @param n      Number of elements in @p values.
+ * @param values Array of C-string param values (NULL entries are SQL NULL).
  */
-#ifdef DEBUG
-#define GET_EXPANDED_QUERY(stmt)                                               \
-  char *expanded = sqlite3_expanded_sql(stmt);                                 \
-  if (expanded) {                                                              \
-    printf("=== QUERY:\n%s\n===\n", expanded);                                 \
-    sqlite3_free(expanded);                                                    \
-  }
-#else
-#define GET_EXPANDED_QUERY(stmt) ((void)(stmt))
-#endif
+#define GET_EXPANDED_QUERY(sql, n, values) pg_log_query(sql, n, values)

@@ -3,7 +3,7 @@ FROM alpine:3.23.4 AS base
 RUN apk update && apk add --no-cache \
     libjwt2 \
     openssl \
-    sqlite-libs \
+    libpq \
     curl \
     imagemagick \
     libwebp \
@@ -15,7 +15,7 @@ RUN apk add --no-cache \
     alpine-sdk \
     libjwt2-dev \
     openssl-dev \
-    sqlite-dev \
+    postgresql-dev \
     curl-dev \
     imagemagick-dev \
     cjson-dev \

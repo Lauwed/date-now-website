@@ -2,15 +2,18 @@ CC ?= cc
 MAGICK_PKG    := $(shell pkg-config --list-all 2>/dev/null | grep -i '^MagickWand' | head -1 | cut -d' ' -f1)
 MAGICK_CFLAGS := $(shell pkg-config --cflags $(MAGICK_PKG))
 MAGICK_LIBS   := $(shell pkg-config --libs   $(MAGICK_PKG))
+# libpq ships no .pc file on most distros — use pg_config instead of pkg-config.
+PG_CFLAGS := -I$(shell pg_config --includedir)
+PG_LIBS   := -L$(shell pg_config --libdir) -lpq
 EXTRA_CFLAGS  :=
 EXTRA_LDFLAGS :=
-CFLAGS := -I ./include/ -DDEBUG -g $(MAGICK_CFLAGS) $(EXTRA_CFLAGS)
-LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl -lcjson $(MAGICK_LIBS) -lpthread
+CFLAGS := -I ./include/ -DDEBUG -g $(MAGICK_CFLAGS) $(PG_CFLAGS) $(EXTRA_CFLAGS)
+LIBS := -ljwt -lssl -lcrypto -lcurl -lcjson $(MAGICK_LIBS) $(PG_LIBS) -lpthread
 
 includes := ./include
 src := ./src
 
-tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth media feed feed_tag category issue_section article
+tables := category tag sponsor feed feed_tag media view user issue issue_tag issue_author issue_sponsor issue_section article auth
 
 libs_o := obj/lib/mongoose.o obj/lib/validatejson.o obj/lib/email.o obj/lib/totp.o
 helpers_o := obj/utils.o obj/lib/rate_limiter.o

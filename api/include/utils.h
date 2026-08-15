@@ -7,7 +7,7 @@
  */
 
 #include <lib/mongoose.h>
-#include <sqlite3.h>
+#include <lib/pg.h>
 #include <stddef.h>
 #include <structs.h>
 
@@ -439,7 +439,7 @@ int error_reply_map(struct error_reply *err, int code, char *message,
                     int code_http);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct media.
+ * @brief Maps a Postgres result row into a struct media.
  * @param media       Pre-allocated and initialised structure.
  * @param stmt        SQLite statement positioned on a row.
  * @param start_index Index of the first column to read.
@@ -449,104 +449,104 @@ int error_reply_map(struct error_reply *err, int code, char *message,
  * @note Text fields (@c alternative_text, @c url) are allocated by
  *       strndup() — freed via free_media().
  */
-int media_map(struct media *media, sqlite3_stmt *stmt, int start_index,
+int media_map(struct media *media, pg_row_t *row, int start_index,
               int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct user.
+ * @brief Maps a Postgres result row into a struct user.
  * @note Text fields (@c username, @c email, @c role, @c link) are
  *       allocated by strndup() — freed via free_user().
  */
-int user_map(struct user *user, sqlite3_stmt *stmt, int start_index,
+int user_map(struct user *user, pg_row_t *row, int start_index,
              int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct view.
+ * @brief Maps a Postgres result row into a struct view.
  * @note The @c hashed_ip field is allocated by strndup() — freed via
  *       free_view().
  */
-int view_map(struct view *view, sqlite3_stmt *stmt, int start_index,
+int view_map(struct view *view, pg_row_t *row, int start_index,
              int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct issue.
+ * @brief Maps a Postgres result row into a struct issue.
  * @note Text fields are allocated by strndup() — freed via free_issue().
  *       Sub-structures (@c cover, @c tags, @c authors, @c sponsors) are
  *       NOT populated here — they are loaded separately.
  */
-int issue_map(struct issue *issue, sqlite3_stmt *stmt, int start_index,
+int issue_map(struct issue *issue, pg_row_t *row, int start_index,
               int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct tag.
+ * @brief Maps a Postgres result row into a struct tag.
  * @note @c name and @c color are allocated — freed via free_tag().
  */
-int tag_map(struct tag *tag, sqlite3_stmt *stmt, int start_index,
+int tag_map(struct tag *tag, pg_row_t *row, int start_index,
             int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct sponsor.
+ * @brief Maps a Postgres result row into a struct sponsor.
  * @note @c name and @c link are allocated — freed via free_sponsor().
  */
-int sponsor_map(struct sponsor *sponsor, sqlite3_stmt *stmt, int start_index,
+int sponsor_map(struct sponsor *sponsor, pg_row_t *row, int start_index,
                 int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct issue_author.
+ * @brief Maps a Postgres result row into a struct issue_author.
  */
-int issue_author_map(struct issue_author *issue, sqlite3_stmt *stmt,
+int issue_author_map(struct issue_author *issue, pg_row_t *row,
                      int start_index, int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct issue_sponsor.
+ * @brief Maps a Postgres result row into a struct issue_sponsor.
  * @note @c sponsor_name and @c link are allocated — freed via
  *       free_issue_sponsor().
  */
-int issue_sponsor_map(struct issue_sponsor *issue, sqlite3_stmt *stmt,
+int issue_sponsor_map(struct issue_sponsor *issue, pg_row_t *row,
                       int start_index, int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct issue_tag.
+ * @brief Maps a Postgres result row into a struct issue_tag.
  * @note @c tag_name is allocated — freed via free_issue_tag().
  */
-int issue_tag_map(struct issue_tag *issue, sqlite3_stmt *stmt, int start_index,
+int issue_tag_map(struct issue_tag *issue, pg_row_t *row, int start_index,
                   int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct feed.
+ * @brief Maps a Postgres result row into a struct feed.
  * @note @c name and @c link are allocated — freed via free_feed().
  */
-int feed_map(struct feed *feed, sqlite3_stmt *stmt, int start_index,
+int feed_map(struct feed *feed, pg_row_t *row, int start_index,
             int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct feed_tag.
+ * @brief Maps a Postgres result row into a struct feed_tag.
  * @note @c tag_name is allocated — freed via free_feed_tag().
  */
-int feed_tag_map(struct feed_tag *feed_tag, sqlite3_stmt *stmt,
+int feed_tag_map(struct feed_tag *feed_tag, pg_row_t *row,
                  int start_index, int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct category.
+ * @brief Maps a Postgres result row into a struct category.
  * @note @c name and @c color are allocated — freed via free_category().
  */
-int category_map(struct category *category, sqlite3_stmt *stmt,
+int category_map(struct category *category, pg_row_t *row,
                  int start_index, int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct article.
+ * @brief Maps a Postgres result row into a struct article.
  * @note Text fields are allocated — freed via free_article().
  */
-int article_map(struct article *article, sqlite3_stmt *stmt, int start_index,
+int article_map(struct article *article, pg_row_t *row, int start_index,
                 int end_index);
 
 /**
- * @brief Maps columns of a sqlite3_stmt into a struct issue_section.
+ * @brief Maps a Postgres result row into a struct issue_section.
  * @note @c type is always allocated; @c category_name/@c text_body are
  *       allocated only when non-NULL in the row. @c articles is NOT
  *       populated here — loaded separately. Freed via free_issue_section().
  */
-int issue_section_map(struct issue_section *section, sqlite3_stmt *stmt,
+int issue_section_map(struct issue_section *section, pg_row_t *row,
                       int start_index, int end_index);
 
 

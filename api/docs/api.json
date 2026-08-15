@@ -1209,7 +1209,7 @@
           "authors": "array-user",
           "tags": "array-tag",
           "sponsors": "array-sponsor",
-          "sections": "array-issueSection"
+          "sections": "array-issue section"
         }
       },
       "listParameters": [
@@ -1371,7 +1371,7 @@
                 "authors": "array-user",
                 "tags": "array-tag",
                 "sponsors": "array-sponsor",
-                "sections": "array-issueSection"
+                "sections": "array-issue section"
               }
             },
             {
@@ -1479,7 +1479,7 @@
         "position": "integer",
         "type": "CATEGORY | TEXT",
         "categoryName": "string?",
-        "textBody": "contentBlock[]?",
+        "textBody": "string?",
         "articles": "array-article"
       },
       "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
@@ -1496,7 +1496,7 @@
             "schema": {
               "type": "CATEGORY | TEXT",
               "categoryName": "string?",
-              "textBody": "contentBlock[]?"
+              "textBody": "string?"
             },
             "defaultValue": "{\n\t\"type\": \"TEXT\",\n\t\"textBody\": [\n\t\t{ \"type\": \"text\", \"markdown\": \"Some **bold** intro text.\" }\n\t]\n}"
           },
@@ -1509,7 +1509,7 @@
                 "position": "integer",
                 "type": "CATEGORY | TEXT",
                 "categoryName": "string?",
-                "textBody": "contentBlock[]?",
+                "textBody": "string?",
                 "articles": "array-article"
               }
             },
@@ -1534,7 +1534,7 @@
           "body": {
             "schema": {
               "categoryName": "string?",
-              "textBody": "contentBlock[]?"
+              "textBody": "string?"
             }
           },
           "responses": [
@@ -1546,7 +1546,7 @@
                 "position": "integer",
                 "type": "CATEGORY | TEXT",
                 "categoryName": "string?",
-                "textBody": "contentBlock[]?",
+                "textBody": "string?",
                 "articles": "array-article"
               }
             }
@@ -1609,7 +1609,7 @@
         "title": "string",
         "sourceName": "string",
         "sourceUrl": "string",
-        "summary": "contentBlock[]"
+        "summary": "string"
       },
       "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
       "endpoints": {
@@ -1626,7 +1626,7 @@
               "title": "string",
               "sourceName": "string",
               "sourceUrl": "string",
-              "summary": "contentBlock[]"
+              "summary": "string"
             },
             "defaultValue": "{\n\t\"title\": \"A breaking headline\",\n\t\"sourceName\": \"Le Monde\",\n\t\"sourceUrl\": \"https://lemonde.fr/article\",\n\t\"summary\": [\n\t\t{ \"type\": \"text\", \"markdown\": \"A **bold** summary.\" },\n\t\t{ \"type\": \"youtube\", \"url\": \"https://youtu.be/xxxx\" }\n\t]\n}"
           },
@@ -1640,7 +1640,7 @@
                 "title": "string",
                 "sourceName": "string",
                 "sourceUrl": "string",
-                "summary": "contentBlock[]"
+                "summary": "string"
               }
             },
             {
@@ -1666,7 +1666,7 @@
               "title": "string",
               "sourceName": "string",
               "sourceUrl": "string",
-              "summary": "contentBlock[]"
+              "summary": "string"
             }
           },
           "responses": [
@@ -1679,7 +1679,7 @@
                 "title": "string",
                 "sourceName": "string",
                 "sourceUrl": "string",
-                "summary": "contentBlock[]"
+                "summary": "string"
               }
             }
           ]
@@ -2022,7 +2022,7 @@
         "issueId": "integer"
       },
       "includedEndpoints": ["GET-list", "POST"],
-      "tokenRequired": { "GET-list": true, "post": false },
+      "tokenRequired": { "post": false },
       "listParameters": [
         {
           "name": "page",
@@ -2047,7 +2047,7 @@
       ],
       "endpoints": {
         "GET-list": {
-          "description": "Returns the paginated list of views, optionally filtered by issue.",
+          "description": "Returns the paginated list of views, optionally filtered by issue. Requires authentication.",
           "responses": [
             {
               "code": 200,

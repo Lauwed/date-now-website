@@ -1,94 +1,62 @@
 /**
  * @file view.c
- * @brief SQLite data-access implementation for the View (page-view) table.
+ * @brief Postgres data-access implementation for the View (page-view) table.
  */
 
 
 #include <enums.h>
+#include <lib/pg.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
 #include <sql/view.h>
-#include <sqlite3.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <structs.h>
 #include <utils.h>
 
-extern sqlite3 *db;
-
 #define QUERY_COUNT_TMP "SELECT COUNT(*) FROM View"
 #define QUERY_SELECT_TMP                                                       \
   "SELECT "                                                                    \
-  "u.id, UNIXEPOCH(u.time), u.hashedIp, u.issueId "                            \
-  "FROM View u";
-#define QUERY_Q_TMP " WHERE issueId = ?100"
-#define QUERY_SORT_TMP " ORDER BY i.time COLLATE NOCASE %s"
-#define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
+  "u.id, EXTRACT(EPOCH FROM u.time)::BIGINT, u.hashedIp, u.issueId "           \
+  "FROM View u"
+#define QUERY_Q_TMP " WHERE issueId = $%1$d"
+#define QUERY_SORT_TMP " ORDER BY u.time %s"
+#define QUERY_PAGINATION_TMP " LIMIT $%d OFFSET $%d"
 
 #define QUERY_POST_TMP                                                         \
-  "INSERT INTO View (time, hashedIp, issueId)"                                 \
-  "VALUES (CURRENT_TIMESTAMP, ?, ?);";
+  "INSERT INTO View (time, hashedIp, issueId) "                                \
+  "VALUES (CURRENT_TIMESTAMP, $1, $2) RETURNING id;"
 
 int get_views_len(int issue_id) {
   printf(TERMINAL_SQL_MESSAGE("=== GET VIEWS COUNT SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16];
+  const char *values[1];
+  int n_values = 0;
 
-  char *query_tmp = QUERY_COUNT_TMP;
-  int query_len = strlen(query_tmp) + 2;
-  char *query_q_tmp = QUERY_Q_TMP;
+  char query[256] = QUERY_COUNT_TMP;
   if (issue_id > 0) {
-    query_len += strlen(query_q_tmp);
-  }
-
-  char *query = malloc(query_len);
-  strcpy(query, query_tmp);
-  if (issue_id > 0) {
-    strcat(query, query_q_tmp);
+    snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+    char clause[64];
+    snprintf(clause, sizeof(clause), QUERY_Q_TMP, 1);
+    strcat(query, clause);
+    values[n_values++] = issue_id_str;
   }
   strcat(query, ";");
   printf("%s\n", query);
 
-  int views_count = 0;
+  GET_EXPANDED_QUERY(query, n_values, values);
 
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    free(query);
-    return query_rc;
+  PGresult *res = pg_exec(query, n_values, values);
+  if (res == NULL) {
+    return -1;
   }
 
-  if (issue_id > 0) {
-    sqlite3_bind_int(stmt, 100, issue_id);
-  }
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    free(query);
-    return query_rc;
-  }
-
-  while (query_rc != SQLITE_DONE) {
-    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      views_count = sqlite3_column_int(stmt, 0);
-    }
-
-    query_rc = sqlite3_step(stmt);
-  }
-
-  sqlite3_finalize(stmt);
-  free(query);
+  int views_count = atoi(PQgetvalue(res, 0, 0));
+  PQclear(res);
 
   return views_count;
 }
@@ -97,15 +65,7 @@ int get_views(size_t len, struct view **arr, int issue_id,
               const struct mg_str *sort, int page, int page_size) {
   printf(TERMINAL_SQL_MESSAGE("=== GET VIEWS SQL ==="));
 
-  int query_rc = SQLITE_ROW;
-
-  char *query_tmp = QUERY_SELECT_TMP;
-  char *query_params_tmp = QUERY_Q_TMP;
-  char *query_pagination_tmp = QUERY_PAGINATION_TMP;
-
-  // Sort tmp
   const char *sort_keyword = "ASC";
-  char *query_sort_tmp = NULL;
   if (sort->len > 0) {
     if (strncasecmp(sort->buf, "desc", sort->len) == 0) {
       sort_keyword = "DESC";
@@ -115,105 +75,77 @@ int get_views(size_t len, struct view **arr, int issue_id,
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("WRONG VALUE FOR SORTING"));
       return HTTP_BAD_REQUEST;
     }
-
-    query_sort_tmp =
-        malloc(snprintf(NULL, 0, QUERY_SORT_TMP, sort_keyword) + 1);
-    sprintf(query_sort_tmp, QUERY_SORT_TMP, sort_keyword);
   }
 
-  int query_len = strlen(query_tmp) + 2;
+  char issue_id_str[16], offset_str[16], page_size_str[16];
+  const char *values[3];
+  int n_values = 0;
+
+  char query[768] = QUERY_SELECT_TMP;
 
   if (issue_id > 0) {
-    query_len += strlen(query_params_tmp);
+    snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+    char clause[64];
+    snprintf(clause, sizeof(clause), QUERY_Q_TMP, n_values + 1);
+    strcat(query, clause);
+    values[n_values++] = issue_id_str;
   }
+
   if (sort->len > 0) {
-    query_len += strlen(query_sort_tmp);
-  }
-  if (page > 0) {
-    query_len += strlen(query_pagination_tmp);
-  }
-
-  char *query = malloc(query_len);
-  strcpy(query, query_tmp);
-  if (issue_id > 0) {
-    strcat(query, query_params_tmp);
-  }
-  if (sort->len > 0) {
-    strcat(query, query_sort_tmp);
-  }
-  if (page > 0) {
-    strcat(query, query_pagination_tmp);
-  }
-  strcat(query, ";");
-  free(query_sort_tmp);
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    free(query);
-    return query_rc;
+    char clause[128];
+    snprintf(clause, sizeof(clause), QUERY_SORT_TMP, sort_keyword);
+    strcat(query, clause);
   }
 
-  // Binding
-  if (issue_id > 0) {
-    sqlite3_bind_int(stmt, 100, issue_id);
-  }
   if (page > 0) {
     int offset = (page - 1) * page_size;
-    sqlite3_bind_int(stmt, 102, page_size);
-    sqlite3_bind_int(stmt, 103, offset);
+    snprintf(page_size_str, sizeof(page_size_str), "%d", page_size);
+    snprintf(offset_str, sizeof(offset_str), "%d", offset);
+
+    char clause[64];
+    snprintf(clause, sizeof(clause), QUERY_PAGINATION_TMP, n_values + 1,
+             n_values + 2);
+    strcat(query, clause);
+
+    values[n_values++] = page_size_str;
+    values[n_values++] = offset_str;
   }
 
-  GET_EXPANDED_QUERY(stmt);
+  strcat(query, ";");
 
-  query_rc = sqlite3_step(stmt);
+  GET_EXPANDED_QUERY(query, n_values, values);
 
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    free(query);
-    return query_rc;
+  PGresult *res = pg_exec(query, n_values, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
+  int n_rows = PQntuples(res);
   size_t count = 0;
-  while (query_rc == SQLITE_ROW && count < len) {
-    struct view *u = NULL;
-    u = malloc(sizeof(struct view));
+  for (int i = 0; i < n_rows && count < len; i++) {
+    struct view *u = malloc(sizeof(struct view));
 
     int view_init_rc = view_init(u);
     if (view_init_rc != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("The view is NULL"));
-      free(query);
+      free(u);
+      PQclear(res);
       return HTTP_INTERNAL_ERROR;
     }
 
-    int view_rc = view_map(u, stmt, 0, 3);
+    pg_row_t row = {res, i};
+    int view_rc = view_map(u, &row, 0, 3);
     if (view_rc != 0) {
       free(u);
-
-      count += 1;
-      query_rc = sqlite3_step(stmt);
-      fprintf(stderr,
-              TERMINAL_ERROR_MESSAGE("Error at line: %ld. Error code: %d"),
-              count, query_rc);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("Error mapping row: %d"), i);
       continue;
     }
 
-    printf("\n");
-
-    // Add a to arr
     arr[count] = u;
-
     count += 1;
-    query_rc = sqlite3_step(stmt);
   }
 
-  sqlite3_finalize(stmt);
-  free(query);
+  PQclear(res);
 
   return 0;
 }
@@ -221,35 +153,18 @@ int get_views(size_t len, struct view **arr, int issue_id,
 int add_view(struct view *view) {
   printf(TERMINAL_SQL_MESSAGE("=== ADD VIEW SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", view->issue_id);
+  const char *values[2] = {view->hashed_ip, issue_id_str};
+  GET_EXPANDED_QUERY(QUERY_POST_TMP, 2, values);
 
-  char *query_tmp = QUERY_POST_TMP;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_POST_TMP, 2, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  sqlite3_bind_text(stmt, 1, view->hashed_ip, -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 2, view->issue_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  view->id = (int)sqlite3_last_insert_rowid(db);
-  sqlite3_finalize(stmt);
+  view->id = atoi(PQgetvalue(res, 0, 0));
+  PQclear(res);
 
   return 0;
 }
