@@ -7,6 +7,7 @@
 
 #include <cjson/cJSON.h>
 #include <lib/mongoose.h>
+#include <lib/crypto.h>
 #include <lib/pg.h>
 #include <lib/validatejson.h>
 #include <macros/colors.h>
@@ -746,6 +747,7 @@ int free_user(struct user *user) {
   free(user->email);
   free(user->role);
   free(user->link);
+  free(user->totp_seed);
 
   if (user->picture != NULL) {
     free_media(user->picture);
@@ -755,6 +757,7 @@ int free_user(struct user *user) {
   user->email = NULL;
   user->role = NULL;
   user->link = NULL;
+  user->totp_seed = NULL;
 
   free(user);
   user = NULL;
@@ -1197,8 +1200,15 @@ int user_map(struct user *user, pg_row_t *row, int start_index,
   MAP_INT(user->id, row, start_index, 1);
   // Username
   MAP_TEXT(user->username, row, start_index + 1, 0);
-  // Email
+  // Email (stored encrypted — decrypt right after mapping so every other
+  // caller of user_map, including user_to_cjson() and the JWT claim code
+  // in auth.c, always sees plaintext, unchanged from before encryption).
   MAP_TEXT(user->email, row, start_index + 2, 1);
+  if (user->email != NULL) {
+    char *decrypted = crypto_decrypt_hex(user->email);
+    free(user->email);
+    user->email = decrypted;
+  }
   // Role
   MAP_TEXT(user->role, row, start_index + 3, 1);
 
@@ -1828,6 +1838,7 @@ int user_init(struct user *user) {
   user->username = NULL;
   user->email = NULL;
   user->role = NULL;
+  user->totp_seed = NULL;
 
   user->link = NULL;
   user->picture = NULL;

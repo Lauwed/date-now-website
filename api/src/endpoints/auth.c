@@ -423,6 +423,7 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
   }
 
   // Generate totpseed
+  user->totp_seed = malloc(64);
   if (totp_generate_secret(user->totp_seed) != 0) {
     ERROR_REPLY_500;
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("OPENSSL ERROR"));
@@ -521,6 +522,7 @@ void generate_totpseed_user(struct mg_connection *c,
         return;
       } else {
         // Generate totpseed
+        user->totp_seed = malloc(64);
         if (totp_generate_secret(user->totp_seed) != 0) {
           ERROR_REPLY_500;
           fprintf(stderr, TERMINAL_ERROR_MESSAGE("OPENSSL ERROR"));

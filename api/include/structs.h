@@ -72,8 +72,8 @@ struct user {
                      free_user(). */
   char *role; /**< Role: "USER" or "AUTHOR". @note Dynamically allocated — freed
                  by free_user(). */
-  char totp_seed[64];    /**< Base32-encoded TOTP seed (fixed-size array, not
-                            dynamically allocated). */
+  char *totp_seed; /**< Base32-encoded TOTP seed, decrypted. @note Dynamically
+                      allocated — freed by free_user(). */
   struct media *picture; /**< Profile picture (may be NULL). @note Dynamically
                             allocated — freed recursively by free_user(). */
   char *link;        /**< Optional personal URL (may be NULL). @note Dynamically

@@ -22,6 +22,7 @@
 #include <endpoints/user.h>
 #include <endpoints/view.h>
 #include <lib/mongoose.h>
+#include <lib/crypto.h>
 #include <lib/pg.h>
 #include <lib/rate_limiter.h>
 #include <macros/colors.h>
@@ -714,6 +715,13 @@ int main(void) {
   const char *database_url = getenv("DATABASE_URL");
   if (!database_url) {
     fprintf(stderr, "DATABASE_URL not set\n");
+    return EXIT_FAILURE;
+  }
+
+  const char *encryption_key = getenv("DB_ENCRYPTION_KEY");
+  if (!encryption_key || crypto_init(encryption_key) != 0) {
+    fprintf(stderr, "DB_ENCRYPTION_KEY not set or invalid (expected a "
+                    "base64-encoded 32-byte key)\n");
     return EXIT_FAILURE;
   }
 
