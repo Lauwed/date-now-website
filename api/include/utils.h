@@ -53,6 +53,22 @@ int mg_str_to_str(char *dest, struct mg_str src);
  */
 int str_to_slug(char *str, size_t len);
 
+/**
+ * @brief Validates a rich-content block array (used by struct article::summary
+ *        and struct issue_section::text_body).
+ *
+ * Checks that @p json is well-formed (via mg_validateJSON()) and that its
+ * root is an array of objects, each with a "type" field among "text",
+ * "youtube", "tweet", and the required sub-fields for that type
+ * ("text" -> "markdown", "youtube"/"tweet" -> "url"). The parsed structure
+ * is discarded after validation — never materialised into C structures.
+ *
+ * @param json Candidate JSON array (raw request-body substring).
+ * @return 0 if valid, non-zero otherwise.
+ * @note @p json is not freed by this function.
+ */
+int validate_content_blocks(struct mg_str json);
+
 
 /* -------------------------------------------------------------------------
  * JSON serialisation
@@ -158,6 +174,55 @@ char *issue_tag_to_json(struct issue_tag *issue);
 /** @brief Serialises an array of issue_tag associations to a JSON array. */
 char *issue_tags_to_json(struct issue_tag **issues, size_t len);
 
+/**
+ * @brief Serialises a feed to JSON.
+ * @return Dynamically allocated JSON string, or the static literal "null".
+ * @note Caller must free the returned string when it is not "null".
+ */
+char *feed_to_json(struct feed *feed);
+
+/** @brief Serialises an array of feeds to a JSON array. */
+char *feeds_to_json(struct feed **feeds, size_t len);
+
+/**
+ * @brief Serialises a feed_tag association to JSON.
+ * @return Dynamically allocated JSON string, or the static literal "null".
+ */
+char *feed_tag_to_json(struct feed_tag *feed_tag);
+
+/** @brief Serialises an array of feed_tag associations to a JSON array. */
+char *feed_tags_to_json(struct feed_tag **feed_tags, size_t len);
+
+/**
+ * @brief Serialises a category to JSON.
+ * @return Dynamically allocated JSON string, or the static literal "null".
+ * @note Caller must free the returned string when it is not "null".
+ */
+char *category_to_json(struct category *category);
+
+/** @brief Serialises an array of categories to a JSON array. */
+char *categories_to_json(struct category **categories, size_t len);
+
+/**
+ * @brief Serialises an article to JSON. The @c summary field is embedded raw
+ *        (pre-validated JSON, not re-escaped as a string).
+ * @return Dynamically allocated JSON string, or the static literal "null".
+ */
+char *article_to_json(struct article *article);
+
+/** @brief Serialises an array of articles to a JSON array. */
+char *articles_to_json(struct article **articles, size_t len);
+
+/**
+ * @brief Serialises an issue_section to JSON, including its @c articles
+ *        array when @c type is "CATEGORY". @c text_body is embedded raw.
+ * @return Dynamically allocated JSON string, or the static literal "null".
+ */
+char *issue_section_to_json(struct issue_section *section);
+
+/** @brief Serialises an array of issue_section to a JSON array. */
+char *issue_sections_to_json(struct issue_section **sections, size_t len);
+
 
 /* -------------------------------------------------------------------------
  * Memory management
@@ -219,6 +284,43 @@ int free_issue_sponsor(struct issue_sponsor *issue);
 int free_issue_tag(struct issue_tag *issue);
 
 /**
+ * @brief Frees a feed and its @c name and @c link fields.
+ * @param feed Pointer to free.
+ * @return 0.
+ */
+int free_feed(struct feed *feed);
+
+/**
+ * @brief Frees a feed_tag association and its @c tag_name field.
+ * @param feed_tag Pointer to free.
+ * @return 0.
+ */
+int free_feed_tag(struct feed_tag *feed_tag);
+
+/**
+ * @brief Frees a category and its @c name and @c color fields.
+ * @param category Pointer to free.
+ * @return 0.
+ */
+int free_category(struct category *category);
+
+/**
+ * @brief Frees an article and its dynamic fields (@c title, @c source_name,
+ *        @c source_url, @c summary).
+ * @param article Pointer to free.
+ * @return 0.
+ */
+int free_article(struct article *article);
+
+/**
+ * @brief Frees an issue_section and its dynamic fields, recursively freeing
+ *        @c articles when non-NULL.
+ * @param section Pointer to free.
+ * @return 0.
+ */
+int free_issue_section(struct issue_section *section);
+
+/**
  * @brief Frees a tag and its @c name and @c color fields.
  * @param tag Pointer to free.
  * @return 0.
@@ -276,6 +378,36 @@ int free_issue_sponsors(struct issue_sponsor **issue, size_t len);
  * @note Also frees the array itself.
  */
 int free_issue_tags(struct issue_tag **issue, size_t len);
+
+/**
+ * @brief Frees an array of feeds and each element.
+ * @note Also frees the array itself.
+ */
+int free_feeds(struct feed **feed, size_t len);
+
+/**
+ * @brief Frees an array of feed_tag associations and each element.
+ * @note Also frees the array itself.
+ */
+int free_feed_tags(struct feed_tag **feed_tag, size_t len);
+
+/**
+ * @brief Frees an array of categories and each element.
+ * @note Also frees the array itself.
+ */
+int free_categories(struct category **category, size_t len);
+
+/**
+ * @brief Frees an array of articles and each element.
+ * @note Also frees the array itself.
+ */
+int free_articles(struct article **article, size_t len);
+
+/**
+ * @brief Frees an array of issue_section and each element (recursively).
+ * @note Also frees the array itself.
+ */
+int free_issue_sections(struct issue_section **section, size_t len);
 
 /**
  * @brief Frees an array of tags and each element.
@@ -380,6 +512,43 @@ int issue_sponsor_map(struct issue_sponsor *issue, sqlite3_stmt *stmt,
 int issue_tag_map(struct issue_tag *issue, sqlite3_stmt *stmt, int start_index,
                   int end_index);
 
+/**
+ * @brief Maps columns of a sqlite3_stmt into a struct feed.
+ * @note @c name and @c link are allocated — freed via free_feed().
+ */
+int feed_map(struct feed *feed, sqlite3_stmt *stmt, int start_index,
+            int end_index);
+
+/**
+ * @brief Maps columns of a sqlite3_stmt into a struct feed_tag.
+ * @note @c tag_name is allocated — freed via free_feed_tag().
+ */
+int feed_tag_map(struct feed_tag *feed_tag, sqlite3_stmt *stmt,
+                 int start_index, int end_index);
+
+/**
+ * @brief Maps columns of a sqlite3_stmt into a struct category.
+ * @note @c name and @c color are allocated — freed via free_category().
+ */
+int category_map(struct category *category, sqlite3_stmt *stmt,
+                 int start_index, int end_index);
+
+/**
+ * @brief Maps columns of a sqlite3_stmt into a struct article.
+ * @note Text fields are allocated — freed via free_article().
+ */
+int article_map(struct article *article, sqlite3_stmt *stmt, int start_index,
+                int end_index);
+
+/**
+ * @brief Maps columns of a sqlite3_stmt into a struct issue_section.
+ * @note @c type is always allocated; @c category_name/@c text_body are
+ *       allocated only when non-NULL in the row. @c articles is NOT
+ *       populated here — loaded separately. Freed via free_issue_section().
+ */
+int issue_section_map(struct issue_section *section, sqlite3_stmt *stmt,
+                      int start_index, int end_index);
+
 
 /* -------------------------------------------------------------------------
  * HTTP → structure hydration
@@ -440,6 +609,43 @@ void issue_sponsor_hydrate(struct mg_http_message *msg,
  */
 void issue_tag_hydrate(struct mg_http_message *msg, struct issue_tag *issue);
 
+/**
+ * @brief Populates a struct feed from the JSON body of an HTTP request.
+ * @note @c name and @c link are allocated by malloc() — freed via free_feed().
+ */
+void feed_hydrate(struct mg_http_message *msg, struct feed *feed);
+
+/**
+ * @brief Populates a struct feed_tag from the JSON body of an HTTP request.
+ * @note @c tag_name is allocated — freed via free_feed_tag().
+ */
+void feed_tag_hydrate(struct mg_http_message *msg, struct feed_tag *feed_tag);
+
+/**
+ * @brief Populates a struct category from the JSON body of an HTTP request.
+ * @note @c name and @c color are allocated by malloc() — freed via
+ *       free_category().
+ */
+void category_hydrate(struct mg_http_message *msg, struct category *category);
+
+/**
+ * @brief Populates a struct article from the JSON body of an HTTP request.
+ * Reads "title", "sourceName", "sourceUrl", "summary". @c summary is copied
+ * raw (already validated by validate_content_blocks() before hydration).
+ * @note Text fields are allocated by malloc() — freed via free_article().
+ */
+void article_hydrate(struct mg_http_message *msg, struct article *article);
+
+/**
+ * @brief Populates a struct issue_section from the JSON body of an HTTP
+ * request. Reads "type", "categoryName", "textBody" (the latter raw, already
+ * validated by validate_content_blocks() before hydration when present).
+ * @note Dynamic fields are allocated by malloc() — freed via
+ *       free_issue_section().
+ */
+void issue_section_hydrate(struct mg_http_message *msg,
+                           struct issue_section *section);
+
 
 /* -------------------------------------------------------------------------
  * Initialisation
@@ -493,3 +699,34 @@ int issue_sponsor_init(struct issue_sponsor *issue);
  * @return 0, or -1 if @p issue is NULL.
  */
 int issue_tag_init(struct issue_tag *issue);
+
+/**
+ * @brief Initialises a struct feed (name = NULL, link = NULL, integers = 0).
+ * @return 0, or -1 if @p feed is NULL.
+ */
+int feed_init(struct feed *feed);
+
+/**
+ * @brief Initialises a struct feed_tag (feed_id = 0, tag_name = NULL).
+ * @return 0, or -1 if @p feed_tag is NULL.
+ */
+int feed_tag_init(struct feed_tag *feed_tag);
+
+/**
+ * @brief Initialises a struct category (name = NULL, color = NULL).
+ * @return 0, or -1 if @p category is NULL.
+ */
+int category_init(struct category *category);
+
+/**
+ * @brief Initialises a struct article (pointers NULL, integers 0).
+ * @return 0, or -1 if @p article is NULL.
+ */
+int article_init(struct article *article);
+
+/**
+ * @brief Initialises a struct issue_section (pointers NULL, integers 0,
+ *        articles/articles_count NULL/0).
+ * @return 0, or -1 if @p section is NULL.
+ */
+int issue_section_init(struct issue_section *section);

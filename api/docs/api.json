@@ -793,6 +793,77 @@
     },
     {
       "name": {
+        "singular": "category",
+        "plural": "categories"
+      },
+      "description": "Reusable content categories used to structure an issue (e.g. 'Breaking News', 'News'). Identified by their name (primary key). Distinct from Tag: a category structures the content of an issue into sections, a tag classifies the issue itself.",
+      "uri": "/category",
+      "uriParameters": [
+        {
+          "name": "name",
+          "type": "string",
+          "defaultValue": "Breaking News",
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "name": "string",
+        "color": "string"
+      },
+      "includedEndpoints": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
+      "endpoints": {
+        "GET-list": {
+          "description": "Returns all available categories."
+        },
+        "GET-single": {
+          "description": "Returns a category by its name."
+        },
+        "POST": {
+          "description": "Creates a new category. The name is the primary key (max 64 characters) and cannot be changed after creation.",
+          "body": {
+            "schema": { "name": "string", "color": "string" },
+            "defaultValue": "{\n\t\"name\": \"Breaking News\",\n\t\"color\": \"#a8192e\"\n}"
+          },
+          "responses": [
+            {
+              "code": 201,
+              "response": { "name": "string", "color": "string" }
+            },
+            {
+              "code": 409,
+              "response": {
+                "code": 409,
+                "message": "Category already exists"
+              }
+            }
+          ]
+        },
+        "PUT": {
+          "description": "Updates the color of an existing category.",
+          "body": {
+            "schema": { "color": "string" },
+            "defaultValue": "{\n\t\"color\": \"#123456\"\n}"
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": { "name": "string", "color": "string" }
+            }
+          ]
+        },
+        "DELETE": {
+          "description": "Deletes a category. IssueSection rows referencing it (and their articles) are deleted in cascade."
+        }
+      }
+    },
+    {
+      "name": {
         "singular": "sponsor",
         "plural": "sponsors"
       },
@@ -864,10 +935,224 @@
     },
     {
       "name": {
+        "singular": "feed",
+        "plural": "feeds"
+      },
+      "description": "External feeds (e.g. RSS sources or curated link feeds) that can be categorized with tags. Listing is public; creating, editing and deleting require authentication.",
+      "uri": "/feed",
+      "uriParameters": [
+        {
+          "name": "id",
+          "type": "integer",
+          "defaultValue": 1,
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "id": "integer",
+        "name": "string",
+        "link": "string",
+        "isRssFeed": "boolean"
+      },
+      "response": {
+        "get-list": {
+          "data": "array-feed",
+          "total": "integer",
+          "page": "integer",
+          "pageSize": "integer"
+        },
+        "get-single": {
+          "id": "integer",
+          "name": "string",
+          "link": "string",
+          "isRssFeed": "boolean"
+        }
+      },
+      "listParameters": [
+        {
+          "name": "page",
+          "label": "Page",
+          "type": "integer",
+          "defaultValue": 1,
+          "min": 1
+        },
+        {
+          "name": "limit",
+          "label": "Limit",
+          "type": "integer",
+          "defaultValue": 20,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "name": "q",
+          "label": "Search",
+          "type": "string"
+        },
+        {
+          "name": "sort",
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            { "name": "asc", "label": "Ascending" },
+            { "name": "desc", "label": "Descending" }
+          ]
+        }
+      ],
+      "includedEndpoints": [
+        "GET-list",
+        "GET-single",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
+      "endpoints": {
+        "GET-list": {
+          "description": "Returns the paginated list of feeds. Public, no authentication required."
+        },
+        "GET-single": {
+          "description": "Returns a feed by its ID. Public, no authentication required."
+        },
+        "POST": {
+          "description": "Creates a new feed. Requires authentication.",
+          "body": {
+            "schema": {
+              "name": "string",
+              "link": "string",
+              "isRssFeed": "boolean?"
+            },
+            "defaultValue": "{\n\t\"name\": \"Date.now() blog\",\n\t\"link\": \"https://datenow.dev/feed.xml\",\n\t\"isRssFeed\": true\n}"
+          },
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "id": "integer",
+                "name": "string",
+                "link": "string",
+                "isRssFeed": "boolean"
+              }
+            }
+          ]
+        },
+        "PUT": {
+          "description": "Updates an existing feed. Requires authentication.",
+          "body": {
+            "schema": {
+              "name": "string",
+              "link": "string",
+              "isRssFeed": "boolean?"
+            },
+            "defaultValue": "{\n\t\"name\": \"Date.now() blog\",\n\t\"link\": \"https://datenow.dev/feed.xml\",\n\t\"isRssFeed\": true\n}"
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "name": "string",
+                "link": "string",
+                "isRssFeed": "boolean"
+              }
+            }
+          ]
+        },
+        "DELETE": {
+          "description": "Deletes a feed. Requires authentication. FeedTag associations are deleted in cascade."
+        }
+      }
+    },
+    {
+      "name": {
+        "singular": "feed tag",
+        "plural": "feed tags"
+      },
+      "description": "Association between a feed and a tag (FeedTag table). URI: /feed/{id}/tag. Deletions are cascaded. Listing is public; creating and deleting require authentication.",
+      "uri": "/feed/{ID}/tag",
+      "uriParameters": [
+        {
+          "name": "tagName",
+          "type": "string",
+          "defaultValue": "Software",
+          "isPrimary": true
+        },
+        { "name": "id", "type": "integer", "defaultValue": 1 }
+      ],
+      "schema": {
+        "tagName": "string",
+        "feedId": "integer"
+      },
+      "includedEndpoints": ["GET-list", "POST", "DELETE"],
+      "endpoints": {
+        "GET-list": {
+          "description": "Returns all tags associated with the feed. Public, no authentication required.",
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "data": [{ "name": "string", "color": "string" }]
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Feed not found"
+              }
+            }
+          ]
+        },
+        "POST": {
+          "description": "Associates an existing tag with the feed. Requires authentication.",
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "message": "Feed tag successfully created"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Feed or tag not found"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "The tag already exists"
+              }
+            }
+          ]
+        },
+        "DELETE": {
+          "description": "Removes a tag from the feed. Requires authentication.",
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "message": "Feed tag successfully deleted"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Feed, tag or association not found"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": {
         "singular": "issue",
         "plural": "issues"
       },
-      "description": "Newsletter issues — drafts, published, and archived. Each issue has rich content, a cover image, authors, tags, and sponsors.",
+      "description": "Newsletter issues — drafts, published, and archived. Each issue has a cover image, authors, tags, sponsors, and a structured content tree of sections (categories of curated articles, or freestanding text blocks).",
       "uri": "/issue",
       "uriParameters": [
         {
@@ -888,7 +1173,6 @@
         "updatedAt": "timestamp?",
         "issueNumber": "integer",
         "excerpt": "string",
-        "content": "string",
         "isSponsored": "boolean",
         "status": "DRAFT | PUBLISHED | ARCHIVE",
         "openedMailCount": "integer"
@@ -918,14 +1202,14 @@
           "updatedAt": "timestamp?",
           "issueNumber": "integer",
           "excerpt": "string",
-          "content": "string",
           "isSponsored": "boolean",
           "status": "DRAFT | PUBLISHED | ARCHIVE",
           "openedMailCount": "integer",
           "views": "integer",
           "authors": "array-user",
           "tags": "array-tag",
-          "sponsors": "array-sponsor"
+          "sponsors": "array-sponsor",
+          "sections": "array-issueSection"
         }
       },
       "listParameters": [
@@ -964,7 +1248,7 @@
           "description": "Returns an issue by its ID, including its authors, tags, and sponsors."
         },
         "POST": {
-          "description": "Creates a new issue. The slug is auto-generated from the title if not provided. The issue number must be unique.",
+          "description": "Creates a new issue. The slug is auto-generated from the title if not provided. The issue number must be unique. Content is managed afterwards via /issue/{id}/section and /issue/{id}/section/{sectionId}/article.",
           "body": {
             "schema": {
               "slug": "string?",
@@ -972,12 +1256,11 @@
               "subtitle": "string",
               "issueNumber": "integer",
               "excerpt": "string",
-              "content": "string",
               "isSponsored": "boolean?",
               "status": "DRAFT | PUBLISHED | ARCHIVE",
               "cover": "integer?"
             },
-            "defaultValue": "{\n\t\"title\": \"My first issue\",\n\t\"subtitle\": \"A great subtitle\",\n\t\"issueNumber\": 1,\n\t\"excerpt\": \"A short excerpt\",\n\t\"content\": \"Full content here\",\n\t\"status\": \"DRAFT\"\n}"
+            "defaultValue": "{\n\t\"title\": \"My first issue\",\n\t\"subtitle\": \"A great subtitle\",\n\t\"issueNumber\": 1,\n\t\"excerpt\": \"A short excerpt\",\n\t\"status\": \"DRAFT\"\n}"
           },
           "responses": [
             {
@@ -991,7 +1274,6 @@
                 "createdAt": "timestamp",
                 "issueNumber": "integer",
                 "excerpt": "string",
-                "content": "string",
                 "isSponsored": "boolean",
                 "status": "DRAFT | PUBLISHED | ARCHIVE",
                 "openedMailCount": "integer"
@@ -1007,7 +1289,7 @@
           ]
         },
         "PUT": {
-          "description": "Updates an existing issue. All fields are required.",
+          "description": "Updates an existing issue. All fields are required. Content sections are managed separately via /issue/{id}/section.",
           "body": {
             "schema": {
               "slug": "string?",
@@ -1015,12 +1297,11 @@
               "subtitle": "string",
               "issueNumber": "integer",
               "excerpt": "string",
-              "content": "string",
               "isSponsored": "boolean?",
               "status": "DRAFT | PUBLISHED | ARCHIVE",
               "cover": "integer?"
             },
-            "defaultValue": "{\n\t\"title\": \"My first issue\",\n\t\"subtitle\": \"A great subtitle\",\n\t\"issueNumber\": 1,\n\t\"excerpt\": \"A short excerpt\",\n\t\"content\": \"Full content here\",\n\t\"status\": \"DRAFT\"\n}"
+            "defaultValue": "{\n\t\"title\": \"My first issue\",\n\t\"subtitle\": \"A great subtitle\",\n\t\"issueNumber\": 1,\n\t\"excerpt\": \"A short excerpt\",\n\t\"status\": \"DRAFT\"\n}"
           },
           "responses": [
             {
@@ -1036,7 +1317,6 @@
                 "updatedAt": "timestamp?",
                 "issueNumber": "integer",
                 "excerpt": "string",
-                "content": "string",
                 "isSponsored": "boolean",
                 "status": "DRAFT | PUBLISHED | ARCHIVE",
                 "openedMailCount": "integer"
@@ -1056,6 +1336,53 @@
         }
       },
       "customEndpoints": [
+        {
+          "name": "Get issue by slug",
+          "description": "Returns the full issue object (with authors, tags, sponsors, and content sections) by its slug instead of its numeric id. Public, no authentication required.",
+          "uri": "/slug/{slug}",
+          "method": "GET",
+          "tokenRequired": false,
+          "uriParameters": [
+            {
+              "name": "slug",
+              "type": "string",
+              "defaultValue": "my-first-issue",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "slug": "string",
+                "title": "string",
+                "subtitle": "string",
+                "cover": "foreignKey-media",
+                "createdAt": "timestamp",
+                "publishedAt": "timestamp?",
+                "updatedAt": "timestamp?",
+                "issueNumber": "integer",
+                "excerpt": "string",
+                "isSponsored": "boolean",
+                "status": "DRAFT | PUBLISHED | ARCHIVE",
+                "openedMailCount": "integer",
+                "views": "integer",
+                "authors": "array-user",
+                "tags": "array-tag",
+                "sponsors": "array-sponsor",
+                "sections": "array-issueSection"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            }
+          ]
+        },
         {
           "name": "Get issue count",
           "description": "Returns the total number of issues. Use the optional `status` parameter to restrict the count to issues with a specific status.",
@@ -1126,6 +1453,266 @@
               }
             },
             500
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "issue section",
+        "plural": "issue sections"
+      },
+      "description": "An ordered content section of an issue: either a category of curated articles, or a freestanding rich-text block. URI: /issue/{id}/section. Deletions are cascaded (including its articles). Positions are managed via append-on-create plus a dedicated /reorder endpoint — PUT never changes position or type.",
+      "uri": "/issue/{ID}/section",
+      "uriParameters": [
+        {
+          "name": "sectionId",
+          "type": "integer",
+          "defaultValue": 1,
+          "isPrimary": true
+        },
+        { "name": "id", "type": "integer", "defaultValue": 1 }
+      ],
+      "schema": {
+        "id": "integer",
+        "issueId": "integer",
+        "position": "integer",
+        "type": "CATEGORY | TEXT",
+        "categoryName": "string?",
+        "textBody": "contentBlock[]?",
+        "articles": "array-article"
+      },
+      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "endpoints": {
+        "GET-list": {
+          "description": "Returns all sections of the issue, ordered by position, each including its articles when type is CATEGORY. Public, no authentication required."
+        },
+        "GET-single": {
+          "description": "Returns a section by its id, including its articles when type is CATEGORY. Public, no authentication required."
+        },
+        "POST": {
+          "description": "Creates a new section, appended at the end of the issue (position is server-assigned). Body must set exactly one of categoryName (type CATEGORY, category must already exist) or textBody (type TEXT, validated content-block array). Requires authentication.",
+          "body": {
+            "schema": {
+              "type": "CATEGORY | TEXT",
+              "categoryName": "string?",
+              "textBody": "contentBlock[]?"
+            },
+            "defaultValue": "{\n\t\"type\": \"TEXT\",\n\t\"textBody\": [\n\t\t{ \"type\": \"text\", \"markdown\": \"Some **bold** intro text.\" }\n\t]\n}"
+          },
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "id": "integer",
+                "issueId": "integer",
+                "position": "integer",
+                "type": "CATEGORY | TEXT",
+                "categoryName": "string?",
+                "textBody": "contentBlock[]?",
+                "articles": "array-article"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "categoryName must be set (and textBody omitted) for CATEGORY sections; textBody must be set (and categoryName omitted) for TEXT sections."
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue or category not found"
+              }
+            }
+          ]
+        },
+        "PUT": {
+          "description": "Updates categoryName (CATEGORY sections) or textBody (TEXT sections) — matching the section's existing type. Never changes type or position. Requires authentication.",
+          "body": {
+            "schema": {
+              "categoryName": "string?",
+              "textBody": "contentBlock[]?"
+            }
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "issueId": "integer",
+                "position": "integer",
+                "type": "CATEGORY | TEXT",
+                "categoryName": "string?",
+                "textBody": "contentBlock[]?",
+                "articles": "array-article"
+              }
+            }
+          ]
+        },
+        "DELETE": {
+          "description": "Deletes a section. Its articles are deleted in cascade."
+        }
+      },
+      "customEndpoints": [
+        {
+          "name": "Reorder sections",
+          "description": "Rewrites the position of every section of the issue to its index in the given order array. The array must contain exactly the ids currently belonging to the issue.",
+          "uri": "/reorder",
+          "method": "PUT",
+          "tokenRequired": true,
+          "body": { "order": "integer[]" },
+          "responses": [
+            {
+              "code": 200,
+              "response": { "message": "Sections successfully reordered" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "The 'order' array must contain exactly the ids currently in this collection."
+              }
+            },
+            401,
+            {
+              "code": 404,
+              "response": { "code": 404, "message": "Issue not found" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": {
+        "singular": "article",
+        "plural": "articles"
+      },
+      "description": "A curated article within an issue's CATEGORY section: a title, a source (link + blog/media name), and a rich summary (bold/italic text plus YouTube/tweet embeds; image embeds planned). URI: /issue/{id}/section/{sectionId}/article. Positions are managed via append-on-create plus a dedicated /reorder endpoint — PUT never changes position.",
+      "uri": "/issue/{ID}/section/{sectionId}/article",
+      "uriParameters": [
+        {
+          "name": "articleId",
+          "type": "integer",
+          "defaultValue": 1,
+          "isPrimary": true
+        },
+        { "name": "id", "type": "integer", "defaultValue": 1 },
+        { "name": "sectionId", "type": "integer", "defaultValue": 1 }
+      ],
+      "schema": {
+        "id": "integer",
+        "sectionId": "integer",
+        "position": "integer",
+        "title": "string",
+        "sourceName": "string",
+        "sourceUrl": "string",
+        "summary": "contentBlock[]"
+      },
+      "includedEndpoints": ["GET-list", "GET-single", "POST", "PUT", "DELETE"],
+      "endpoints": {
+        "GET-list": {
+          "description": "Returns all articles of the section, ordered by position. Public, no authentication required. 404 if the section isn't a CATEGORY section."
+        },
+        "GET-single": {
+          "description": "Returns an article by its id. Public, no authentication required."
+        },
+        "POST": {
+          "description": "Creates a new article, appended at the end of the section (position is server-assigned). summary must be a validated content-block array. Requires authentication.",
+          "body": {
+            "schema": {
+              "title": "string",
+              "sourceName": "string",
+              "sourceUrl": "string",
+              "summary": "contentBlock[]"
+            },
+            "defaultValue": "{\n\t\"title\": \"A breaking headline\",\n\t\"sourceName\": \"Le Monde\",\n\t\"sourceUrl\": \"https://lemonde.fr/article\",\n\t\"summary\": [\n\t\t{ \"type\": \"text\", \"markdown\": \"A **bold** summary.\" },\n\t\t{ \"type\": \"youtube\", \"url\": \"https://youtu.be/xxxx\" }\n\t]\n}"
+          },
+          "responses": [
+            {
+              "code": 201,
+              "response": {
+                "id": "integer",
+                "sectionId": "integer",
+                "position": "integer",
+                "title": "string",
+                "sourceName": "string",
+                "sourceUrl": "string",
+                "summary": "contentBlock[]"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Invalid content blocks: must be a JSON array of objects with a 'type' field ('text', 'youtube', or 'tweet') and its required sub-fields."
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue or section not found"
+              }
+            }
+          ]
+        },
+        "PUT": {
+          "description": "Updates title, sourceName, sourceUrl and/or summary. Never changes position. Requires authentication.",
+          "body": {
+            "schema": {
+              "title": "string",
+              "sourceName": "string",
+              "sourceUrl": "string",
+              "summary": "contentBlock[]"
+            }
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "id": "integer",
+                "sectionId": "integer",
+                "position": "integer",
+                "title": "string",
+                "sourceName": "string",
+                "sourceUrl": "string",
+                "summary": "contentBlock[]"
+              }
+            }
+          ]
+        },
+        "DELETE": {
+          "description": "Deletes an article."
+        }
+      },
+      "customEndpoints": [
+        {
+          "name": "Reorder articles",
+          "description": "Rewrites the position of every article of the section to its index in the given order array. The array must contain exactly the ids currently belonging to the section.",
+          "uri": "/reorder",
+          "method": "PUT",
+          "tokenRequired": true,
+          "body": { "order": "integer[]" },
+          "responses": [
+            {
+              "code": 200,
+              "response": { "message": "Articles successfully reordered" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "The 'order' array must contain exactly the ids currently in this collection."
+              }
+            },
+            401,
+            {
+              "code": 404,
+              "response": { "code": 404, "message": "Issue or section not found" }
+            }
           ]
         }
       ]

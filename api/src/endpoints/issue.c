@@ -499,6 +499,50 @@ void send_issue_res(struct mg_connection *c, struct mg_http_message *msg,
   }
 }
 
+void send_issue_by_slug_res(struct mg_connection *c,
+                            struct mg_http_message *msg, char *slug,
+                            struct error_reply *error_reply,
+                            const char *secret) {
+  int query_code;
+  struct error_reply _er = {0};
+  error_reply = &_er;
+
+  if (!mg_match(msg->method, mg_str("GET"), NULL)) {
+    ERROR_REPLY_405;
+    return;
+  }
+
+  printf(TERMINAL_ENDPOINT_MESSAGE("=== GET ISSUE BY SLUG ==="));
+
+  // Check if exists
+  int exists = issue_slug_exists(slug);
+  if (!exists) {
+    ERROR_REPLY_404;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ISSUE NOT FOUND"));
+    return;
+  }
+
+  struct issue *issue = malloc(sizeof(struct issue));
+
+  query_code = get_issue_by_slug(issue, slug);
+
+  if (query_code != 0) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING ISSUE"));
+    HANDLE_QUERY_CODE;
+
+    free(issue);
+    return;
+  }
+
+  char *result = issue_to_json(issue);
+
+  SUCCESS_REPLY_200(result);
+  free(result);
+  printf(TERMINAL_SUCCESS_MESSAGE("=== ISSUE SUCCESSFULLY SENT ==="));
+
+  free_issue(issue);
+}
+
 void publish_issue_res(struct mg_connection *c, struct mg_http_message *msg,
                        int id, struct error_reply *error_reply,
                        const char *secret) {

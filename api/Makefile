@@ -10,7 +10,7 @@ LIBS := -ljwt -lssl -lcrypto -lsqlite3 -lcurl -lcjson $(MAGICK_LIBS) -lpthread
 includes := ./include
 src := ./src
 
-tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth media
+tables := user tag sponsor issue issue_tag issue_author issue_sponsor view auth media feed feed_tag category issue_section article
 
 libs_o := obj/lib/mongoose.o obj/lib/validatejson.o obj/lib/email.o obj/lib/totp.o
 helpers_o := obj/utils.o obj/lib/rate_limiter.o

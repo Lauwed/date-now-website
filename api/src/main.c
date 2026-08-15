@@ -6,9 +6,14 @@
  */
 
 #include <MagickWand/MagickWand.h>
+#include <endpoints/article.h>
 #include <endpoints/auth.h>
+#include <endpoints/category.h>
+#include <endpoints/feed.h>
+#include <endpoints/feed_tag.h>
 #include <endpoints/issue.h>
 #include <endpoints/issue_author.h>
+#include <endpoints/issue_section.h>
 #include <endpoints/issue_sponsor.h>
 #include <endpoints/issue_tag.h>
 #include <endpoints/media.h>
@@ -189,6 +194,75 @@ static void r_tag(struct mg_connection *c, struct mg_http_message *msg,
   free(name);
 }
 
+/* ---- feed route handlers ---- */
+
+static void r_feeds(struct mg_connection *c, struct mg_http_message *msg,
+                    struct mg_str *caps, struct error_reply *er,
+                    const char *secret) {
+  (void)caps;
+  send_feeds_res(c, msg, er, secret);
+}
+
+static void r_feed(struct mg_connection *c, struct mg_http_message *msg,
+                   struct mg_str *caps, struct error_reply *er,
+                   const char *secret) {
+  int id;
+  if (!mg_str_to_num(caps[0], 10, &id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_feed_res(c, msg, id, er, secret);
+}
+
+static void r_feed_tags(struct mg_connection *c, struct mg_http_message *msg,
+                        struct mg_str *caps, struct error_reply *er,
+                        const char *secret) {
+  int feed_id;
+  if (!mg_str_to_num(caps[0], 10, &feed_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_feed_tags_res(c, msg, feed_id, er, secret);
+}
+
+static void r_feed_tag(struct mg_connection *c, struct mg_http_message *msg,
+                       struct mg_str *caps, struct error_reply *er,
+                       const char *secret) {
+  int feed_id;
+  if (!mg_str_to_num(caps[0], 10, &feed_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  char *name = decode_name(caps[1]);
+  if (!name) {
+    reply_bad_name(c);
+    return;
+  }
+  send_feed_tag_res(c, msg, feed_id, name, er, secret);
+  free(name);
+}
+
+/* ---- category route handlers ---- */
+
+static void r_categories(struct mg_connection *c, struct mg_http_message *msg,
+                         struct mg_str *caps, struct error_reply *er,
+                         const char *secret) {
+  (void)caps;
+  send_categories_res(c, msg, er, secret);
+}
+
+static void r_category(struct mg_connection *c, struct mg_http_message *msg,
+                       struct mg_str *caps, struct error_reply *er,
+                       const char *secret) {
+  char *name = decode_name(caps[0]);
+  if (!name) {
+    reply_bad_name(c);
+    return;
+  }
+  send_category_res(c, msg, name, er, secret);
+  free(name);
+}
+
 /* ---- sponsor route handlers ---- */
 
 static void r_sponsors(struct mg_connection *c, struct mg_http_message *msg,
@@ -266,6 +340,18 @@ static void r_issue(struct mg_connection *c, struct mg_http_message *msg,
   send_issue_res(c, msg, id, er, secret);
 }
 
+static void r_issue_by_slug(struct mg_connection *c,
+                            struct mg_http_message *msg, struct mg_str *caps,
+                            struct error_reply *er, const char *secret) {
+  char *slug = decode_name(caps[0]);
+  if (!slug) {
+    reply_bad_name(c);
+    return;
+  }
+  send_issue_by_slug_res(c, msg, slug, er, secret);
+  free(slug);
+}
+
 static void r_issue_publish(struct mg_connection *c,
                             struct mg_http_message *msg, struct mg_str *caps,
                             struct error_reply *er, const char *secret) {
@@ -303,6 +389,95 @@ static void r_issue_tag(struct mg_connection *c, struct mg_http_message *msg,
   }
   send_issue_tag_res(c, msg, issue_id, name, er, secret);
   free(name);
+}
+
+static void r_issue_sections(struct mg_connection *c,
+                             struct mg_http_message *msg, struct mg_str *caps,
+                             struct error_reply *er, const char *secret) {
+  int issue_id;
+  if (!mg_str_to_num(caps[0], 10, &issue_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_issue_sections_res(c, msg, issue_id, er, secret);
+}
+
+static void r_issue_sections_reorder(struct mg_connection *c,
+                                     struct mg_http_message *msg,
+                                     struct mg_str *caps,
+                                     struct error_reply *er,
+                                     const char *secret) {
+  int issue_id;
+  if (!mg_str_to_num(caps[0], 10, &issue_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_issue_sections_reorder_res(c, msg, issue_id, er, secret);
+}
+
+static void r_issue_section(struct mg_connection *c,
+                            struct mg_http_message *msg, struct mg_str *caps,
+                            struct error_reply *er, const char *secret) {
+  int issue_id, section_id;
+  if (!mg_str_to_num(caps[0], 10, &issue_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  if (!mg_str_to_num(caps[1], 10, &section_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_issue_section_res(c, msg, issue_id, section_id, er, secret);
+}
+
+static void r_articles(struct mg_connection *c, struct mg_http_message *msg,
+                       struct mg_str *caps, struct error_reply *er,
+                       const char *secret) {
+  int issue_id, section_id;
+  if (!mg_str_to_num(caps[0], 10, &issue_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  if (!mg_str_to_num(caps[1], 10, &section_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_articles_res(c, msg, issue_id, section_id, er, secret);
+}
+
+static void r_articles_reorder(struct mg_connection *c,
+                               struct mg_http_message *msg,
+                               struct mg_str *caps, struct error_reply *er,
+                               const char *secret) {
+  int issue_id, section_id;
+  if (!mg_str_to_num(caps[0], 10, &issue_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  if (!mg_str_to_num(caps[1], 10, &section_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_articles_reorder_res(c, msg, issue_id, section_id, er, secret);
+}
+
+static void r_article(struct mg_connection *c, struct mg_http_message *msg,
+                      struct mg_str *caps, struct error_reply *er,
+                      const char *secret) {
+  int issue_id, section_id, article_id;
+  if (!mg_str_to_num(caps[0], 10, &issue_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  if (!mg_str_to_num(caps[1], 10, &section_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  if (!mg_str_to_num(caps[2], 10, &article_id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  send_article_res(c, msg, issue_id, section_id, article_id, er, secret);
 }
 
 static void r_issue_authors(struct mg_connection *c,
@@ -374,6 +549,12 @@ static const struct route_entry routes[] = {
     {"auth/login", r_login_mail, 0, 0},
     {"auth/refresh", r_refresh_token, 0, 0},
     // issue sub-resources before issue/* to avoid short-circuit
+    {"issue/*/section/*/article/reorder", r_articles_reorder, 0, 0},
+    {"issue/*/section/*/article/*", r_article, 0, 0},
+    {"issue/*/section/*/article", r_articles, 0, 0},
+    {"issue/*/section/reorder", r_issue_sections_reorder, 0, 0},
+    {"issue/*/section/*", r_issue_section, 0, 0},
+    {"issue/*/section", r_issue_sections, 0, 0},
     {"issue/*/tag/*", r_issue_tag, 0, 0},
     {"issue/*/tag", r_issue_tags, 0, 0},
     {"issue/*/author/*", r_issue_author, 0, 0},
@@ -382,6 +563,7 @@ static const struct route_entry routes[] = {
     {"issue/*/sponsor", r_issue_sponsors, 0, 0},
     {"issue/*/publish", r_issue_publish, 0, 0},
     {"issue/count", r_issue_count, 0, 0},
+    {"issue/slug/*", r_issue_by_slug, 0, 0},
     {"issue/*", r_issue, 0, 0},
     {"issue", r_issues, 0, 0},
     /* remaining resources */
@@ -391,6 +573,12 @@ static const struct route_entry routes[] = {
     {"user", r_users, 0, 0},
     {"tag/*", r_tag, 0, 0},
     {"tag", r_tags, 0, 0},
+    {"category/*", r_category, 0, 0},
+    {"category", r_categories, 0, 0},
+    {"feed/*/tag/*", r_feed_tag, 0, 0},
+    {"feed/*/tag", r_feed_tags, 0, 0},
+    {"feed/*", r_feed, 0, 0},
+    {"feed", r_feeds, 0, 0},
     {"sponsor/*", r_sponsor, 0, 0},
     {"sponsor", r_sponsors, 0, 0},
     {"media/*", r_media, 0, 0},

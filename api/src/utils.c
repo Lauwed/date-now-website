@@ -7,6 +7,7 @@
 
 #include <cjson/cJSON.h>
 #include <lib/mongoose.h>
+#include <lib/validatejson.h>
 #include <macros/colors.h>
 #include <macros/utils.h>
 #include <regex.h>
@@ -143,6 +144,58 @@ int str_to_slug(char *str, size_t len) {
       dash_added = 0;
     }
   }
+
+  return 0;
+}
+
+int validate_content_blocks(struct mg_str json) {
+  if (!mg_validateJSON(json)) {
+    return 1;
+  }
+
+  cJSON *root = cJSON_ParseWithLength(json.buf, json.len);
+  if (root == NULL) {
+    return 1;
+  }
+
+  if (!cJSON_IsArray(root)) {
+    cJSON_Delete(root);
+    return 1;
+  }
+
+  cJSON *block = NULL;
+  cJSON_ArrayForEach(block, root) {
+    if (!cJSON_IsObject(block)) {
+      cJSON_Delete(root);
+      return 1;
+    }
+
+    cJSON *type = cJSON_GetObjectItemCaseSensitive(block, "type");
+    if (!cJSON_IsString(type) || type->valuestring == NULL) {
+      cJSON_Delete(root);
+      return 1;
+    }
+
+    if (strcmp(type->valuestring, "text") == 0) {
+      cJSON *markdown = cJSON_GetObjectItemCaseSensitive(block, "markdown");
+      if (!cJSON_IsString(markdown) || markdown->valuestring == NULL) {
+        cJSON_Delete(root);
+        return 1;
+      }
+    } else if (strcmp(type->valuestring, "youtube") == 0 ||
+               strcmp(type->valuestring, "tweet") == 0) {
+      cJSON *url = cJSON_GetObjectItemCaseSensitive(block, "url");
+      if (!cJSON_IsString(url) || url->valuestring == NULL) {
+        cJSON_Delete(root);
+        return 1;
+      }
+    } else {
+      cJSON_Delete(root);
+      return 1;
+    }
+  }
+
+  cJSON_Delete(root);
 
   return 0;
 }
@@ -305,6 +358,172 @@ char *tags_to_json(struct tag **tags, size_t len) {
   return json;
 }
 
+static cJSON *feed_to_cjson(struct feed *feed) {
+  if (feed == NULL)
+    return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "id", feed->id);
+  cJSON_AddStringToObject(obj, "name", feed->name);
+  cJSON_AddStringToObject(obj, "link", feed->link);
+  cJSON_AddItemToObject(obj, "isRssFeed", cJSON_CreateBool(feed->is_rss_feed));
+  return obj;
+}
+
+char *feed_to_json(struct feed *feed) {
+  if (feed == NULL)
+    return "null";
+  cJSON *obj = feed_to_cjson(feed);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+  return json;
+}
+
+char *feeds_to_json(struct feed **feeds, size_t len) {
+  if (len == 0)
+    return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, feed_to_cjson(feeds[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+  return json;
+}
+
+static cJSON *feed_tag_to_cjson(struct feed_tag *ft) {
+  if (ft == NULL)
+    return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "feedId", ft->feed_id);
+  cJSON_AddStringToObject(obj, "tagName", ft->tag_name);
+  return obj;
+}
+
+char *feed_tag_to_json(struct feed_tag *feed_tag) {
+  if (feed_tag == NULL)
+    return "null";
+  cJSON *obj = feed_tag_to_cjson(feed_tag);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+  return json;
+}
+
+char *feed_tags_to_json(struct feed_tag **feed_tags, size_t len) {
+  if (len == 0)
+    return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, feed_tag_to_cjson(feed_tags[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+  return json;
+}
+
+static cJSON *category_to_cjson(struct category *category) {
+  if (category == NULL)
+    return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddStringToObject(obj, "name", category->name);
+  cJSON_AddStringToObject(obj, "color", category->color);
+  return obj;
+}
+
+char *category_to_json(struct category *category) {
+  if (category == NULL)
+    return "null";
+  cJSON *obj = category_to_cjson(category);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+  return json;
+}
+
+char *categories_to_json(struct category **categories, size_t len) {
+  if (len == 0)
+    return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, category_to_cjson(categories[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+  return json;
+}
+
+static cJSON *article_to_cjson(struct article *article) {
+  if (article == NULL)
+    return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "id", article->id);
+  cJSON_AddNumberToObject(obj, "sectionId", article->section_id);
+  cJSON_AddNumberToObject(obj, "position", article->position);
+  cJSON_AddStringToObject(obj, "title", article->title);
+  cJSON_AddStringToObject(obj, "sourceName", article->source_name);
+  cJSON_AddStringToObject(obj, "sourceUrl", article->source_url);
+  cJSON_AddRawToObject(obj, "summary", article->summary);
+  return obj;
+}
+
+char *article_to_json(struct article *article) {
+  if (article == NULL)
+    return "null";
+  cJSON *obj = article_to_cjson(article);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+  return json;
+}
+
+char *articles_to_json(struct article **articles, size_t len) {
+  if (len == 0)
+    return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, article_to_cjson(articles[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+  return json;
+}
+
+static cJSON *issue_section_to_cjson(struct issue_section *section) {
+  if (section == NULL)
+    return cJSON_CreateNull();
+  cJSON *obj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(obj, "id", section->id);
+  cJSON_AddNumberToObject(obj, "issueId", section->issue_id);
+  cJSON_AddNumberToObject(obj, "position", section->position);
+  cJSON_AddStringToObject(obj, "type", section->type);
+  if (section->category_name != NULL)
+    cJSON_AddStringToObject(obj, "categoryName", section->category_name);
+  else
+    cJSON_AddNullToObject(obj, "categoryName");
+  if (section->text_body != NULL)
+    cJSON_AddRawToObject(obj, "textBody", section->text_body);
+  else
+    cJSON_AddNullToObject(obj, "textBody");
+  cJSON *articles_arr = cJSON_CreateArray();
+  for (size_t i = 0; i < section->articles_count; i++)
+    cJSON_AddItemToArray(articles_arr, article_to_cjson(section->articles[i]));
+  cJSON_AddItemToObject(obj, "articles", articles_arr);
+  return obj;
+}
+
+char *issue_section_to_json(struct issue_section *section) {
+  if (section == NULL)
+    return "null";
+  cJSON *obj = issue_section_to_cjson(section);
+  char *json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+  return json;
+}
+
+char *issue_sections_to_json(struct issue_section **sections, size_t len) {
+  if (len == 0)
+    return "[]";
+  cJSON *arr = cJSON_CreateArray();
+  for (size_t i = 0; i < len; i++)
+    cJSON_AddItemToArray(arr, issue_section_to_cjson(sections[i]));
+  char *json = cJSON_PrintUnformatted(arr);
+  cJSON_Delete(arr);
+  return json;
+}
+
 static cJSON *sponsor_to_cjson(struct sponsor *sponsor) {
   if (sponsor == NULL)
     return cJSON_CreateNull();
@@ -438,7 +657,6 @@ static cJSON *issue_to_cjson(struct issue *issue) {
   cJSON_AddNumberToObject(obj, "issueNumber", issue->issue_number);
   cJSON_AddNumberToObject(obj, "views", issue->views);
   cJSON_AddStringToObject(obj, "excerpt", issue->excerpt);
-  cJSON_AddStringToObject(obj, "content", issue->content);
   cJSON_AddItemToObject(obj, "isSponsored",
                         cJSON_CreateBool(issue->is_sponsored));
   cJSON_AddStringToObject(obj, "status", issue->status);
@@ -459,6 +677,12 @@ static cJSON *issue_to_cjson(struct issue *issue) {
     cJSON_AddItemToArray(sponsors_arr,
                          issue_sponsor_to_cjson(issue->sponsors[i]));
   cJSON_AddItemToObject(obj, "sponsors", sponsors_arr);
+
+  cJSON *sections_arr = cJSON_CreateArray();
+  for (size_t i = 0; i < issue->sections_count; i++)
+    cJSON_AddItemToArray(sections_arr,
+                         issue_section_to_cjson(issue->sections[i]));
+  cJSON_AddItemToObject(obj, "sections", sections_arr);
 
   return obj;
 }
@@ -535,7 +759,6 @@ int free_issue(struct issue *issue) {
   free(issue->title);
   free(issue->subtitle);
   free(issue->excerpt);
-  free(issue->content);
   free(issue->status);
 
   if (issue->cover != NULL) {
@@ -551,12 +774,14 @@ int free_issue(struct issue *issue) {
   if (issue->sponsors != NULL) {
     free_issue_sponsors(issue->sponsors, issue->sponsors_count);
   }
+  if (issue->sections != NULL) {
+    free_issue_sections(issue->sections, issue->sections_count);
+  }
 
   issue->slug = NULL;
   issue->title = NULL;
   issue->subtitle = NULL;
   issue->excerpt = NULL;
-  issue->content = NULL;
   issue->status = NULL;
 
   free(issue);
@@ -594,6 +819,29 @@ int free_issue_tag(struct issue_tag *issue) {
   return 0;
 }
 
+int free_feed(struct feed *feed) {
+  free(feed->name);
+  free(feed->link);
+
+  feed->name = NULL;
+  feed->link = NULL;
+
+  free(feed);
+  feed = NULL;
+
+  return 0;
+}
+
+int free_feed_tag(struct feed_tag *feed_tag) {
+  free(feed_tag->tag_name);
+  feed_tag->tag_name = NULL;
+
+  free(feed_tag);
+  feed_tag = NULL;
+
+  return 0;
+}
+
 int free_tag(struct tag *tag) {
   free(tag->name);
   free(tag->color);
@@ -603,6 +851,57 @@ int free_tag(struct tag *tag) {
 
   free(tag);
   tag = NULL;
+
+  return 0;
+}
+
+int free_category(struct category *category) {
+  free(category->name);
+  free(category->color);
+
+  category->name = NULL;
+  category->color = NULL;
+
+  free(category);
+  category = NULL;
+
+  return 0;
+}
+
+int free_article(struct article *article) {
+  free(article->title);
+  free(article->source_name);
+  free(article->source_url);
+  free(article->summary);
+
+  article->title = NULL;
+  article->source_name = NULL;
+  article->source_url = NULL;
+  article->summary = NULL;
+
+  free(article);
+  article = NULL;
+
+  return 0;
+}
+
+int free_issue_section(struct issue_section *section) {
+  free(section->type);
+  free(section->category_name);
+  free(section->text_body);
+
+  section->type = NULL;
+  section->category_name = NULL;
+  section->text_body = NULL;
+
+  if (section->articles != NULL) {
+    free_articles(section->articles, section->articles_count);
+  }
+  section->articles = NULL;
+  section->articles_count = 0;
+
+  free(section);
+  section = NULL;
 
   return 0;
 }
@@ -674,6 +973,42 @@ int free_issues(struct issue **issues, size_t len) {
   return result_code;
 }
 
+int free_feeds(struct feed **feeds, size_t len) {
+  int result_code = 0;
+  for (int i = 0; i < len; i += 1) {
+    if (feeds[i] != NULL) {
+      result_code = free_feed(feeds[i]);
+
+      if (result_code != 0) {
+        return result_code;
+      }
+    }
+  }
+
+  free(feeds);
+  feeds = NULL;
+
+  return result_code;
+}
+
+int free_feed_tags(struct feed_tag **feed_tags, size_t len) {
+  int result_code = 0;
+  for (int i = 0; i < len; i += 1) {
+    if (feed_tags[i] != NULL) {
+      result_code = free_feed_tag(feed_tags[i]);
+
+      if (result_code != 0) {
+        return result_code;
+      }
+    }
+  }
+
+  free(feed_tags);
+  feed_tags = NULL;
+
+  return result_code;
+}
+
 int free_tags(struct tag **tags, size_t len) {
   int result_code = 0;
   for (int i = 0; i < len; i += 1) {
@@ -688,6 +1023,60 @@ int free_tags(struct tag **tags, size_t len) {
 
   free(tags);
   tags = NULL;
+
+  return result_code;
+}
+
+int free_categories(struct category **categories, size_t len) {
+  int result_code = 0;
+  for (int i = 0; i < len; i += 1) {
+    if (categories[i] != NULL) {
+      result_code = free_category(categories[i]);
+
+      if (result_code != 0) {
+        return result_code;
+      }
+    }
+  }
+
+  free(categories);
+  categories = NULL;
+
+  return result_code;
+}
+
+int free_articles(struct article **articles, size_t len) {
+  int result_code = 0;
+  for (int i = 0; i < len; i += 1) {
+    if (articles[i] != NULL) {
+      result_code = free_article(articles[i]);
+
+      if (result_code != 0) {
+        return result_code;
+      }
+    }
+  }
+
+  free(articles);
+  articles = NULL;
+
+  return result_code;
+}
+
+int free_issue_sections(struct issue_section **sections, size_t len) {
+  int result_code = 0;
+  for (int i = 0; i < len; i += 1) {
+    if (sections[i] != NULL) {
+      result_code = free_issue_section(sections[i]);
+
+      if (result_code != 0) {
+        return result_code;
+      }
+    }
+  }
+
+  free(sections);
+  sections = NULL;
 
   return result_code;
 }
@@ -847,11 +1236,10 @@ int issue_map(struct issue *issue, sqlite3_stmt *stmt, int start_index,
   MAP_INT(issue->updated_at, stmt, start_index + 6, 0);
   MAP_INT(issue->issue_number, stmt, start_index + 7, 1);
   MAP_TEXT(issue->excerpt, stmt, start_index + 8, 1);
-  MAP_TEXT(issue->content, stmt, start_index + 9, 1);
-  MAP_INT(issue->is_sponsored, stmt, start_index + 10, 0);
-  MAP_TEXT(issue->status, stmt, start_index + 11, 1);
-  MAP_INT(issue->opened_mail_count, stmt, start_index + 12, 0);
-  MAP_INT(issue->views, stmt, start_index + 13, 0);
+  MAP_INT(issue->is_sponsored, stmt, start_index + 9, 0);
+  MAP_TEXT(issue->status, stmt, start_index + 10, 1);
+  MAP_INT(issue->opened_mail_count, stmt, start_index + 11, 0);
+  MAP_INT(issue->views, stmt, start_index + 12, 0);
   printf("\n");
 
   return 0;
@@ -915,6 +1303,77 @@ int media_map(struct media *media, sqlite3_stmt *stmt, int start_index,
   MAP_TEXT(media->url, stmt, url_index, 1);
   MAP_DOUBLE(media->width, stmt, width_index, 0);
   MAP_DOUBLE(media->height, stmt, height_index, 0);
+
+  return 0;
+}
+
+int feed_map(struct feed *feed, sqlite3_stmt *stmt, int start_index,
+            int end_index) {
+  if (start_index > end_index || feed == NULL || stmt == NULL) {
+    return -1;
+  }
+
+  MAP_INT(feed->id, stmt, start_index, 1);
+  MAP_TEXT(feed->name, stmt, start_index + 1, 1);
+  MAP_TEXT(feed->link, stmt, start_index + 2, 1);
+  MAP_INT(feed->is_rss_feed, stmt, start_index + 3, 1);
+
+  return 0;
+}
+
+int feed_tag_map(struct feed_tag *feed_tag, sqlite3_stmt *stmt,
+                 int start_index, int end_index) {
+  if (start_index > end_index || feed_tag == NULL || stmt == NULL) {
+    return -1;
+  }
+
+  MAP_INT(feed_tag->feed_id, stmt, start_index, 1);
+  MAP_TEXT(feed_tag->tag_name, stmt, start_index + 1, 1);
+
+  return 0;
+}
+
+int category_map(struct category *category, sqlite3_stmt *stmt,
+                 int start_index, int end_index) {
+  if (start_index > end_index || category == NULL || stmt == NULL) {
+    return -1;
+  }
+
+  MAP_TEXT(category->name, stmt, start_index, 1);
+  MAP_TEXT(category->color, stmt, start_index + 1, 1);
+
+  return 0;
+}
+
+int article_map(struct article *article, sqlite3_stmt *stmt, int start_index,
+                int end_index) {
+  if (start_index > end_index || article == NULL || stmt == NULL) {
+    return -1;
+  }
+
+  MAP_INT(article->id, stmt, start_index, 1);
+  MAP_INT(article->section_id, stmt, start_index + 1, 1);
+  MAP_INT(article->position, stmt, start_index + 2, 1);
+  MAP_TEXT(article->title, stmt, start_index + 3, 1);
+  MAP_TEXT(article->source_name, stmt, start_index + 4, 1);
+  MAP_TEXT(article->source_url, stmt, start_index + 5, 1);
+  MAP_TEXT(article->summary, stmt, start_index + 6, 1);
+
+  return 0;
+}
+
+int issue_section_map(struct issue_section *section, sqlite3_stmt *stmt,
+                      int start_index, int end_index) {
+  if (start_index > end_index || section == NULL || stmt == NULL) {
+    return -1;
+  }
+
+  MAP_INT(section->id, stmt, start_index, 1);
+  MAP_INT(section->issue_id, stmt, start_index + 1, 1);
+  MAP_INT(section->position, stmt, start_index + 2, 1);
+  MAP_TEXT(section->type, stmt, start_index + 3, 1);
+  MAP_TEXT(section->category_name, stmt, start_index + 4, 0);
+  MAP_TEXT(section->text_body, stmt, start_index + 5, 0);
 
   return 0;
 }
@@ -1035,9 +1494,6 @@ void issue_hydrate(struct mg_http_message *msg, struct issue *issue) {
       printf("SLUG: %.*s\n", (int)val.len, val.buf);
       issue->slug = malloc(val.len);
       sprintf(issue->slug, "%.*s", (int)val.len - 2, val.buf + 1);
-    } else if (mg_strcmp(key, mg_str("\"content\"")) == 0) {
-      printf("CONTENT: %.*s\n", (int)val.len, val.buf);
-      issue->content = mg_json_get_str(msg->body, "$.content");
     } else if (mg_strcmp(key, mg_str("\"subtitle\"")) == 0) {
       printf("SUBTITLE: %.*s\n", (int)val.len, val.buf);
       issue->subtitle = malloc(val.len);
@@ -1175,6 +1631,57 @@ void issue_tag_hydrate(struct mg_http_message *msg, struct issue_tag *issue) {
   }
 }
 
+void feed_hydrate(struct mg_http_message *msg, struct feed *feed) {
+  struct mg_str key, val;
+  int number;
+  bool number_parsed;
+
+  size_t ofs = 0;
+  while ((ofs = mg_json_next(msg->body, ofs, &key, &val)) > 0) {
+    printf("%.*s -> %.*s\n", (int)key.len, key.buf, (int)val.len, val.buf);
+
+    if (mg_strcmp(key, mg_str("\"name\"")) == 0) {
+      printf("NAME: %.*s\n", (int)val.len, val.buf);
+      feed->name = malloc(val.len);
+      sprintf(feed->name, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"link\"")) == 0) {
+      printf("LINK: %.*s\n", (int)val.len, val.buf);
+      feed->link = malloc(val.len);
+      sprintf(feed->link, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"isRssFeed\"")) == 0) {
+      if (mg_strcmp(val, mg_str("true")) == 0) {
+        feed->is_rss_feed = 1;
+      } else if (mg_strcmp(val, mg_str("false")) == 0) {
+        feed->is_rss_feed = 0;
+      }
+    }
+  }
+}
+
+void feed_tag_hydrate(struct mg_http_message *msg,
+                      struct feed_tag *feed_tag) {
+  struct mg_str key, val;
+  int number;
+  bool number_parsed;
+
+  size_t ofs = 0;
+  while ((ofs = mg_json_next(msg->body, ofs, &key, &val)) > 0) {
+    printf("%.*s -> %.*s\n", (int)key.len, key.buf, (int)val.len, val.buf);
+
+    if (mg_strcmp(key, mg_str("\"feedId\"")) == 0) {
+      number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
+      if (number_parsed) {
+        feed_tag->feed_id = number;
+      }
+    }
+    if (mg_strcmp(key, mg_str("\"tagName\"")) == 0) {
+      printf("TAG NAME: %.*s\n", (int)val.len, val.buf);
+      feed_tag->tag_name = malloc(val.len);
+      sprintf(feed_tag->tag_name, "%.*s", (int)val.len - 2, val.buf + 1);
+    }
+  }
+}
+
 void tag_hydrate(struct mg_http_message *msg, struct tag *tag) {
   struct mg_str key, val;
   int number;
@@ -1192,6 +1699,82 @@ void tag_hydrate(struct mg_http_message *msg, struct tag *tag) {
       printf("COLOR: %.*s\n", (int)val.len, val.buf);
       tag->color = malloc(val.len);
       sprintf(tag->color, "%.*s", (int)val.len - 2, val.buf + 1);
+    }
+  }
+}
+
+void category_hydrate(struct mg_http_message *msg, struct category *category) {
+  struct mg_str key, val;
+  int number;
+  bool number_parsed;
+
+  size_t ofs = 0;
+  while ((ofs = mg_json_next(msg->body, ofs, &key, &val)) > 0) {
+    printf("%.*s -> %.*s\n", (int)key.len, key.buf, (int)val.len, val.buf);
+
+    if (mg_strcmp(key, mg_str("\"name\"")) == 0) {
+      printf("NAME: %.*s\n", (int)val.len, val.buf);
+      category->name = malloc(val.len);
+      sprintf(category->name, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"color\"")) == 0) {
+      printf("COLOR: %.*s\n", (int)val.len, val.buf);
+      category->color = malloc(val.len);
+      sprintf(category->color, "%.*s", (int)val.len - 2, val.buf + 1);
+    }
+  }
+}
+
+void article_hydrate(struct mg_http_message *msg, struct article *article) {
+  struct mg_str key, val;
+
+  size_t ofs = 0;
+  while ((ofs = mg_json_next(msg->body, ofs, &key, &val)) > 0) {
+    printf("%.*s -> %.*s\n", (int)key.len, key.buf, (int)val.len, val.buf);
+
+    if (mg_strcmp(key, mg_str("\"title\"")) == 0) {
+      printf("TITLE: %.*s\n", (int)val.len, val.buf);
+      article->title = malloc(val.len);
+      sprintf(article->title, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"sourceName\"")) == 0) {
+      printf("SOURCE NAME: %.*s\n", (int)val.len, val.buf);
+      article->source_name = malloc(val.len);
+      sprintf(article->source_name, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"sourceUrl\"")) == 0) {
+      printf("SOURCE URL: %.*s\n", (int)val.len, val.buf);
+      article->source_url = malloc(val.len);
+      sprintf(article->source_url, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"summary\"")) == 0) {
+      // Raw JSON array — copied verbatim, not quote-stripped. Already
+      // validated by validate_content_blocks() before this call.
+      printf("SUMMARY: %.*s\n", (int)val.len, val.buf);
+      article->summary = malloc(val.len + 1);
+      snprintf(article->summary, val.len + 1, "%.*s", (int)val.len, val.buf);
+    }
+  }
+}
+
+void issue_section_hydrate(struct mg_http_message *msg,
+                           struct issue_section *section) {
+  struct mg_str key, val;
+
+  size_t ofs = 0;
+  while ((ofs = mg_json_next(msg->body, ofs, &key, &val)) > 0) {
+    printf("%.*s -> %.*s\n", (int)key.len, key.buf, (int)val.len, val.buf);
+
+    if (mg_strcmp(key, mg_str("\"type\"")) == 0) {
+      printf("TYPE: %.*s\n", (int)val.len, val.buf);
+      section->type = malloc(val.len);
+      sprintf(section->type, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"categoryName\"")) == 0) {
+      printf("CATEGORY NAME: %.*s\n", (int)val.len, val.buf);
+      section->category_name = malloc(val.len);
+      sprintf(section->category_name, "%.*s", (int)val.len - 2, val.buf + 1);
+    } else if (mg_strcmp(key, mg_str("\"textBody\"")) == 0) {
+      // Raw JSON array — copied verbatim, not quote-stripped. Already
+      // validated by validate_content_blocks() before this call.
+      printf("TEXT BODY: %.*s\n", (int)val.len, val.buf);
+      section->text_body = malloc(val.len + 1);
+      snprintf(section->text_body, val.len + 1, "%.*s", (int)val.len, val.buf);
     }
   }
 }
@@ -1260,7 +1843,6 @@ int issue_init(struct issue *issue) {
   issue->subtitle = NULL;
 
   issue->excerpt = NULL;
-  issue->content = NULL;
   issue->status = NULL;
 
   issue->published_at = 0;
@@ -1275,6 +1857,8 @@ int issue_init(struct issue *issue) {
   issue->authors_count = 0;
   issue->sponsors = NULL;
   issue->sponsors_count = 0;
+  issue->sections = NULL;
+  issue->sections_count = 0;
 
   return 0;
 }
@@ -1308,6 +1892,30 @@ int issue_tag_init(struct issue_tag *issue) {
   return 0;
 }
 
+int feed_init(struct feed *feed) {
+  if (feed == NULL) {
+    return -1;
+  }
+
+  feed->id = 0;
+  feed->name = NULL;
+  feed->link = NULL;
+  feed->is_rss_feed = 0;
+
+  return 0;
+}
+
+int feed_tag_init(struct feed_tag *feed_tag) {
+  if (feed_tag == NULL) {
+    return -1;
+  }
+
+  feed_tag->feed_id = 0;
+  feed_tag->tag_name = NULL;
+
+  return 0;
+}
+
 int tag_init(struct tag *tag) {
   if (tag == NULL) {
     return -1;
@@ -1315,6 +1923,50 @@ int tag_init(struct tag *tag) {
 
   tag->name = NULL;
   tag->color = NULL;
+
+  return 0;
+}
+
+int category_init(struct category *category) {
+  if (category == NULL) {
+    return -1;
+  }
+
+  category->name = NULL;
+  category->color = NULL;
+
+  return 0;
+}
+
+int article_init(struct article *article) {
+  if (article == NULL) {
+    return -1;
+  }
+
+  article->id = 0;
+  article->section_id = 0;
+  article->position = 0;
+  article->title = NULL;
+  article->source_name = NULL;
+  article->source_url = NULL;
+  article->summary = NULL;
+
+  return 0;
+}
+
+int issue_section_init(struct issue_section *section) {
+  if (section == NULL) {
+    return -1;
+  }
+
+  section->id = 0;
+  section->issue_id = 0;
+  section->position = 0;
+  section->type = NULL;
+  section->category_name = NULL;
+  section->text_body = NULL;
+  section->articles = NULL;
+  section->articles_count = 0;
 
   return 0;
 }

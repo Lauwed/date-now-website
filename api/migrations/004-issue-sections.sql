@@ -1,0 +1,39 @@
+-- CATEGORY
+DROP TABLE IF EXISTS Category;
+CREATE TABLE Category(
+	name CHAR(64) PRIMARY KEY,
+	color CHAR(16) NOT NULL
+);
+
+-- ISSUESECTION
+DROP TABLE IF EXISTS IssueSection;
+CREATE TABLE IssueSection(
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	issueId INTEGER NOT NULL,
+	position INTEGER NOT NULL,
+	type CHAR(10) CHECK(type IN ('CATEGORY', 'TEXT')) NOT NULL,
+	categoryName CHAR(64),
+	textBody TEXT,
+	FOREIGN KEY(issueId) REFERENCES Issue(id) ON DELETE CASCADE,
+	FOREIGN KEY(categoryName) REFERENCES Category(name) ON DELETE CASCADE,
+	CHECK (
+		(type = 'CATEGORY' AND categoryName IS NOT NULL AND textBody IS NULL) OR
+		(type = 'TEXT' AND textBody IS NOT NULL AND categoryName IS NULL)
+	)
+);
+
+-- ARTICLE
+DROP TABLE IF EXISTS Article;
+CREATE TABLE Article(
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	sectionId INTEGER NOT NULL,
+	position INTEGER NOT NULL,
+	title TEXT NOT NULL,
+	sourceName TEXT NOT NULL,
+	sourceUrl TEXT NOT NULL,
+	summary TEXT NOT NULL,
+	FOREIGN KEY(sectionId) REFERENCES IssueSection(id) ON DELETE CASCADE
+);
+
+-- ISSUE: drop legacy freeform content column
+ALTER TABLE Issue DROP COLUMN content;

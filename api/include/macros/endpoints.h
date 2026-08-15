@@ -78,6 +78,29 @@ extern char g_json_header[]; // défini dans main.c
 #define HASHED_IP_REQUIRED_MESSAGE "The hashed IP is required."
 #define ISSUE_REQUIRED_MESSAGE "The issue ID is required."
 
+/* Category endpoint messages */
+#define CATEGORY_EXISTS_MESSAGE "The category already exists."
+
+/* IssueSection / Article endpoint messages */
+#define TYPE_REQUIRED_MESSAGE "The type is required."
+#define TYPE_FORMAT_MESSAGE "Value of 'type' should be 'CATEGORY' or 'TEXT'."
+#define CATEGORY_NAME_REQUIRED_MESSAGE                                        \
+  "categoryName is required for CATEGORY sections."
+#define TEXT_BODY_REQUIRED_MESSAGE "textBody is required for TEXT sections."
+#define SECTION_TYPE_MISMATCH_MESSAGE                                         \
+  "categoryName must be set (and textBody omitted) for CATEGORY sections; "   \
+  "textBody must be set (and categoryName omitted) for TEXT sections."
+#define SOURCE_NAME_REQUIRED_MESSAGE "sourceName is required."
+#define SOURCE_URL_REQUIRED_MESSAGE "sourceUrl is required."
+#define SUMMARY_REQUIRED_MESSAGE "summary is required."
+#define CONTENT_BLOCKS_INVALID_MESSAGE                                        \
+  "Invalid content blocks: must be a JSON array of objects with a 'type' "    \
+  "field ('text', 'youtube', or 'tweet') and its required sub-fields."
+#define REORDER_REQUIRED_MESSAGE "The 'order' array is required."
+#define REORDER_MISMATCH_MESSAGE                                              \
+  "The 'order' array must contain exactly the ids currently in this "        \
+  "collection."
+
 /* -------------------------------------------------------------------------
  * Error reply macros
  * Each macro sends the response and frees the allocated JSON string.

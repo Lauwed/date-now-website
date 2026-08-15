@@ -150,12 +150,72 @@ struct issue_sponsor {
 };
 
 /**
+ * @brief Reusable content category (e.g. "Breaking News", "News").
+ *
+ * @c name is the primary key. Fields are allocated by mapping/hydration
+ * and freed by free_category().
+ */
+struct category {
+  char *name;  /**< Category name (primary key, max 64 chars). @note
+                  Dynamically allocated — freed by free_category(). */
+  char *color; /**< Hex colour (#RRGGBB). @note Dynamically allocated — freed
+                  by free_category(). */
+};
+
+/**
+ * @brief A curated article within an issue's category section.
+ *
+ * @c summary is a JSON array of rich-content blocks (validated via
+ * validate_content_blocks() on write, embedded raw on read — never
+ * deserialised into C structures). Freed by free_article().
+ */
+struct article {
+  int id;             /**< Database identifier. */
+  int section_id;     /**< Owning IssueSection identifier. */
+  int position;        /**< Order within the section (0-based, may have gaps). */
+  char *title;         /**< Article title, authored. @note Dynamically
+                          allocated — freed by free_article(). */
+  char *source_name;   /**< Source blog/media name. @note Dynamically
+                          allocated — freed by free_article(). */
+  char *source_url;    /**< Source link. @note Dynamically allocated — freed
+                          by free_article(). */
+  char *summary;       /**< JSON array of content blocks (opaque, validated).
+                          @note Dynamically allocated — freed by
+                          free_article(). */
+};
+
+/**
+ * @brief An ordered section of an issue's content: either a category of
+ *        curated articles, or a freestanding rich-text block.
+ *
+ * @c text_body (TEXT sections) uses the same JSON content-block format as
+ * struct article::summary. Freed recursively by free_issue_section().
+ */
+struct issue_section {
+  int id;                /**< Database identifier. */
+  int issue_id;           /**< Owning issue identifier. */
+  int position;           /**< Order within the issue (0-based, may have gaps). */
+  char *type;              /**< "CATEGORY" or "TEXT". @note Dynamically
+                              allocated — freed by free_issue_section(). */
+  char *category_name;     /**< Category name (NULL unless type is
+                              "CATEGORY"). @note Dynamically allocated —
+                              freed by free_issue_section(). */
+  char *text_body;         /**< JSON array of content blocks (NULL unless
+                              type is "TEXT"). @note Dynamically allocated —
+                              freed by free_issue_section(). */
+  struct article **articles; /**< Array of articles (NULL unless type is
+                                "CATEGORY"). @note Dynamically allocated —
+                                freed recursively by free_issue_section(). */
+  size_t articles_count;     /**< Number of articles in the array. */
+};
+
+/**
  * @brief Newsletter issue.
  *
- * Text fields (@c slug, @c title, @c subtitle, @c excerpt, @c content,
+ * Text fields (@c slug, @c title, @c subtitle, @c excerpt,
  * @c status) are dynamically allocated and freed by free_issue().
- * Nested sub-structures (@c cover, @c tags, @c authors, @c sponsors) are
- * freed recursively by free_issue().
+ * Nested sub-structures (@c cover, @c tags, @c authors, @c sponsors,
+ * @c sections) are freed recursively by free_issue().
  */
 struct issue {
   int id;      /**< Database identifier. */
@@ -173,8 +233,6 @@ struct issue {
   int issue_number;    /**< Sequential issue number. */
   char *excerpt; /**< Short summary. @note Dynamically allocated — freed by
                     free_issue(). */
-  char *content; /**< Full content (HTML/Markdown). @note Dynamically allocated
-                    — freed by free_issue(). */
   int is_sponsored; /**< 1 if the issue has sponsors. */
   char *status;     /**< Status: "DRAFT", "PUBLISHED", or "ARCHIVE". @note
                        Dynamically allocated — freed by free_issue(). */
@@ -191,6 +249,11 @@ struct issue {
       *sponsors;         /**< Array of sponsors (may be NULL). @note Dynamically
                             allocated — freed recursively by free_issue(). */
   size_t sponsors_count; /**< Number of sponsors. */
+  struct issue_section *
+      *sections;         /**< Array of content sections, ordered by position
+                            (may be NULL). @note Dynamically allocated — freed
+                            recursively by free_issue(). */
+  size_t sections_count; /**< Number of sections in the array. */
 };
 
 /**
@@ -206,14 +269,28 @@ struct view {
   int issue_id;    /**< Identifier of the visited issue. */
 };
 
+/**
+ * @brief Newsletter feed (e.g. RSS source or curated link feed).
+ *
+ * @c name and @c link are dynamically allocated and freed by free_feed().
+ */
 struct feed {
-  int id;
-  char *name;
-  char *link;
-  int is_rss_feed;
+  int id;          /**< Database identifier. */
+  char *name;       /**< Feed name. @note Dynamically allocated — freed by
+                       free_feed(). */
+  char *link;       /**< Feed URL. @note Dynamically allocated — freed by
+                       free_feed(). */
+  int is_rss_feed; /**< 1 if this is an RSS feed, 0 otherwise. */
 };
 
+/**
+ * @brief Association between a feed and a tag (FeedTag table).
+ *
+ * @c tag_name is allocated by the mapping function and freed by
+ * free_feed_tag().
+ */
 struct feed_tag {
-  int feed_int;
-  char *tag_name;
+  int feed_id;    /**< Feed identifier. */
+  char *tag_name; /**< Tag name. @note Dynamically allocated — freed by
+                     free_feed_tag(). */
 };

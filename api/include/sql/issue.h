@@ -17,6 +17,13 @@
 int issue_exists(int id);
 
 /**
+ * @brief Checks whether an issue with the given slug exists.
+ * @param slug URL-friendly identifier. Not freed by this function.
+ * @return 1 if the issue exists, 0 if not, negative on SQL error.
+ */
+int issue_slug_exists(char *slug);
+
+/**
  * @brief Checks whether an issue with the same title, number, or slug exists.
  * @param title        Title to check.
  * @param issue_number Issue number to check.
@@ -75,6 +82,19 @@ int get_issues(size_t len, struct issue **arr, const struct mg_str *q,
  *       must be freed via free_issue().
  */
 int get_issue(struct issue *issue, int id);
+
+/**
+ * @brief Fetches a single issue by slug, including its tags, authors, and
+ * sponsors.
+ * @param issue Pre-allocated and initialised structure to fill.
+ * @param slug  URL-friendly identifier to look up.
+ * @return 0 on success, HTTP_NOT_FOUND if not found, HTTP_INTERNAL_ERROR on
+ *         SQL error.
+ * @note @p slug is not freed by this function. Dynamic fields (including
+ *       nested sub-structures) are allocated and must be freed via
+ *       free_issue().
+ */
+int get_issue_by_slug(struct issue *issue, char *slug);
 
 /**
  * @brief Inserts a new issue record.
