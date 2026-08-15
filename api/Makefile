@@ -13,7 +13,7 @@ LIBS := -ljwt -lssl -lcrypto -lcurl -lcjson $(MAGICK_LIBS) $(PG_LIBS) -lpthread
 includes := ./include
 src := ./src
 
-tables := category tag sponsor feed feed_tag media view user issue issue_tag issue_author issue_sponsor issue_section article auth
+tables := category tag sponsor feed feed_tag media view issue issue_tag issue_author issue_sponsor issue_section article user auth
 
 libs_o := obj/lib/mongoose.o obj/lib/validatejson.o obj/lib/email.o obj/lib/totp.o
 helpers_o := obj/utils.o obj/lib/rate_limiter.o

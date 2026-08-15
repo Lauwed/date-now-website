@@ -1,143 +1,82 @@
 /**
  * @file issue_author.c
- * @brief SQLite data-access implementation for the IssueAuthor join table.
+ * @brief Postgres data-access implementation for the IssueAuthor join table.
  */
 
 
 #include <enums.h>
+#include <lib/pg.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
 #include <sql/issue.h>
-#include <sqlite3.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <structs.h>
 #include <time.h>
 #include <utils.h>
 
-extern sqlite3 *db;
-
-#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM IssueAuthor WHERE issueId = ?"
-#define QUERY_EXISTS_TMP QUERY_COUNT_TMP " AND userId = ?"
+#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM IssueAuthor WHERE issueId = $1"
+#define QUERY_EXISTS_TMP QUERY_COUNT_TMP " AND userId = $2"
 #define QUERY_SELECT_TMP                                                       \
   "SELECT u.id, u.username, u.email, u.role, u.link, "                        \
-  "UNIXEPOCH(u.subscribedAt), u.isSupporter, UNIXEPOCH(u.createdAt), "        \
+  "EXTRACT(EPOCH FROM u.subscribedAt)::BIGINT, u.isSupporter, "               \
+  "EXTRACT(EPOCH FROM u.createdAt)::BIGINT, "                                 \
   "m.id, m.textAlternatif, m.url, m.width, m.height "                         \
   "FROM IssueAuthor ia "                                                       \
-  "JOIN User u ON u.id = ia.userId "                                           \
+  "JOIN AppUser u ON u.id = ia.userId "                                        \
   "LEFT JOIN Media m ON m.id = u.picture "                                     \
-  "WHERE ia.issueId = ?"
+  "WHERE ia.issueId = $1"
 
-#define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
+#define QUERY_PAGINATION_TMP " LIMIT $2 OFFSET $3"
 
 #define QUERY_POST_TMP                                                         \
   "INSERT INTO IssueAuthor (issueId, userId) "                                 \
-  "VALUES (?, ?);"
+  "VALUES ($1, $2);"
 
 #define QUERY_DELETE_TMP                                                       \
-  "DELETE FROM IssueAuthor WHERE issueId = ? AND userId = ?;"
+  "DELETE FROM IssueAuthor WHERE issueId = $1 AND userId = $2;"
 
 int issue_author_exists(int issue_id, int id) {
   printf(TERMINAL_SQL_MESSAGE("=== ISSUE EXISTS SQL ==="));
 
-  int query_rc = SQLITE_ROW;
-  int issues_count = 0;
+  char issue_id_str[16], id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  snprintf(id_str, sizeof(id_str), "%d", id);
+  const char *values[2] = {issue_id_str, id_str};
+  GET_EXPANDED_QUERY(QUERY_EXISTS_TMP, 2, values);
 
-  char *query_tmp = QUERY_EXISTS_TMP ";";
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_EXISTS_TMP, 2, values);
+  if (res == NULL) {
+    return -1;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue_id);
-  sqlite3_bind_int(stmt, 2, id);
+  int issues_count = atoi(PQgetvalue(res, 0, 0));
+  printf("COUNT:\t%d\n", issues_count);
 
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  while (query_rc != SQLITE_DONE) {
-    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      issues_count = sqlite3_column_int(stmt, 0);
-      printf("COUNT:\t%d\n", issues_count);
-    }
-
-    query_rc = sqlite3_step(stmt);
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return issues_count > 0;
 }
 
 int get_issue_authors_len(const struct mg_str *q, int issue_id) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES COUNT SQL ==="));
+  (void)q;
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  const char *values[1] = {issue_id_str};
+  GET_EXPANDED_QUERY(QUERY_COUNT_TMP, 1, values);
 
-  char *q_str = NULL;
-
-  char *query_tmp = QUERY_COUNT_TMP;
-
-  char *query = malloc(strlen(query_tmp) + 1);
-  strcpy(query, query_tmp);
-  strcat(query, ";");
-
-  int issues_count = 0;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    free(q_str);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_COUNT_TMP, 1, values);
+  if (res == NULL) {
+    return -1;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    free(q_str);
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  while (query_rc != SQLITE_DONE) {
-    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      issues_count = sqlite3_column_int(stmt, 0);
-    }
-
-    query_rc = sqlite3_step(stmt);
-  }
-
-  sqlite3_finalize(stmt);
-  free(q_str);
-  free(query);
+  int issues_count = atoi(PQgetvalue(res, 0, 0));
+  PQclear(res);
 
   return issues_count;
 }
@@ -146,95 +85,66 @@ int get_issue_authors(size_t len, struct user **arr, int issue_id,
                       int page, int page_size) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUE AUTHORS SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16], page_size_str[16], offset_str[16];
+  const char *values[3];
+  int n_values = 0;
 
-  char *query_tmp = QUERY_SELECT_TMP;
-  char *query_pagination_tmp = QUERY_PAGINATION_TMP;
-  int query_len = strlen(query_tmp) + 2;
+  char query[768] = QUERY_SELECT_TMP;
+
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  values[n_values++] = issue_id_str;
 
   if (page > 0) {
-    query_len += strlen(query_pagination_tmp);
-  }
-
-  char *query = malloc(query_len);
-  strcpy(query, query_tmp);
-  if (page > 0) {
-    strcat(query, query_pagination_tmp);
+    int offset = (page - 1) * page_size;
+    snprintf(page_size_str, sizeof(page_size_str), "%d", page_size);
+    snprintf(offset_str, sizeof(offset_str), "%d", offset);
+    strcat(query, QUERY_PAGINATION_TMP);
+    values[n_values++] = page_size_str;
+    values[n_values++] = offset_str;
   }
   strcat(query, ";");
 
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    free(query);
+  GET_EXPANDED_QUERY(query, n_values, values);
 
-    return query_rc;
+  PGresult *res = pg_exec(query, n_values, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue_id);
-  if (page > 0) {
-    int offset = (page - 1) * page_size;
-    sqlite3_bind_int(stmt, 102, page_size);
-    sqlite3_bind_int(stmt, 103, offset);
-  }
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    free(query);
-    return query_rc;
-  }
-
+  int n_rows = PQntuples(res);
   size_t count = 0;
-  while (query_rc == SQLITE_ROW && count < len) {
+  for (int i = 0; i < n_rows && count < len; i++) {
     struct user *u = malloc(sizeof(struct user));
 
     int user_init_rc = user_init(u);
     if (user_init_rc != 0) {
       free(u);
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("The author user is NULL"));
-      free(query);
+      PQclear(res);
       return HTTP_INTERNAL_ERROR;
     }
 
-    int user_rc = user_map(u, stmt, 0, 7);
+    pg_row_t row = {res, i};
+    int user_rc = user_map(u, &row, 0, 7);
     if (user_rc != 0) {
       free(u);
-
-      query_rc = sqlite3_step(stmt);
-      fprintf(stderr,
-              TERMINAL_ERROR_MESSAGE("Error at line: %ld. Error code: %d"),
-              count, query_rc);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("Error mapping row: %d"), i);
       continue;
     }
 
     struct media *m = malloc(sizeof(struct media));
-    int cover_rc = media_map(m, stmt, 8, 12);
+    int cover_rc = media_map(m, &row, 8, 12);
     if (cover_rc != 0) {
       free(m);
     } else {
       u->picture = m;
     }
 
-    printf("\n");
-
     arr[count] = u;
-
     count += 1;
-    query_rc = sqlite3_step(stmt);
   }
 
-  sqlite3_finalize(stmt);
-  free(query);
+  PQclear(res);
 
   return 0;
 }
@@ -242,34 +152,18 @@ int get_issue_authors(size_t len, struct user **arr, int issue_id,
 int add_issue_author(struct issue_author *issue) {
   printf(TERMINAL_SQL_MESSAGE("=== ADD ISSUE SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16], user_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue->issue_id);
+  snprintf(user_id_str, sizeof(user_id_str), "%d", issue->user_id);
+  const char *values[2] = {issue_id_str, user_id_str};
+  GET_EXPANDED_QUERY(QUERY_POST_TMP, 2, values);
 
-  char *query_tmp = QUERY_POST_TMP;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_POST_TMP, 2, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue->issue_id);
-  sqlite3_bind_int(stmt, 2, issue->user_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }
@@ -277,34 +171,18 @@ int add_issue_author(struct issue_author *issue) {
 int delete_issue_author(int issue_id, int id) {
   printf(TERMINAL_SQL_MESSAGE("=== DELETE ISSUE SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16], id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  snprintf(id_str, sizeof(id_str), "%d", id);
+  const char *values[2] = {issue_id_str, id_str};
+  GET_EXPANDED_QUERY(QUERY_DELETE_TMP, 2, values);
 
-  char *query_tmp = QUERY_DELETE_TMP;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_DELETE_TMP, 2, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue_id);
-  sqlite3_bind_int(stmt, 2, id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }

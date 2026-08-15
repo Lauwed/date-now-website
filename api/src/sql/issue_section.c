@@ -1,84 +1,59 @@
 /**
  * @file issue_section.c
- * @brief SQLite data-access implementation for the IssueSection table.
+ * @brief Postgres data-access implementation for the IssueSection table.
  */
 
 #include <enums.h>
+#include <lib/pg.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
 #include <sql/issue_section.h>
-#include <sqlite3.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <structs.h>
 #include <utils.h>
 
-extern sqlite3 *db;
-
-#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM IssueSection WHERE issueId = ?"
-#define QUERY_EXISTS_TMP QUERY_COUNT_TMP " AND id = ?"
+#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM IssueSection WHERE issueId = $1"
+#define QUERY_EXISTS_TMP QUERY_COUNT_TMP " AND id = $2"
 #define QUERY_SELECT_TMP                                                       \
   "SELECT id, issueId, position, type, categoryName, textBody "                \
-  "FROM IssueSection WHERE issueId = ? ORDER BY position ASC"
+  "FROM IssueSection WHERE issueId = $1 ORDER BY position ASC"
 #define QUERY_SELECT_SINGLE_TMP                                                \
   "SELECT id, issueId, position, type, categoryName, textBody "                \
-  "FROM IssueSection WHERE issueId = ? AND id = ?"
+  "FROM IssueSection WHERE issueId = $1 AND id = $2"
 #define QUERY_NEXT_POSITION_TMP                                                \
-  "SELECT COALESCE(MAX(position), -1) + 1 FROM IssueSection WHERE issueId = ?"
+  "SELECT COALESCE(MAX(position), -1) + 1 FROM IssueSection WHERE issueId = $1"
 #define QUERY_POST_TMP                                                         \
   "INSERT INTO IssueSection (issueId, position, type, categoryName, "          \
-  "textBody) VALUES (?, ?, ?, ?, ?);"
+  "textBody) VALUES ($1, $2, $3, $4, $5) RETURNING id;"
 #define QUERY_PUT_TMP                                                          \
-  "UPDATE IssueSection SET categoryName = ?, textBody = ? "                    \
-  "WHERE id = ? AND issueId = ?;"
+  "UPDATE IssueSection SET categoryName = $1, textBody = $2 "                  \
+  "WHERE id = $3 AND issueId = $4;"
 #define QUERY_REORDER_TMP                                                      \
-  "UPDATE IssueSection SET position = ? WHERE id = ? AND issueId = ?;"
-#define QUERY_DELETE_TMP "DELETE FROM IssueSection WHERE id = ? AND issueId = ?;"
+  "UPDATE IssueSection SET position = $1 WHERE id = $2 AND issueId = $3;"
+#define QUERY_DELETE_TMP "DELETE FROM IssueSection WHERE id = $1 AND issueId = $2;"
 
 int issue_section_exists(int issue_id, int section_id) {
   printf(TERMINAL_SQL_MESSAGE("=== ISSUE SECTION EXISTS SQL ==="));
 
-  int query_rc = SQLITE_ROW;
-  int count = 0;
+  char issue_id_str[16], section_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  snprintf(section_id_str, sizeof(section_id_str), "%d", section_id);
+  const char *values[2] = {issue_id_str, section_id_str};
+  GET_EXPANDED_QUERY(QUERY_EXISTS_TMP, 2, values);
 
-  char *query_tmp = QUERY_EXISTS_TMP ";";
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_EXISTS_TMP, 2, values);
+  if (res == NULL) {
+    return -1;
   }
 
-  sqlite3_bind_int(stmt, 1, issue_id);
-  sqlite3_bind_int(stmt, 2, section_id);
+  int count = atoi(PQgetvalue(res, 0, 0));
+  printf("COUNT:\t%d\n", count);
 
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  while (query_rc != SQLITE_DONE) {
-    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      count = sqlite3_column_int(stmt, 0);
-      printf("COUNT:\t%d\n", count);
-    }
-
-    query_rc = sqlite3_step(stmt);
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return count > 0;
 }
@@ -86,43 +61,18 @@ int issue_section_exists(int issue_id, int section_id) {
 int get_issue_sections_len(int issue_id) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUE SECTIONS COUNT SQL ==="));
 
-  int query_rc = SQLITE_ROW;
-  int count = 0;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  const char *values[1] = {issue_id_str};
+  GET_EXPANDED_QUERY(QUERY_COUNT_TMP, 1, values);
 
-  char *query_tmp = QUERY_COUNT_TMP ";";
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_COUNT_TMP, 1, values);
+  if (res == NULL) {
+    return -1;
   }
 
-  sqlite3_bind_int(stmt, 1, issue_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  while (query_rc != SQLITE_DONE) {
-    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      count = sqlite3_column_int(stmt, 0);
-    }
-
-    query_rc = sqlite3_step(stmt);
-  }
-
-  sqlite3_finalize(stmt);
+  int count = atoi(PQgetvalue(res, 0, 0));
+  PQclear(res);
 
   return count;
 }
@@ -130,65 +80,42 @@ int get_issue_sections_len(int issue_id) {
 int get_issue_sections(size_t len, struct issue_section **arr, int issue_id) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUE SECTIONS SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  const char *values[1] = {issue_id_str};
+  GET_EXPANDED_QUERY(QUERY_SELECT_TMP, 1, values);
 
-  char *query_tmp = QUERY_SELECT_TMP ";";
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_SELECT_TMP, 1, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  sqlite3_bind_int(stmt, 1, issue_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
+  int n_rows = PQntuples(res);
   size_t count = 0;
-  while (query_rc == SQLITE_ROW && count < len) {
-    struct issue_section *u = NULL;
-    u = malloc(sizeof(struct issue_section));
+  for (int i = 0; i < n_rows && count < len; i++) {
+    struct issue_section *u = malloc(sizeof(struct issue_section));
 
     int init_rc = issue_section_init(u);
     if (init_rc != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("The issue section is NULL"));
+      free(u);
+      PQclear(res);
       return HTTP_INTERNAL_ERROR;
     }
 
-    int map_rc = issue_section_map(u, stmt, 0, 5);
+    pg_row_t row = {res, i};
+    int map_rc = issue_section_map(u, &row, 0, 5);
     if (map_rc != 0) {
       free(u);
-
-      count += 1;
-      query_rc = sqlite3_step(stmt);
-      fprintf(stderr,
-              TERMINAL_ERROR_MESSAGE("Error at line: %ld. Error code: %d"),
-              count, query_rc);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("Error mapping row: %d"), i);
       continue;
     }
 
-    printf("\n");
-
     arr[count] = u;
-
     count += 1;
-    query_rc = sqlite3_step(stmt);
   }
 
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }
@@ -201,57 +128,35 @@ int get_issue_section(struct issue_section *section, int issue_id,
 
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUE SECTION SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16], section_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  snprintf(section_id_str, sizeof(section_id_str), "%d", section_id);
+  const char *values[2] = {issue_id_str, section_id_str};
+  GET_EXPANDED_QUERY(QUERY_SELECT_SINGLE_TMP, 2, values);
 
-  char *query_tmp = QUERY_SELECT_SINGLE_TMP ";";
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_SELECT_SINGLE_TMP, 2, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  sqlite3_bind_int(stmt, 1, issue_id);
-  sqlite3_bind_int(stmt, 2, section_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  } else if (query_rc == SQLITE_DONE) {
-    sqlite3_finalize(stmt);
+  if (PQntuples(res) == 0) {
+    PQclear(res);
     return HTTP_NOT_FOUND;
   }
 
-  while (query_rc == SQLITE_ROW) {
-    int init_rc = issue_section_init(section);
-    if (init_rc != 0) {
-      fprintf(stderr, "The issue section is NULL\n");
-      return HTTP_INTERNAL_ERROR;
-    }
-
-    int map_rc = issue_section_map(section, stmt, 0, 5);
-    if (map_rc != 0) {
-      free(section);
-
-      query_rc = sqlite3_step(stmt);
-      continue;
-    }
-
-    printf("\n");
-    query_rc = sqlite3_step(stmt);
+  int init_rc = issue_section_init(section);
+  if (init_rc != 0) {
+    fprintf(stderr, "The issue section is NULL\n");
+    PQclear(res);
+    return HTTP_INTERNAL_ERROR;
   }
 
-  sqlite3_finalize(stmt);
+  pg_row_t row = {res, 0};
+  int map_rc = issue_section_map(section, &row, 0, 5);
+  PQclear(res);
+  if (map_rc != 0) {
+    return HTTP_INTERNAL_ERROR;
+  }
 
   return 0;
 }
@@ -259,67 +164,33 @@ int get_issue_section(struct issue_section *section, int issue_id,
 int add_issue_section(struct issue_section *section) {
   printf(TERMINAL_SQL_MESSAGE("=== ADD ISSUE SECTION SQL ==="));
 
-  int query_rc = SQLITE_ROW;
-
   // Compute next position scoped to the issue
-  sqlite3_stmt *pos_stmt;
-  query_rc =
-      sqlite3_prepare_v2(db, QUERY_NEXT_POSITION_TMP ";", -1, &pos_stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(pos_stmt);
-    return query_rc;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", section->issue_id);
+  const char *pos_values[1] = {issue_id_str};
+  GET_EXPANDED_QUERY(QUERY_NEXT_POSITION_TMP, 1, pos_values);
+
+  PGresult *pos_res = pg_exec(QUERY_NEXT_POSITION_TMP, 1, pos_values);
+  if (pos_res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
-  sqlite3_bind_int(pos_stmt, 1, section->issue_id);
-  query_rc = sqlite3_step(pos_stmt);
-  int next_position = 0;
-  if (query_rc == SQLITE_ROW) {
-    next_position = sqlite3_column_int(pos_stmt, 0);
-  }
-  sqlite3_finalize(pos_stmt);
+  int next_position = atoi(PQgetvalue(pos_res, 0, 0));
+  PQclear(pos_res);
 
-  char *query_tmp = QUERY_POST_TMP;
+  char position_str[16];
+  snprintf(position_str, sizeof(position_str), "%d", next_position);
+  const char *values[5] = {issue_id_str, position_str, section->type,
+                           section->category_name, section->text_body};
+  GET_EXPANDED_QUERY(QUERY_POST_TMP, 5, values);
 
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_POST_TMP, 5, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, section->issue_id);
-  sqlite3_bind_int(stmt, 2, next_position);
-  sqlite3_bind_text(stmt, 3, section->type, -1, SQLITE_STATIC);
-  if (section->category_name != NULL) {
-    sqlite3_bind_text(stmt, 4, section->category_name, -1, SQLITE_STATIC);
-  } else {
-    sqlite3_bind_null(stmt, 4);
-  }
-  if (section->text_body != NULL) {
-    sqlite3_bind_text(stmt, 5, section->text_body, -1, SQLITE_STATIC);
-  } else {
-    sqlite3_bind_null(stmt, 5);
-  }
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  section->id = (int)sqlite3_last_insert_rowid(db);
+  section->id = atoi(PQgetvalue(res, 0, 0));
   section->position = next_position;
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }
@@ -327,46 +198,19 @@ int add_issue_section(struct issue_section *section) {
 int edit_issue_section(struct issue_section *section) {
   printf(TERMINAL_SQL_MESSAGE("=== EDIT ISSUE SECTION SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char id_str[16], issue_id_str[16];
+  snprintf(id_str, sizeof(id_str), "%d", section->id);
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", section->issue_id);
+  const char *values[4] = {section->category_name, section->text_body,
+                           id_str, issue_id_str};
+  GET_EXPANDED_QUERY(QUERY_PUT_TMP, 4, values);
 
-  char *query_tmp = QUERY_PUT_TMP;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_PUT_TMP, 4, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  if (section->category_name != NULL) {
-    sqlite3_bind_text(stmt, 1, section->category_name, -1, SQLITE_STATIC);
-  } else {
-    sqlite3_bind_null(stmt, 1);
-  }
-  if (section->text_body != NULL) {
-    sqlite3_bind_text(stmt, 2, section->text_body, -1, SQLITE_STATIC);
-  } else {
-    sqlite3_bind_null(stmt, 2);
-  }
-  sqlite3_bind_int(stmt, 3, section->id);
-  sqlite3_bind_int(stmt, 4, section->issue_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }
@@ -374,52 +218,42 @@ int edit_issue_section(struct issue_section *section) {
 int reorder_issue_sections(int issue_id, int *ids, size_t count) {
   printf(TERMINAL_SQL_MESSAGE("=== REORDER ISSUE SECTIONS SQL ==="));
 
-  int query_rc = sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
-  if (query_rc != SQLITE_OK) {
+  PGresult *begin_res = PQexec(db, "BEGIN;");
+  if (PQresultStatus(begin_res) != PGRES_COMMAND_OK) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("BEGIN error: %s\n"),
-            sqlite3_errmsg(db));
-    return query_rc;
+            PQerrorMessage(db));
+    PQclear(begin_res);
+    return HTTP_INTERNAL_ERROR;
   }
+  PQclear(begin_res);
 
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, QUERY_REORDER_TMP, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-    return query_rc;
-  }
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
 
   for (size_t i = 0; i < count; i++) {
-    sqlite3_reset(stmt);
-    sqlite3_clear_bindings(stmt);
+    char position_str[16], id_str[16];
+    snprintf(position_str, sizeof(position_str), "%zu", i);
+    snprintf(id_str, sizeof(id_str), "%d", ids[i]);
+    const char *values[3] = {position_str, id_str, issue_id_str};
+    GET_EXPANDED_QUERY(QUERY_REORDER_TMP, 3, values);
 
-    sqlite3_bind_int(stmt, 1, (int)i);
-    sqlite3_bind_int(stmt, 2, ids[i]);
-    sqlite3_bind_int(stmt, 3, issue_id);
-
-    GET_EXPANDED_QUERY(stmt);
-
-    query_rc = sqlite3_step(stmt);
-    if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-      fprintf(stderr, TERMINAL_ERROR_MESSAGE("step error: %s\n"),
-              sqlite3_errmsg(db));
-      sqlite3_finalize(stmt);
-      sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-      return query_rc;
+    PGresult *res = pg_exec(QUERY_REORDER_TMP, 3, values);
+    if (res == NULL) {
+      PQexec(db, "ROLLBACK;");
+      return HTTP_INTERNAL_ERROR;
     }
+    PQclear(res);
   }
 
-  sqlite3_finalize(stmt);
-
-  query_rc = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
-  if (query_rc != SQLITE_OK) {
+  PGresult *commit_res = PQexec(db, "COMMIT;");
+  if (PQresultStatus(commit_res) != PGRES_COMMAND_OK) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("COMMIT error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-    return query_rc;
+            PQerrorMessage(db));
+    PQclear(commit_res);
+    PQexec(db, "ROLLBACK;");
+    return HTTP_INTERNAL_ERROR;
   }
+  PQclear(commit_res);
 
   return 0;
 }
@@ -427,35 +261,18 @@ int reorder_issue_sections(int issue_id, int *ids, size_t count) {
 int delete_issue_section(int issue_id, int section_id) {
   printf(TERMINAL_SQL_MESSAGE("=== DELETE ISSUE SECTION SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char section_id_str[16], issue_id_str[16];
+  snprintf(section_id_str, sizeof(section_id_str), "%d", section_id);
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  const char *values[2] = {section_id_str, issue_id_str};
+  GET_EXPANDED_QUERY(QUERY_DELETE_TMP, 2, values);
 
-  char *query_tmp = QUERY_DELETE_TMP;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_DELETE_TMP, 2, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  sqlite3_bind_int(stmt, 1, section_id);
-  sqlite3_bind_int(stmt, 2, issue_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }

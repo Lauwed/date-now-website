@@ -1,136 +1,73 @@
 /**
  * @file issue_tag.c
- * @brief SQLite data-access implementation for the IssueTag join table.
+ * @brief Postgres data-access implementation for the IssueTag join table.
  */
 
 #include <enums.h>
+#include <lib/pg.h>
 #include <macros/colors.h>
 #include <macros/sql.h>
 #include <sql/issue.h>
-#include <sqlite3.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <structs.h>
 #include <time.h>
 #include <utils.h>
 
-extern sqlite3 *db;
-
-#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM IssueTag WHERE issueId = ?"
-#define QUERY_EXISTS_TMP QUERY_COUNT_TMP " AND tagName = ?"
+#define QUERY_COUNT_TMP "SELECT COUNT(*) FROM IssueTag WHERE issueId = $1"
+#define QUERY_EXISTS_TMP QUERY_COUNT_TMP " AND tagName = $2"
 #define QUERY_SELECT_TMP                                                       \
-  "SELECT issueId, tagName FROM IssueTag WHERE issueId = ?"
+  "SELECT issueId, tagName FROM IssueTag WHERE issueId = $1"
 
-#define QUERY_PAGINATION_TMP " LIMIT ?102 OFFSET ?103"
+#define QUERY_PAGINATION_TMP " LIMIT $2 OFFSET $3"
 
 #define QUERY_POST_TMP                                                         \
-  "INSERT INTO IssueTag (issueId, tagName)"                                    \
-  "VALUES (?, ?);"
+  "INSERT INTO IssueTag (issueId, tagName) "                                   \
+  "VALUES ($1, $2);"
 
 #define QUERY_DELETE_TMP                                                       \
-  "DELETE FROM IssueTag WHERE issueId = ? AND tagName = ?;"
+  "DELETE FROM IssueTag WHERE issueId = $1 AND tagName = $2;"
 
 int issue_tag_exists(int issue_id, char *id) {
   printf(TERMINAL_SQL_MESSAGE("=== ISSUE EXISTS SQL ==="));
 
-  int query_rc = SQLITE_ROW;
-  int issues_count = 0;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  const char *values[2] = {issue_id_str, id};
+  GET_EXPANDED_QUERY(QUERY_EXISTS_TMP, 2, values);
 
-  char *query_tmp = QUERY_EXISTS_TMP ";";
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_EXISTS_TMP, 2, values);
+  if (res == NULL) {
+    return -1;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue_id);
-  sqlite3_bind_text(stmt, 2, id, -1, SQLITE_STATIC);
+  int issues_count = atoi(PQgetvalue(res, 0, 0));
+  printf("COUNT:\t%d\n", issues_count);
 
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  while (query_rc != SQLITE_DONE) {
-    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      issues_count = sqlite3_column_int(stmt, 0);
-      printf("COUNT:\t%d\n", issues_count);
-    }
-
-    query_rc = sqlite3_step(stmt);
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return issues_count > 0;
 }
 
 int get_issue_tags_len(const struct mg_str *q, int issue_id) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES COUNT SQL ==="));
+  (void)q;
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  const char *values[1] = {issue_id_str};
+  GET_EXPANDED_QUERY(QUERY_COUNT_TMP, 1, values);
 
-  char *q_str = NULL;
-
-  char *query_tmp = QUERY_COUNT_TMP;
-
-  char *query = malloc(strlen(query_tmp) + 1);
-  strcpy(query, query_tmp);
-  strcat(query, ";");
-
-  int issues_count = 0;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    free(q_str);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_COUNT_TMP, 1, values);
+  if (res == NULL) {
+    return -1;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue_id);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    free(q_str);
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  while (query_rc != SQLITE_DONE) {
-    if (sqlite3_column_type(stmt, 0) == SQLITE_INTEGER) {
-      issues_count = sqlite3_column_int(stmt, 0);
-    }
-
-    query_rc = sqlite3_step(stmt);
-  }
-
-  sqlite3_finalize(stmt);
-  free(q_str);
-  free(query);
+  int issues_count = atoi(PQgetvalue(res, 0, 0));
+  PQclear(res);
 
   return issues_count;
 }
@@ -139,84 +76,58 @@ int get_issue_tags(size_t len, struct issue_tag **arr, int issue_id, int page,
                    int page_size) {
   printf(TERMINAL_SQL_MESSAGE("=== GET ISSUES SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16], page_size_str[16], offset_str[16];
+  const char *values[3];
+  int n_values = 0;
 
-  char *query_tmp = QUERY_SELECT_TMP;
-  char *query_pagination_tmp = QUERY_PAGINATION_TMP;
-  int query_len = strlen(query_tmp) + 2;
+  char query[256] = QUERY_SELECT_TMP;
+
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  values[n_values++] = issue_id_str;
 
   if (page > 0) {
-    query_len += strlen(query_pagination_tmp);
-  }
-
-  char *query = malloc(query_len);
-  strcpy(query, query_tmp);
-  if (page > 0) {
-    strcat(query, query_pagination_tmp);
+    int offset = (page - 1) * page_size;
+    snprintf(page_size_str, sizeof(page_size_str), "%d", page_size);
+    snprintf(offset_str, sizeof(offset_str), "%d", offset);
+    strcat(query, QUERY_PAGINATION_TMP);
+    values[n_values++] = page_size_str;
+    values[n_values++] = offset_str;
   }
   strcat(query, ";");
 
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
+  GET_EXPANDED_QUERY(query, n_values, values);
 
-    return query_rc;
+  PGresult *res = pg_exec(query, n_values, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue_id);
-  if (page > 0) {
-    int offset = (page - 1) * page_size;
-    sqlite3_bind_int(stmt, 102, page_size);
-    sqlite3_bind_int(stmt, 103, offset);
-  }
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
+  int n_rows = PQntuples(res);
   size_t count = 0;
-  while (query_rc == SQLITE_ROW && count < len) {
-    struct issue_tag *u = NULL;
-    u = malloc(sizeof(struct issue));
+  for (int i = 0; i < n_rows && count < len; i++) {
+    struct issue_tag *u = malloc(sizeof(struct issue_tag));
 
     int issue_init_rc = issue_tag_init(u);
     if (issue_init_rc != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("The issue tag is NULL"));
+      free(u);
+      PQclear(res);
       return HTTP_INTERNAL_ERROR;
     }
 
-    int issue_rc = issue_tag_map(u, stmt, 0, 1);
+    pg_row_t row = {res, i};
+    int issue_rc = issue_tag_map(u, &row, 0, 1);
     if (issue_rc != 0) {
       free(u);
-
-      query_rc = sqlite3_step(stmt);
-      fprintf(stderr,
-              TERMINAL_ERROR_MESSAGE("Error at line: %ld. Error code: %d"),
-              count, query_rc);
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("Error mapping row: %d"), i);
       continue;
     }
 
-    printf("\n");
-
-    // Add a to arr
     arr[count] = u;
-
     count += 1;
-    query_rc = sqlite3_step(stmt);
   }
 
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }
@@ -224,34 +135,17 @@ int get_issue_tags(size_t len, struct issue_tag **arr, int issue_id, int page,
 int add_issue_tag(struct issue_tag *issue) {
   printf(TERMINAL_SQL_MESSAGE("=== ADD ISSUE SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue->issue_id);
+  const char *values[2] = {issue_id_str, issue->tag_name};
+  GET_EXPANDED_QUERY(QUERY_POST_TMP, 2, values);
 
-  char *query_tmp = QUERY_POST_TMP;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_POST_TMP, 2, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue->issue_id);
-  sqlite3_bind_text(stmt, 2, issue->tag_name, -1, SQLITE_STATIC);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }
@@ -259,34 +153,17 @@ int add_issue_tag(struct issue_tag *issue) {
 int delete_issue_tag(int issue_id, char *id) {
   printf(TERMINAL_SQL_MESSAGE("=== DELETE ISSUE SQL ==="));
 
-  int query_rc = SQLITE_ROW;
+  char issue_id_str[16];
+  snprintf(issue_id_str, sizeof(issue_id_str), "%d", issue_id);
+  const char *values[2] = {issue_id_str, id};
+  GET_EXPANDED_QUERY(QUERY_DELETE_TMP, 2, values);
 
-  char *query_tmp = QUERY_DELETE_TMP;
-
-  sqlite3_stmt *stmt;
-  query_rc = sqlite3_prepare_v2(db, query_tmp, -1, &stmt, NULL);
-  if (query_rc != SQLITE_OK) {
-    fprintf(stderr, TERMINAL_ERROR_MESSAGE("prepare error: %s\n"),
-            sqlite3_errmsg(db));
-    sqlite3_finalize(stmt);
-
-    return query_rc;
+  PGresult *res = pg_exec(QUERY_DELETE_TMP, 2, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
   }
 
-  // Binding
-  sqlite3_bind_int(stmt, 1, issue_id);
-  sqlite3_bind_text(stmt, 2, id, -1, SQLITE_STATIC);
-
-  GET_EXPANDED_QUERY(stmt);
-
-  query_rc = sqlite3_step(stmt);
-
-  if (query_rc != SQLITE_ROW && query_rc != SQLITE_DONE) {
-    sqlite3_finalize(stmt);
-    return query_rc;
-  }
-
-  sqlite3_finalize(stmt);
+  PQclear(res);
 
   return 0;
 }
