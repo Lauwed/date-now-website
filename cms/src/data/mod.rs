@@ -1,10 +1,14 @@
 pub mod auth;
+pub mod categories;
 pub mod config;
+pub mod feeds;
+pub mod issue_tags;
 pub mod issues;
 pub mod medias;
 pub mod responses;
 pub mod sessions;
 pub mod sponsors;
+pub mod stats;
 pub mod tags;
 pub mod traits;
 pub mod users;

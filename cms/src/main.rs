@@ -20,15 +20,23 @@ use screens::issue::Issue;
 use screens::issues::Issues;
 use screens::login::Login;
 
+use crate::components::forms::category::CategoryForm;
+use crate::components::forms::feed::FeedForm;
+use crate::components::forms::issue_tags::IssueTagsForm;
 use crate::components::forms::tag::TagForm;
 use crate::components::toast;
+use crate::data::categories::Category;
 use crate::data::config::Config;
+use crate::data::feeds::Feed;
 use crate::data::sessions::{
     Session, clear_session, load_session, refresh_access_token, save_session,
 };
 use crate::data::tags::Tag;
+use crate::screens::categories::{self, Categories};
+use crate::screens::feeds::{self, Feeds};
 use crate::screens::listing::{self, Listing};
 use crate::screens::new_issue::{self, NewIssue};
+use crate::screens::profile::{self, Profile};
 use crate::screens::sponsors::{self, Sponsors};
 use crate::screens::tags::{self, Tags};
 use crate::screens::{issue, issues};
@@ -48,6 +56,13 @@ enum ModalKind {
     ConfirmPublishIssue(u32),
     ConfirmArchiveIssue(u32),
     ConfirmDeleteUser(String),
+    EditIssueTags(u32),
+    ConfirmDeleteCategory(String),
+    EditCategory(String),
+    NewCategory,
+    ConfirmDeleteFeed(String),
+    EditFeed(String),
+    NewFeed,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -61,6 +76,9 @@ pub enum Screen {
     Login,
     Tags,
     Sponsors,
+    Categories,
+    Feeds,
+    Profile,
 }
 
 #[derive(Default)]
@@ -79,6 +97,12 @@ struct State {
     toasts: Vec<Toast>,
     modal: ModalKind,
     tag_form: TagForm,
+    issue_tags_form: IssueTagsForm,
+    categories: Categories,
+    category_form: CategoryForm,
+    feeds: Feeds,
+    feed_form: FeedForm,
+    profile: Profile,
 }
 
 impl State {
@@ -147,9 +171,11 @@ impl State {
 
         if !session_from_deep_link {
             if let Some(stored) = load_session() {
+                println!("STORED SESSION LOADED");
                 match refresh_access_token(&stored.get_refresh_token()) {
                     Ok(pair) => match get_current_user(&pair.token) {
                         Ok(user) => {
+                            println!("CURRENT USER SUCCESS");
                             let session = Session {
                                 token: pair.token,
                                 refresh_token: pair.refresh_token,
@@ -176,7 +202,7 @@ impl State {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 enum Message {
     Dashboard(screens::dashboard::Message),
     Issues(screens::issues::Message),
@@ -187,6 +213,7 @@ enum Message {
     Tags(screens::tags::Message),
     TagForm(components::forms::tag::Message),
     Sponsors(screens::sponsors::Message),
+    Profile(screens::profile::Message),
     Nav(components::nav::Message),
     DismissToast(usize),
     CloseModal,
@@ -194,9 +221,21 @@ enum Message {
     ConfirmEditTag(String),
     ConfirmNewTag,
     ConfirmPublishIssue(u32),
-    ConfirmSendIssue(u32),
     ConfirmArchiveIssue(u32),
     ConfirmDeleteUser(String),
+    Categories(screens::categories::Message),
+    CategoryForm(components::forms::category::Message),
+    ConfirmDeleteCategory(String),
+    ConfirmEditCategory(String),
+    ConfirmNewCategory,
+    Feeds(screens::feeds::Message),
+    FeedForm(components::forms::feed::Message),
+    ConfirmDeleteFeed(String),
+    ConfirmEditFeed(String),
+    ConfirmNewFeed,
+    IssueTagsForm(components::forms::issue_tags::Message),
+    AddIssueTag(String),
+    RemoveIssueTag(String),
 }
 
 fn push_toast(state: &mut State, title: String, content: String, status: Status) {
@@ -232,6 +271,48 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         },
         Message::TagForm(message) => {
             state.tag_form.update(message);
+            Task::none()
+        }
+        Message::Categories(message) => match state.categories.update(message) {
+            categories::Action::None => Task::none(),
+            categories::Action::OpenCategory(id, item) => {
+                state.category_form = CategoryForm::new(item.clone());
+                state.modal = ModalKind::EditCategory(id);
+                Task::none()
+            }
+            categories::Action::NewCategory => {
+                state.category_form = CategoryForm::new(Category::default());
+                state.modal = ModalKind::NewCategory;
+                Task::none()
+            }
+            categories::Action::DeleteCategory(id) => {
+                state.modal = ModalKind::ConfirmDeleteCategory(id);
+                Task::none()
+            }
+        },
+        Message::CategoryForm(message) => {
+            state.category_form.update(message);
+            Task::none()
+        }
+        Message::Feeds(message) => match state.feeds.update(message) {
+            feeds::Action::None => Task::none(),
+            feeds::Action::OpenFeed(id, item) => {
+                state.feed_form = FeedForm::new(item.clone());
+                state.modal = ModalKind::EditFeed(id);
+                Task::none()
+            }
+            feeds::Action::NewFeed => {
+                state.feed_form = FeedForm::new(Feed::default());
+                state.modal = ModalKind::NewFeed;
+                Task::none()
+            }
+            feeds::Action::DeleteFeed(id) => {
+                state.modal = ModalKind::ConfirmDeleteFeed(id);
+                Task::none()
+            }
+        },
+        Message::FeedForm(message) => {
+            state.feed_form.update(message);
             Task::none()
         }
         Message::Issues(message) => {
@@ -272,6 +353,24 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 state.modal = ModalKind::ConfirmArchiveIssue(id);
                 Task::none()
             }
+            issue::Action::EditTags(id) => {
+                if let Some(item) = &state.issue.item {
+                    let all_tags = match crate::data::tags::get_tags() {
+                        Ok(res) => res.data,
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            vec![]
+                        }
+                    };
+                    state.issue_tags_form = components::forms::issue_tags::IssueTagsForm::new(
+                        id,
+                        item.tags.clone(),
+                        all_tags,
+                    );
+                    state.modal = ModalKind::EditIssueTags(id);
+                }
+                Task::none()
+            }
             issue::Action::None => Task::none(),
         },
         Message::NewIssue(message) => match state.new_issue.update(message) {
@@ -302,22 +401,46 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 Task::none()
             }
         },
+        Message::Profile(message) => match state.profile.update(message) {
+            profile::Action::Toast(title, content, status) => {
+                push_toast(state, title, content, status);
+                Task::none()
+            }
+            profile::Action::Updated(user) => {
+                if let Some(session) = &mut state.current_user {
+                    session.user = user;
+                }
+
+                push_toast(
+                    state,
+                    "Success".to_string(),
+                    "Profile updated".to_string(),
+                    Status::Success,
+                );
+                Task::none()
+            }
+            profile::Action::None => Task::none(),
+        },
         Message::Nav(message) => {
             if let Some(session) = &state.current_user {
                 match state.nav.update(message) {
                     nav::Action::GoToScreen(screen) => {
-                        if screen == Screen::Sponsors {
-                            state.sponsors = Sponsors::new(session.clone());
-                        }
-                        if screen == Screen::Tags {
-                            state.tags = Tags::new();
-                        }
-                        if screen == Screen::Listing {
-                            state.listing = Listing::new();
+                        match screen {
+                            Screen::Sponsors => state.sponsors = Sponsors::new(session.clone()),
+                            Screen::Tags => state.tags = Tags::new(),
+                            Screen::Listing => state.listing = Listing::new(),
+                            Screen::Categories => state.categories = Categories::new(),
+                            Screen::Feeds => state.feeds = Feeds::new(),
+                            Screen::Profile => state.profile = Profile::new(session.clone()),
+                            _ => (),
                         }
                         state.current_screen = screen;
                     }
-                    nav::Action::None => (),
+                    nav::Action::LogOut => {
+                        clear_session();
+                        state.current_user = None;
+                        state.current_screen = Screen::Login;
+                    }
                 }
             }
             Task::none()
@@ -396,12 +519,18 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             state.modal = ModalKind::None;
             Task::none()
         }
-        Message::ConfirmPublishIssue(id) => {
-            if let Some(session) = state.current_user.clone() {
-                match crate::data::issues::publish_issue(id, session.token.clone()) {
-                    Ok(res) => {
-                        push_toast(state, "Success".to_string(), res.message, Status::Success);
-                        state.issue = Issue::new(id, session);
+        Message::ConfirmDeleteCategory(id) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::categories::delete_category(id, session.token.clone()) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "The category has been successfully deleted.".to_string(),
+                            Status::Success,
+                        );
+
+                        state.categories.reload_data();
                     }
                     Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
                 }
@@ -409,7 +538,116 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             state.modal = ModalKind::None;
             Task::none()
         }
-        Message::ConfirmSendIssue(id) => {
+        Message::ConfirmEditCategory(id) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::categories::update_category(
+                    &id,
+                    state.category_form.get_category(),
+                    session.token.clone(),
+                ) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "The category has been successfully updated".to_string(),
+                            Status::Success,
+                        );
+
+                        state.categories.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmNewCategory => {
+            if let Some(session) = &state.current_user {
+                match crate::data::categories::create_category(
+                    state.category_form.get_category(),
+                    session.token.clone(),
+                ) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "The category has been successfully created".to_string(),
+                            Status::Success,
+                        );
+
+                        state.categories.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmDeleteFeed(id) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::feeds::delete_feed(id, session.token.clone()) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "The feed has been successfully deleted.".to_string(),
+                            Status::Success,
+                        );
+
+                        state.feeds.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmEditFeed(id) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::feeds::update_feed(
+                    &id,
+                    state.feed_form.get_feed(),
+                    session.token.clone(),
+                ) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "The feed has been successfully updated".to_string(),
+                            Status::Success,
+                        );
+
+                        state.feeds.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmNewFeed => {
+            if let Some(session) = &state.current_user {
+                match crate::data::feeds::create_feed(
+                    state.feed_form.get_feed(),
+                    session.token.clone(),
+                ) {
+                    Ok(_) => {
+                        push_toast(
+                            state,
+                            "Success".to_string(),
+                            "The feed has been successfully created".to_string(),
+                            Status::Success,
+                        );
+
+                        state.feeds.reload_data();
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            state.modal = ModalKind::None;
+            Task::none()
+        }
+        Message::ConfirmPublishIssue(id) => {
             if let Some(session) = state.current_user.clone() {
                 match crate::data::issues::publish_issue(id, session.token.clone()) {
                     Ok(res) => {
@@ -465,12 +703,64 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             state.modal = ModalKind::None;
             Task::none()
         }
+        Message::IssueTagsForm(message) => {
+            match state.issue_tags_form.update(message) {
+                components::forms::issue_tags::Action::None => {}
+                components::forms::issue_tags::Action::Add(name) => {
+                    return iced::Task::done(Message::AddIssueTag(name));
+                }
+                components::forms::issue_tags::Action::Delete(name) => {
+                    return iced::Task::done(Message::RemoveIssueTag(name));
+                }
+            }
+            Task::none()
+        }
+        Message::AddIssueTag(name) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::issue_tags::add_issue_tag(
+                    state.issue_tags_form.issue_id,
+                    name,
+                    session.token.clone(),
+                ) {
+                    Ok(_) => {
+                        if let Ok(crate::data::responses::Response::Success(new_issue)) =
+                            crate::data::issues::get_issue(state.issue_tags_form.issue_id)
+                        {
+                            state.issue.item = Some(new_issue.clone());
+                            state.issue_tags_form.set_tags(new_issue.tags);
+                        }
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            Task::none()
+        }
+        Message::RemoveIssueTag(name) => {
+            if let Some(session) = &state.current_user {
+                match crate::data::issue_tags::delete_issue_tag(
+                    state.issue_tags_form.issue_id,
+                    name,
+                    session.token.clone(),
+                ) {
+                    Ok(_) => {
+                        if let Ok(crate::data::responses::Response::Success(new_issue)) =
+                            crate::data::issues::get_issue(state.issue_tags_form.issue_id)
+                        {
+                            state.issue.item = Some(new_issue.clone());
+                            state.issue_tags_form.set_tags(new_issue.tags);
+                        }
+                    }
+                    Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+                }
+            }
+            Task::none()
+        }
     }
 }
 
 fn view(state: &State) -> Element<'_, Message> {
     match &state.current_user {
-        Some(_) => {
+        Some(session) => {
             // Content
             let main_content = match state.current_screen {
                 Screen::Dashboard => state.dashboard.view().map(Message::Dashboard),
@@ -481,12 +771,18 @@ fn view(state: &State) -> Element<'_, Message> {
                 Screen::Login => state.login.view().map(Message::Login),
                 Screen::Tags => state.tags.view().map(Message::Tags),
                 Screen::Sponsors => state.sponsors.view().map(Message::Sponsors),
+                Screen::Categories => state.categories.view().map(Message::Categories),
+                Screen::Feeds => state.feeds.view().map(Message::Feeds),
+                Screen::Profile => state.profile.view().map(Message::Profile),
             };
             let main_container = container(main_content).width(Length::FillPortion(5));
 
             // Return composed layout
             let content = row![
-                state.nav.view(&state.current_screen).map(Message::Nav),
+                state
+                    .nav
+                    .view(&state.current_screen, session)
+                    .map(Message::Nav),
                 main_container,
             ];
 
@@ -525,6 +821,64 @@ fn view(state: &State) -> Element<'_, Message> {
                     Some(Message::CloseModal),
                     Some(Message::ConfirmNewTag),
                 ),
+                ModalKind::ConfirmDeleteCategory(id) => {
+                    let modal_content: Element<'_, Message> =
+                        column![text(format!("Delete category « {} » ?", id.clone())),].into();
+
+                    components::modal::modal(
+                        content,
+                        Some("Confirmation".to_string()),
+                        modal_content,
+                        Message::CloseModal,
+                        Some(Message::CloseModal),
+                        Some(Message::ConfirmDeleteCategory(id.clone())),
+                    )
+                }
+                ModalKind::EditCategory(id) => components::modal::modal(
+                    content,
+                    Some(format!("Category {}", id)),
+                    state.category_form.view().map(Message::CategoryForm),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::ConfirmEditCategory(id.clone())),
+                ),
+                ModalKind::NewCategory => components::modal::modal(
+                    content,
+                    Some("New category".to_string()),
+                    state.category_form.view().map(Message::CategoryForm),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::ConfirmNewCategory),
+                ),
+                ModalKind::ConfirmDeleteFeed(id) => {
+                    let modal_content: Element<'_, Message> =
+                        column![text(format!("Delete feed « {} » ?", id.clone())),].into();
+
+                    components::modal::modal(
+                        content,
+                        Some("Confirmation".to_string()),
+                        modal_content,
+                        Message::CloseModal,
+                        Some(Message::CloseModal),
+                        Some(Message::ConfirmDeleteFeed(id.clone())),
+                    )
+                }
+                ModalKind::EditFeed(id) => components::modal::modal(
+                    content,
+                    Some(format!("Feed {}", id)),
+                    state.feed_form.view().map(Message::FeedForm),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::ConfirmEditFeed(id.clone())),
+                ),
+                ModalKind::NewFeed => components::modal::modal(
+                    content,
+                    Some("New feed".to_string()),
+                    state.feed_form.view().map(Message::FeedForm),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::ConfirmNewFeed),
+                ),
                 ModalKind::ConfirmPublishIssue(id) => {
                     let message = format!(
                         "Publish issue #{}? The newsletter will be automatically send",
@@ -560,6 +914,14 @@ fn view(state: &State) -> Element<'_, Message> {
                         Some(Message::ConfirmDeleteUser(id.clone())),
                     )
                 }
+                ModalKind::EditIssueTags(_) => components::modal::modal(
+                    content,
+                    Some("Tags".to_string()),
+                    state.issue_tags_form.view().map(Message::IssueTagsForm),
+                    Message::CloseModal,
+                    None,
+                    None,
+                ),
             };
 
             toast::Manager::new(content, &state.toasts, Message::DismissToast)

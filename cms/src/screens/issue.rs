@@ -42,6 +42,7 @@ pub enum Message {
     ResetSlug,
     RequestPublish,
     RequestArchive,
+    RequestEditTags,
 }
 
 pub enum Action {
@@ -50,6 +51,7 @@ pub enum Action {
     Toast(String, String, Status),
     ConfirmPublish(u32),
     ConfirmArchive(u32),
+    EditTags(u32),
 }
 
 impl Issue {
@@ -199,6 +201,7 @@ impl Issue {
             }
             Message::RequestPublish => Action::ConfirmPublish(self.id),
             Message::RequestArchive => Action::ConfirmArchive(self.id),
+            Message::RequestEditTags => Action::EditTags(self.id),
         }
     }
 
@@ -317,6 +320,17 @@ impl Issue {
                 item.is_sponsored,
                 Some(Message::IsSponsoredChanged),
             );
+            let tags_section = row![
+                typography(
+                    String::from("Tags: "),
+                    crate::components::typography::TypographyStyle::Small
+                ),
+                item.render("tags"),
+                horizontal(),
+                button("Edit").on_press(Message::RequestEditTags),
+            ]
+            .align_y(Center)
+            .spacing(10);
             let excerpt_input = form_control(
                 "Excerpt",
                 "excerpt",
@@ -340,6 +354,7 @@ impl Issue {
                 slug_row,
                 title_row,
                 is_sponsored_input,
+                tags_section,
                 excerpt_input,
                 vod_url_input,
             ]

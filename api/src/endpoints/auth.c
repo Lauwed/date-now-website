@@ -111,6 +111,7 @@ void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
       picture->url = user->picture->url;
       picture->width = user->picture->width;
       picture->height = user->picture->height;
+      picture->thumb_url = user->picture->thumb_url;
     }
 
     user_dst->id = user->id;
@@ -401,7 +402,7 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    int exists = user_identity_exists(username, email);
+    int exists = user_identity_exists(username, email, -1);
     if (exists != 0) {
       ERROR_REPLY_400(USER_EXISTS_MESSAGE);
       free(username);
@@ -509,7 +510,7 @@ void generate_totpseed_user(struct mg_connection *c,
     }
 
     // Check if user esists
-    if (user_identity_exists(NULL, email)) {
+    if (user_identity_exists(NULL, email, -1)) {
       struct user *user = malloc(sizeof(struct user));
       // Get User
       int query_code = get_user_by_email(user, email);
@@ -522,6 +523,7 @@ void generate_totpseed_user(struct mg_connection *c,
         return;
       } else {
         // Generate totpseed
+        free(user->totp_seed);
         user->totp_seed = malloc(64);
         if (totp_generate_secret(user->totp_seed) != 0) {
           ERROR_REPLY_500;

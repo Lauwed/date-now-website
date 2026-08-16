@@ -163,7 +163,7 @@ void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
         username = strndup(msg->body.buf + offset + 1, length - 2);
       }
 
-      int exists = user_identity_exists(username, email);
+      int exists = user_identity_exists(username, email, -1);
       if (exists != 0) {
         ERROR_REPLY_400(USER_EXISTS_MESSAGE);
         return;
@@ -311,7 +311,7 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
         username = strndup(msg->body.buf + offset + 1, length - 2);
       }
 
-      int exists = user_identity_exists(username, email);
+      int exists = user_identity_exists(username, email, id);
       if (exists != 0) {
         ERROR_REPLY_400(USER_EXISTS_MESSAGE);
         return;

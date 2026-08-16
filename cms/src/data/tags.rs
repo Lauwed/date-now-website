@@ -33,7 +33,7 @@ impl Table for Tag {
                 self.color.clone(),
                 BadgeStyle::FromColor(match Color::from_str(&self.color) {
                     Ok(c) => c,
-                    Err(_) => Color::from_rgb(15.0, 15.0, 15.0),
+                    Err(_) => Color::from_rgb(15.0 / 255.0, 15.0 / 255.0, 15.0 / 255.0),
                 }),
             ),
             _ => text("No render set").into(),

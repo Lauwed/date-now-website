@@ -28,16 +28,27 @@
 
 #define QUERY_COUNT_TMP "SELECT COUNT(*) FROM AppUser"
 #define QUERY_EXISTS_TMP QUERY_COUNT_TMP " WHERE id = $1"
-#define QUERY_SELECT_TMP                                                       \
-  "SELECT "                                                                    \
+#define QUERY_SELECT_COLS_TMP                                                  \
   "u.id, u.username, u.email, u.role, u.link, "                               \
   "EXTRACT(EPOCH FROM u.subscribedAt)::BIGINT, "                              \
   "u.isSupporter, EXTRACT(EPOCH FROM u.createdAt)::BIGINT, "                  \
   "EXTRACT(EPOCH FROM u.trackerPixelConsentDate)::BIGINT, "                   \
-  "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl "            \
+  "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl"
+#define QUERY_SELECT_TMP                                                      \
+  "SELECT " QUERY_SELECT_COLS_TMP " "                                         \
   "FROM AppUser u LEFT JOIN Media m ON m.id = u.picture"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE u.id = $1"
 #define QUERY_SELECT_SINGLE_BY_EMAIL_TMP QUERY_SELECT_TMP " WHERE u.emailHash = $1"
+/* Same shape as QUERY_SELECT_SINGLE_TMP/QUERY_SELECT_SINGLE_BY_EMAIL_TMP, plus
+ * a trailing totpSeed column (index 15) — used when the caller may later
+ * feed the hydrated struct back into edit_user(), which writes back
+ * whatever is in user->totp_seed (see get_user()/get_user_by_email()). */
+#define QUERY_SELECT_SINGLE_WITH_TOTP_TMP                                     \
+  "SELECT " QUERY_SELECT_COLS_TMP ", u.totpSeed "                             \
+  "FROM AppUser u LEFT JOIN Media m ON m.id = u.picture WHERE u.id = $1"
+#define QUERY_SELECT_SINGLE_BY_EMAIL_WITH_TOTP_TMP                            \
+  "SELECT " QUERY_SELECT_COLS_TMP ", u.totpSeed "                             \
+  "FROM AppUser u LEFT JOIN Media m ON m.id = u.picture WHERE u.emailHash = $1"
 #define QUERY_SELECT_SINGLE_TOTP_SEED                                          \
   "SELECT totpSeed FROM AppUser WHERE emailHash = $1;"
 
@@ -104,7 +115,7 @@ int user_exists(int id) {
   return users_count > 0;
 }
 
-int user_identity_exists(char *username, char *email) {
+int user_identity_exists(char *username, char *email, int exclude_id) {
   if (email == NULL) {
     return -1;
   }
@@ -115,12 +126,15 @@ int user_identity_exists(char *username, char *email) {
   char *email_hash = crypto_hmac_hex(normalized);
   free(normalized);
 
-  const char *query =
-      "SELECT COUNT(*) FROM AppUser WHERE username = $1 OR emailHash = $2;";
-  const char *values[2] = {username, email_hash};
-  GET_EXPANDED_QUERY(query, 2, values);
+  char exclude_id_str[16];
+  snprintf(exclude_id_str, sizeof(exclude_id_str), "%d", exclude_id);
 
-  PGresult *res = pg_exec(query, 2, values);
+  const char *query = "SELECT COUNT(*) FROM AppUser WHERE (username = $1 OR "
+                       "emailHash = $2) AND id != $3;";
+  const char *values[3] = {username, email_hash, exclude_id_str};
+  GET_EXPANDED_QUERY(query, 3, values);
+
+  PGresult *res = pg_exec(query, 3, values);
   free(email_hash);
   if (res == NULL) {
     return -1;
@@ -336,9 +350,9 @@ int get_user(struct user *user, int id) {
   char id_str[16];
   snprintf(id_str, sizeof(id_str), "%d", id);
   const char *values[1] = {id_str};
-  GET_EXPANDED_QUERY(QUERY_SELECT_SINGLE_TMP, 1, values);
+  GET_EXPANDED_QUERY(QUERY_SELECT_SINGLE_WITH_TOTP_TMP, 1, values);
 
-  PGresult *res = pg_exec(QUERY_SELECT_SINGLE_TMP, 1, values);
+  PGresult *res = pg_exec(QUERY_SELECT_SINGLE_WITH_TOTP_TMP, 1, values);
   if (res == NULL) {
     return HTTP_INTERNAL_ERROR;
   }
@@ -372,6 +386,10 @@ int get_user(struct user *user, int id) {
     user->picture = m;
   }
 
+  if (!PQgetisnull(res, 0, 15)) {
+    user->totp_seed = crypto_decrypt_hex(PQgetvalue(res, 0, 15));
+  }
+
   PQclear(res);
 
   return 0;
@@ -389,9 +407,9 @@ int get_user_by_email(struct user *user, char *email) {
   free(normalized);
 
   const char *values[1] = {email_hash};
-  GET_EXPANDED_QUERY(QUERY_SELECT_SINGLE_BY_EMAIL_TMP, 1, values);
+  GET_EXPANDED_QUERY(QUERY_SELECT_SINGLE_BY_EMAIL_WITH_TOTP_TMP, 1, values);
 
-  PGresult *res = pg_exec(QUERY_SELECT_SINGLE_BY_EMAIL_TMP, 1, values);
+  PGresult *res = pg_exec(QUERY_SELECT_SINGLE_BY_EMAIL_WITH_TOTP_TMP, 1, values);
   free(email_hash);
   if (res == NULL) {
     return HTTP_INTERNAL_ERROR;
@@ -424,6 +442,10 @@ int get_user_by_email(struct user *user, char *email) {
     free(m);
   } else {
     user->picture = m;
+  }
+
+  if (!PQgetisnull(res, 0, 15)) {
+    user->totp_seed = crypto_decrypt_hex(PQgetvalue(res, 0, 15));
   }
 
   PQclear(res);

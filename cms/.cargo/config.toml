@@ -1,0 +1,3 @@
+[build]
+# Default target dir (used by native Windows cargo)
+target-dir = "target/windows"

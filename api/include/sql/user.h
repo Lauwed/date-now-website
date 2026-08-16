@@ -18,12 +18,14 @@ int user_exists(int id);
 
 /**
  * @brief Checks whether a user with the given username or email already exists.
- * @param username Username to check (may be NULL to skip).
- * @param email    Email to check (may be NULL to skip).
+ * @param username   Username to check (may be NULL to skip).
+ * @param email      Email to check (may be NULL to skip).
+ * @param exclude_id User id to exclude from the check (pass -1 to check
+ *                    against all users, e.g. on creation).
  * @return 1 if a conflicting record exists, 0 if not, negative on SQL error.
  * @note Neither @p username nor @p email is freed by this function.
  */
-int user_identity_exists(char *username, char *email);
+int user_identity_exists(char *username, char *email, int exclude_id);
 
 /**
  * @brief Returns the total number of users matching an optional search query.

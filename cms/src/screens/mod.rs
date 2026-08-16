@@ -1,9 +1,12 @@
+pub mod categories;
 pub mod dashboard;
+pub mod feeds;
 pub mod issue;
 pub mod issues;
 pub mod listing;
 pub mod loading;
 pub mod login;
 pub mod new_issue;
+pub mod profile;
 pub mod sponsors;
 pub mod tags;

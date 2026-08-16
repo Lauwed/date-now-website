@@ -1,81 +1,70 @@
 use iced::Alignment::Center;
-use iced::widget::{column, container, row};
-use iced::{Element, Task};
+use iced::widget::space::horizontal;
+use iced::widget::{button, column, container, row};
+use iced::Element;
 
 use crate::components;
 use crate::components::table::{Table, TableActions, TableColumn};
 use crate::components::typography::{TypographyStyle, typography};
-use crate::data::users::{User, get_users};
+use crate::data::feeds::{Feed, get_feed, get_feeds};
+use crate::data::responses::Response;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Table(crate::components::table::Message),
+    NewFeed,
 }
 
 pub enum Action {
     None,
-    DeleteUser(String),
+    OpenFeed(String, Feed),
+    NewFeed,
+    DeleteFeed(String),
 }
 
-pub struct Listing {
-    table: Table<User>,
+pub struct Feeds {
+    table: Table<Feed>,
 }
 
-impl Default for Listing {
+impl Default for Feeds {
     fn default() -> Self {
-        let table: Table<User> = Table::new(vec![], None);
+        let table: Table<Feed> = Table::new(vec![], None);
+
         Self { table }
     }
 }
 
-impl Listing {
+impl Feeds {
     pub fn new() -> Self {
         let columns: Vec<TableColumn> = vec![
             TableColumn {
-                key: "email",
-                name: "Email",
+                key: "name",
+                name: "Name",
                 width: None,
                 render: false,
             },
             TableColumn {
-                key: "username",
-                name: "Username",
+                key: "link",
+                name: "Link",
                 width: None,
                 render: false,
             },
             TableColumn {
-                key: "role",
-                name: "Role",
-                width: Some(100),
+                key: "is_rss_feed",
+                name: "Type",
+                width: None,
                 render: true,
-            },
-            TableColumn {
-                key: "is_supporter",
-                name: "Supporter",
-                width: Some(100),
-                render: true,
-            },
-            TableColumn {
-                key: "subscribed_at",
-                name: "Subscribed at",
-                width: None,
-                render: false,
-            },
-            TableColumn {
-                key: "tracker_pixel_consent_date",
-                name: "Pixel consent",
-                width: None,
-                render: false,
             },
         ];
 
         let actions = Some(TableActions {
-            edit: None,
+            edit: Some(String::from("id")),
             delete: Some(String::from("id")),
         });
 
         let mut table = Table::new(columns, actions);
-        table.data = match get_users() {
+
+        table.data = match get_feeds() {
             Ok(i) => i.data,
             Err(e) => {
                 eprintln!("Error: {}", e);
@@ -85,9 +74,8 @@ impl Listing {
 
         Self { table }
     }
-
     pub fn reload_data(&mut self) {
-        self.table.data = match get_users() {
+        self.table.data = match get_feeds() {
             Ok(i) => i.data,
             Err(e) => {
                 eprintln!("Error: {}", e);
@@ -95,19 +83,34 @@ impl Listing {
             }
         };
     }
-
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Table(table_msg) => match self.table.update(table_msg) {
-                components::table::Action::Delete(id) => Action::DeleteUser(id),
+                components::table::Action::Edit(id) => match get_feed(&id) {
+                    Ok(Response::Success(i)) => Action::OpenFeed(id, i),
+                    Ok(Response::Error(e)) => {
+                        eprintln!("Error: {}", e);
+                        Action::None
+                    }
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        Action::None
+                    }
+                },
+                components::table::Action::Delete(id) => Action::DeleteFeed(id),
                 _ => Action::None,
             },
+            Message::NewFeed => Action::NewFeed,
         }
     }
-
     pub fn view(&self) -> Element<'_, Message> {
         let content = column![
-            row![typography(String::from("Users"), TypographyStyle::Title)].align_y(Center),
+            row![
+                typography(String::from("Feeds"), TypographyStyle::Title),
+                horizontal(),
+                button("New feed").on_press(Message::NewFeed)
+            ]
+            .align_y(Center),
             self.table.view().map(Message::Table)
         ]
         .padding(20);

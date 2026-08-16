@@ -1,6 +1,7 @@
 pub mod alert;
 pub mod badge;
 pub mod card;
+pub mod charts;
 pub mod form_control;
 pub mod forms;
 pub mod markdown_editor;

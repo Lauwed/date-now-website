@@ -2,6 +2,7 @@ use frostmark::{MarkState, MarkWidget, UpdateMsg};
 use iced::{
     Border, Color, Element, Length, Padding, Theme,
     border::Radius,
+    keyboard::{self, key::Named},
     widget::{column, container, row, scrollable, text_editor},
 };
 
@@ -107,6 +108,11 @@ impl MarkdownEditor {
 
         let editor: Element<'_, Message> = container(
             text_editor(&self.content)
+                .key_binding(|key_press: text_editor::KeyPress| {
+                    shortcut_binding(&key_press)
+                        .map(text_editor::Binding::Custom)
+                        .or_else(|| text_editor::Binding::from_key_press(key_press))
+                })
                 .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
                 .on_action(Message::ContentChanged),
         )
@@ -163,4 +169,29 @@ impl MarkdownEditor {
         )
         .into()
     }
+}
+
+fn shortcut_binding(key_press: &text_editor::KeyPress) -> Option<Message> {
+    if !key_press.modifiers.command() {
+        return None;
+    }
+
+    let action = match key_press.key.as_ref() {
+        keyboard::Key::Character("b") => ToolbarAction::Bold,
+        keyboard::Key::Character("i") => ToolbarAction::Italic,
+        keyboard::Key::Character("k") => ToolbarAction::Link,
+        keyboard::Key::Character("e") => ToolbarAction::Code,
+        keyboard::Key::Named(Named::Enter) if key_press.modifiers.shift() => {
+            ToolbarAction::CodeBlock
+        }
+        keyboard::Key::Character("1") if key_press.modifiers.shift() => ToolbarAction::Heading(1),
+        keyboard::Key::Character("2") if key_press.modifiers.shift() => ToolbarAction::Heading(2),
+        keyboard::Key::Character("3") if key_press.modifiers.shift() => ToolbarAction::Heading(3),
+        keyboard::Key::Character(".") => ToolbarAction::Quote, // Cmd/Ctrl + .
+        keyboard::Key::Character("8") if key_press.modifiers.shift() => ToolbarAction::BulletList, // Ctrl+Shift+8 = *
+        keyboard::Key::Character("7") if key_press.modifiers.shift() => ToolbarAction::NumberedList,
+        _ => return None,
+    };
+
+    Some(Message::ToolbarAction(action))
 }

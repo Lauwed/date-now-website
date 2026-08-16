@@ -37,12 +37,12 @@ impl fmt::Display for UserRole {
 #[derive(Serialize, Default, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
-    id: u32,
+    pub id: u32,
     pub username: Option<String>,
     pub email: String,
     role: UserRole,
-    link: Option<String>,
-    picture: Option<Media>,
+    pub link: Option<String>,
+    pub picture: Option<Media>,
     is_supporter: bool,
     totp_seed: Option<String>,
 
@@ -86,6 +86,14 @@ impl fmt::Display for User {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.email)
     }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProfilePayload {
+    pub link: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub picture_id: Option<u32>,
 }
 
 pub fn get_current_user(token: &str) -> Result<User, String> {
@@ -164,6 +172,35 @@ pub fn get_users() -> Result<ResponseMany<User>, String> {
             println!("error request: {}", req_err);
             Err(format!("Error request: {}", req_err))
         }
+    }
+}
+
+pub fn update_user(
+    id: u32,
+    payload: UpdateProfilePayload,
+    token: String,
+) -> Result<Response<User>, String> {
+    let config = g_config();
+    let url = format!("{}/api/user/{}", config.api_url, id);
+
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+    headers.insert(CONTENT_TYPE, "application/json".parse().unwrap());
+
+    let json = serde_json::to_string(&payload).unwrap();
+
+    let client = reqwest::blocking::Client::new();
+    let res = client.put(url).headers(headers).body(json).send();
+
+    match res {
+        Ok(r) => match r.text() {
+            Ok(text) => match serde_json::from_str::<Response<User>>(&text) {
+                Ok(json) => Ok(json),
+                Err(user_parse_err) => Err(format!("Error parsing: {}", user_parse_err)),
+            },
+            Err(text_err) => Err(format!("Error parsing text response: {}", text_err)),
+        },
+        Err(req_err) => Err(format!("Error request: {}", req_err)),
     }
 }
 

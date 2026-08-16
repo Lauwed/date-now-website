@@ -13,6 +13,7 @@
 #include <macros/colors.h>
 #include <macros/utils.h>
 #include <regex.h>
+#include <sql/media.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -245,8 +246,14 @@ static cJSON *media_to_cjson(struct media *media) {
     return cJSON_CreateNull();
   cJSON *obj = cJSON_CreateObject();
   cJSON_AddNumberToObject(obj, "id", media->id);
-  cJSON_AddStringToObject(obj, "alt", media->alternative_text);
-  cJSON_AddStringToObject(obj, "url", media->url);
+  if (media->alternative_text != NULL)
+    cJSON_AddStringToObject(obj, "alt", media->alternative_text);
+  else
+    cJSON_AddNullToObject(obj, "alt");
+  if (media->url != NULL)
+    cJSON_AddStringToObject(obj, "url", media->url);
+  else
+    cJSON_AddNullToObject(obj, "url");
   if (media->thumb_url != NULL)
     cJSON_AddStringToObject(obj, "thumbUrl", media->thumb_url);
   else
@@ -1484,14 +1491,26 @@ void user_hydrate(struct mg_http_message *msg, struct user *user) {
     } else if (mg_strcmp(key, mg_str("\"pictureId\"")) == 0) {
       number_parsed = mg_str_to_num(val, 10, &number, sizeof(int));
       if (number_parsed && number > 0) {
-        if (user->picture == NULL) {
-          user->picture = malloc(sizeof(struct media));
-          user->picture->alternative_text = NULL;
-          user->picture->url = NULL;
-          user->picture->width = 0;
-          user->picture->height = 0;
+        if (user->picture != NULL) {
+          free_media(user->picture);
+          user->picture = NULL;
         }
-        user->picture->id = number;
+
+        struct media *m = malloc(sizeof(struct media));
+        m->id = 0;
+        m->alternative_text = NULL;
+        m->url = NULL;
+        m->thumb_url = NULL;
+        m->width = 0;
+        m->height = 0;
+
+        if (get_media(m, number) != 0) {
+          fprintf(stderr,
+                  TERMINAL_ERROR_MESSAGE("PICTURE ID NOT FOUND ON HYDRATE"));
+          m->id = number;
+        }
+
+        user->picture = m;
       }
     }
   }
