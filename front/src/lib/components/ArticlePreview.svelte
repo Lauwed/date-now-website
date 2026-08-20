@@ -4,6 +4,7 @@
 	import Card from './Card.svelte';
 	import Tag from './Tag.svelte';
 	import Button from './Button.svelte';
+	import { rgbOf } from '$lib/colors';
 
 	type ArticleSize = 'medium' | 'large';
 
@@ -34,15 +35,16 @@
 
 		<ul class="article-preview__tags">
 			{#each article.tags as tag (tag.name)}
-				<Tag tag="li" --color={`${tag.color.r}, ${tag.color.g}, ${tag.color.b}`}>{tag.name}</Tag>
+				<Tag tag="li" --color={rgbOf(tag.color)}>{tag.name}</Tag>
 			{/each}
 		</ul>
 	</div>
 
 	<img
 		class="article-preview__cover"
-		src={article.coverURL || '/article-cover-placeholder.png'}
-		alt="Issue's cover"
+		src={article.cover?.thumbUrl || article.cover?.url || '/article-cover-placeholder.png'}
+		alt={article.cover?.alt || "Issue's cover"}
+		loading="lazy"
 	/>
 
 	<div class="article-preview__content">
@@ -53,7 +55,7 @@
 			--width="100%"
 			customClass="article-preview__button"
 			tag="a"
-			href={`/issue/${article.id}`}>Read more</Button
+			href={`/issue/${article.slug}`}>Read more</Button
 		>
 	</div>
 </Card>

@@ -7,6 +7,7 @@ use crate::components;
 use crate::components::table::{Table, TableActions, TableColumn};
 use crate::components::typography::{TypographyStyle, typography};
 use crate::data::issues::{Issue, get_issues};
+use crate::data::sessions::Session;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -27,6 +28,14 @@ pub enum Action {
 
 impl Default for Issues {
     fn default() -> Self {
+        Self {
+            table: Table::new(vec![], None),
+        }
+    }
+}
+
+impl Issues {
+    pub fn new(session: &Session) -> Self {
         let columns: Vec<TableColumn> = vec![
             TableColumn {
                 key: "title",
@@ -79,7 +88,7 @@ impl Default for Issues {
 
         let mut table = Table::new(columns, actions);
 
-        table.data = match get_issues() {
+        table.data = match get_issues(&session.token) {
             Ok(i) => i.data,
             Err(e) => {
                 eprintln!("Error: {}", e);
@@ -89,9 +98,7 @@ impl Default for Issues {
 
         Self { table }
     }
-}
 
-impl Issues {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Table(table_msg) => {

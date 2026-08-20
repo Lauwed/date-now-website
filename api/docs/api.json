@@ -349,7 +349,7 @@
         "singular": "media",
         "plural": "medias"
       },
-      "description": "Media files (images) uploaded and automatically converted to WebP. Accessible at /uploads/media/{uuid}/image.webp.",
+      "description": "Media files (images) uploaded and automatically converted to WebP, stored on Vercel Blob. Upload is asynchronous: POST replies 202 and the url appears once the background conversion finishes.",
       "uri": "/media",
       "uriParameters": [
         {
@@ -400,13 +400,13 @@
       ],
       "endpoints": {
         "GET-list": {
-          "description": "Returns the paginated list of media files."
+          "description": "Returns the list of media files. Pass ?url=<full-size url> to resolve a single media from the URL embedded in authored markdown — the response keeps the list envelope, with count 0 or 1."
         },
         "GET-single": {
           "description": "Returns a media file by its ID."
         },
         "POST": {
-          "description": "Uploads an image. The file is automatically converted to WebP.",
+          "description": "Uploads an image (max 5MB; the type is detected from the file contents, not the declared one). Replies 202 with only the created id: conversion to WebP (1200px plus a 300px thumbnail) and storage upload happen on a background thread. Poll GET /media/{id} until url is filled in — a 404 there means the conversion failed and the record was removed.",
           "includedErrors": [401, 500],
           "body": {
             "multipart": true,
@@ -474,7 +474,7 @@
           ]
         },
         "DELETE": {
-          "description": "Deletes a media file. Fails if the file is still referenced by an issue.",
+          "description": "Deletes a media file and its stored objects. Fails with 409 while the file is still referenced — by an issue cover, a user picture, or an image link inside a section's or an article's markdown. Replacing an issue cover or a user picture deletes the previous media automatically, so this endpoint is only needed for images dropped from markdown.",
           "responses": [
             {
               "code": 200,
@@ -1244,10 +1244,10 @@
       ],
       "endpoints": {
         "GET-list": {
-          "description": "Returns the paginated list of issues, optionally filtered by status."
+          "description": "Returns the paginated list of issues, optionally filtered by status. Without authentication only PUBLISHED issues are returned, whatever the status parameter asks for."
         },
         "GET-single": {
-          "description": "Returns an issue by its ID, including its authors, tags, and sponsors."
+          "description": "Returns an issue by its ID, including its authors, tags, and sponsors. An issue that is not PUBLISHED returns 404 unless the caller is an authenticated author or passes a valid ?preview= token for that issue."
         },
         "POST": {
           "description": "Creates a new issue. The slug is auto-generated from the title if not provided. The issue number must be unique. Content is managed afterwards via /issue/{id}/section and /issue/{id}/section/{sectionId}/article.",
@@ -1343,8 +1343,46 @@
       },
       "customEndpoints": [
         {
+          "name": "Create preview token",
+          "description": "Issues a short-lived token granting read access to this single issue even when it is not published, so it can be previewed on the front-end. The token is a JWT valid for 30 minutes and scoped to this issue only — it never unlocks another one. Pass it as the ?preview= query parameter on GET /issue/{id} or GET /issue/slug/{slug}. Requires authentication. It cannot be revoked before it expires.",
+          "uri": "/{id}/preview",
+          "method": "POST",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": "1",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": {
+                "token": "string",
+                "expiresAt": "timestamp"
+              }
+            },
+            {
+              "code": 401,
+              "response": {
+                "code": 401,
+                "message": "Unauthorized"
+              }
+            },
+            {
+              "code": 404,
+              "response": {
+                "code": 404,
+                "message": "Issue not found"
+              }
+            }
+          ]
+        },
+        {
           "name": "Get issue by slug",
-          "description": "Returns the full issue object (with authors, tags, sponsors, and content sections) by its slug instead of its numeric id. Public, no authentication required.",
+          "description": "Returns the full issue object (with authors, tags, sponsors, and content sections) by its slug instead of its numeric id. Public for PUBLISHED issues; a draft or archived issue returns 404 unless the caller is an authenticated author or passes a valid ?preview= token for that issue. Preview responses are sent with Cache-Control: no-store.",
           "uri": "/slug/{slug}",
           "method": "GET",
           "tokenRequired": false,
@@ -1498,14 +1536,14 @@
           "description": "Returns a section by its id, including its articles when type is CATEGORY. Public, no authentication required."
         },
         "POST": {
-          "description": "Creates a new section, appended at the end of the issue (position is server-assigned). Body must set exactly one of categoryName (type CATEGORY, category must already exist) or textBody (type TEXT, validated content-block array). Requires authentication.",
+          "description": "Creates a new section, appended at the end of the issue (position is server-assigned). Body must set exactly one of categoryName (type CATEGORY, category must already exist) or textBody (type TEXT, a markdown string). Requires authentication.",
           "body": {
             "schema": {
               "type": "CATEGORY | TEXT",
               "categoryName": "string?",
               "textBody": "string?"
             },
-            "defaultValue": "{\n\t\"type\": \"TEXT\",\n\t\"textBody\": [\n\t\t{ \"type\": \"text\", \"markdown\": \"Some **bold** intro text.\" }\n\t]\n}"
+            "defaultValue": "{\n\t\"type\": \"TEXT\",\n\t\"textBody\": \"Some **bold** intro text.\"\n}"
           },
           "responses": [
             {
@@ -1597,7 +1635,7 @@
         "singular": "article",
         "plural": "articles"
       },
-      "description": "A curated article within an issue's CATEGORY section: a title, a source (link + blog/media name), and a rich summary (bold/italic text plus YouTube/tweet embeds; image embeds planned). URI: /issue/{id}/section/{sectionId}/article. Positions are managed via append-on-create plus a dedicated /reorder endpoint — PUT never changes position.",
+      "description": "A curated article within an issue's CATEGORY section: a title, a source (link + blog/media name), and a markdown summary (embeds use a ::platform[url] syntax — youtube, instagram, bluesky, mastodon, tweet — resolved by the renderers, not by the API). URI: /issue/{id}/section/{sectionId}/article. Positions are managed via append-on-create plus a dedicated /reorder endpoint — PUT never changes position.",
       "uri": "/issue/{ID}/section/{sectionId}/article",
       "uriParameters": [
         {
@@ -1627,7 +1665,7 @@
           "description": "Returns an article by its id. Public, no authentication required."
         },
         "POST": {
-          "description": "Creates a new article, appended at the end of the section (position is server-assigned). summary must be a validated content-block array. Requires authentication.",
+          "description": "Creates a new article, appended at the end of the section (position is server-assigned). summary must be a markdown string. Requires authentication.",
           "body": {
             "schema": {
               "title": "string",
@@ -1635,7 +1673,7 @@
               "sourceUrl": "string",
               "summary": "string"
             },
-            "defaultValue": "{\n\t\"title\": \"A breaking headline\",\n\t\"sourceName\": \"Le Monde\",\n\t\"sourceUrl\": \"https://lemonde.fr/article\",\n\t\"summary\": [\n\t\t{ \"type\": \"text\", \"markdown\": \"A **bold** summary.\" },\n\t\t{ \"type\": \"youtube\", \"url\": \"https://youtu.be/xxxx\" }\n\t]\n}"
+            "defaultValue": "{\n\t\"title\": \"A breaking headline\",\n\t\"sourceName\": \"Le Monde\",\n\t\"sourceUrl\": \"https://lemonde.fr/article\",\n\t\"summary\": \"A **bold** summary.\\n\\n::youtube[https://youtu.be/xxxx]\"\n}"
           },
           "responses": [
             {
@@ -1654,7 +1692,7 @@
               "code": 400,
               "response": {
                 "code": 400,
-                "message": "Invalid content blocks: must be a JSON array of objects with a 'type' field ('text', 'youtube', or 'tweet') and its required sub-fields."
+                "message": "summary must be a string of markdown."
               }
             },
             {

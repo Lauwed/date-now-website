@@ -18,6 +18,24 @@ pub fn form_control<'a, M: 'a>(
 where
     M: Clone,
 {
+    form_control_submit(label, placeholder, value, msg, width, action, error, None)
+}
+
+/// Comme `form_control`, avec en plus un message émis quand l'utilisateur
+/// valide le champ au clavier (Entrée).
+pub fn form_control_submit<'a, M: 'a>(
+    label: &str,
+    placeholder: &str,
+    value: &str,
+    msg: Option<fn(String) -> M>,
+    width: Length,
+    action: Option<(String, M)>,
+    error: Option<String>,
+    on_submit: Option<M>,
+) -> Element<'a, M>
+where
+    M: Clone,
+{
     let label = typography(label.to_string(), super::typography::TypographyStyle::Label);
 
     let mut label_row = row![label].align_y(Center);
@@ -46,7 +64,8 @@ where
 
             style
         })
-        .on_input_maybe(msg);
+        .on_input_maybe(msg)
+        .on_submit_maybe(on_submit);
 
     let mut content = column![label_row, input].spacing(4);
 

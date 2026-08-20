@@ -144,12 +144,12 @@ void send_articles_res(struct mg_connection *c, struct mg_http_message *msg,
       ERROR_REPLY_400(SUMMARY_REQUIRED_MESSAGE);
       return;
     }
-    struct mg_str summary_raw =
-        mg_str_n(msg->body.buf + summary_offset, (size_t)summary_len);
-    if (validate_content_blocks(summary_raw) != 0) {
-      ERROR_REPLY_400(CONTENT_BLOCKS_INVALID_MESSAGE);
+    char *summary_check = mg_json_get_str(msg->body, "$.summary");
+    if (summary_check == NULL) {
+      ERROR_REPLY_400(SUMMARY_FORMAT_MESSAGE);
       return;
     }
+    free(summary_check);
 
     struct article *article = malloc(sizeof(struct article));
     int init_rc = article_init(article);
@@ -246,12 +246,12 @@ void send_article_res(struct mg_connection *c, struct mg_http_message *msg,
       ERROR_REPLY_400(SUMMARY_REQUIRED_MESSAGE);
       return;
     }
-    struct mg_str summary_raw =
-        mg_str_n(msg->body.buf + summary_offset, (size_t)summary_len);
-    if (validate_content_blocks(summary_raw) != 0) {
-      ERROR_REPLY_400(CONTENT_BLOCKS_INVALID_MESSAGE);
+    char *summary_check = mg_json_get_str(msg->body, "$.summary");
+    if (summary_check == NULL) {
+      ERROR_REPLY_400(SUMMARY_FORMAT_MESSAGE);
       return;
     }
+    free(summary_check);
 
     struct article *article = malloc(sizeof(struct article));
     query_code = get_article(article, section_id, article_id);

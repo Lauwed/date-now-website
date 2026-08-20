@@ -20,8 +20,10 @@ use screens::issue::Issue;
 use screens::issues::Issues;
 use screens::login::Login;
 
+use crate::components::forms::article::ArticleForm;
 use crate::components::forms::category::CategoryForm;
 use crate::components::forms::feed::FeedForm;
+use crate::components::forms::issue_section::SectionForm;
 use crate::components::forms::issue_tags::IssueTagsForm;
 use crate::components::forms::tag::TagForm;
 use crate::components::toast;
@@ -63,6 +65,12 @@ enum ModalKind {
     ConfirmDeleteFeed(String),
     EditFeed(String),
     NewFeed,
+    NewIssueSection(u32),
+    EditIssueSection(u32, u32),
+    ConfirmDeleteIssueSection(u32, u32),
+    NewArticle(u32, u32),
+    EditArticle(u32, u32, u32),
+    ConfirmDeleteArticle(u32, u32, u32),
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -103,6 +111,10 @@ struct State {
     feeds: Feeds,
     feed_form: FeedForm,
     profile: Profile,
+    section_form: SectionForm,
+    article_form: ArticleForm,
+    /// Un fichier survole la fenêtre et un éditeur markdown peut le recevoir.
+    file_hovering: bool,
 }
 
 impl State {
@@ -236,6 +248,100 @@ enum Message {
     IssueTagsForm(components::forms::issue_tags::Message),
     AddIssueTag(String),
     RemoveIssueTag(String),
+    SectionForm(components::forms::issue_section::Message),
+    ArticleForm(components::forms::article::Message),
+    SaveSection,
+    DeleteSection(u32, u32),
+    ReorderSections(u32, Vec<u32>),
+    SaveArticle,
+    DeleteArticle(u32, u32, u32),
+    ReorderArticles(u32, u32, Vec<u32>),
+    FileHovered,
+    FileHoverLeft,
+    FileDropped(std::path::PathBuf),
+}
+
+/// Recharge l'issue courante depuis l'API — les sections et leurs articles
+/// sont embarqués dans la réponse, un seul appel suffit.
+fn refresh_issue(state: &mut State, issue_id: u32) {
+    let token = match &state.current_user {
+        Some(session) => session.token.clone(),
+        None => return,
+    };
+
+    if let Ok(crate::data::responses::Response::Success(new_issue)) =
+        crate::data::issues::get_issue(issue_id, &token)
+    {
+        state.issue.item = Some(new_issue);
+    }
+}
+
+fn all_categories() -> Vec<crate::data::categories::Category> {
+    match crate::data::categories::get_categories() {
+        Ok(res) => res.data,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            vec![]
+        }
+    }
+}
+
+/// Toast, rechargement de l'issue et fermeture de la modale après une
+/// mutation du contenu.
+fn handle_content_result<T>(
+    state: &mut State,
+    issue_id: u32,
+    result: Result<T, String>,
+    success: &str,
+) {
+    match result {
+        Ok(_) => {
+            refresh_issue(state, issue_id);
+            state.modal = ModalKind::None;
+            push_toast(
+                state,
+                "Success".to_string(),
+                success.to_string(),
+                Status::Success,
+            );
+        }
+        Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
+    }
+}
+
+/// Un éditeur markdown n'est visible que dans les modales de section texte et
+/// d'article : ailleurs, un fichier déposé n'a nulle part où aller.
+fn markdown_editor_on_screen(state: &State) -> bool {
+    match state.modal {
+        ModalKind::NewArticle(_, _) | ModalKind::EditArticle(_, _, _) => true,
+        ModalKind::NewIssueSection(_) | ModalKind::EditIssueSection(_, _) => {
+            state.section_form.is_text()
+        }
+        _ => false,
+    }
+}
+
+/// Envoie les images locales du markdown et le réécrit avec leurs urls
+/// définitives. `false` si un envoi a échoué : la sauvegarde doit alors être
+/// abandonnée, jamais menée à moitié.
+fn sync_images_before_save(
+    state: &mut State,
+    token: &str,
+    markdown: String,
+    apply: fn(&mut State, &str),
+) -> bool {
+    match crate::utils::markdown_media::upload_local_images(&markdown, token) {
+        Ok(converted) => {
+            if converted != markdown {
+                apply(state, &converted);
+            }
+            true
+        }
+        Err(e) => {
+            push_toast(state, "Error".to_string(), e, Status::Danger);
+            false
+        }
+    }
 }
 
 fn push_toast(state: &mut State, title: String, content: String, status: Status) {
@@ -337,7 +443,9 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         }
         Message::Issue(message) => match state.issue.update(message) {
             issue::Action::BackToList => {
-                state.issues = Issues::default();
+                if let Some(session) = &state.current_user {
+                    state.issues = Issues::new(session);
+                }
                 state.current_screen = Screen::Issues;
                 Task::none()
             }
@@ -352,6 +460,114 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             issue::Action::ConfirmArchive(id) => {
                 state.modal = ModalKind::ConfirmArchiveIssue(id);
                 Task::none()
+            }
+            issue::Action::Preview(id) => {
+                let (token, slug, published) = match (&state.current_user, &state.issue.item) {
+                    (Some(session), Some(item)) => (
+                        session.token.clone(),
+                        item.slug.clone(),
+                        item.status == crate::data::issues::IssueStatus::Published,
+                    ),
+                    _ => return Task::none(),
+                };
+
+                let config = g_config();
+
+                // Une issue publiée est lisible par tout le monde : pas besoin
+                // d'un jeton, on ouvre l'URL publique telle quelle.
+                let url = if published {
+                    format!("{}/issue/{}", config.front_url, slug)
+                } else {
+                    match crate::data::issues::get_preview_token(id, token) {
+                        Ok(preview) => format!(
+                            "{}/issue/{}?preview={}",
+                            config.front_url, slug, preview.token
+                        ),
+                        Err(e) => {
+                            push_toast(state, "Error".to_string(), e, Status::Danger);
+                            return Task::none();
+                        }
+                    }
+                };
+
+                // `open` délègue à xdg-open : le navigateur déjà ouvert
+                // récupère l'onglet, sinon il en démarre un.
+                if let Err(e) = open::that(&url) {
+                    push_toast(
+                        state,
+                        "Error".to_string(),
+                        format!("Could not open the browser: {}", e),
+                        Status::Danger,
+                    );
+                }
+
+                Task::none()
+            }
+            issue::Action::NewSection => {
+                let issue_id = state.issue.id;
+                state.section_form = SectionForm::new(issue_id, all_categories());
+                state.modal = ModalKind::NewIssueSection(issue_id);
+                Task::none()
+            }
+            issue::Action::EditSection(section_id) => {
+                let section = state.issue.item.as_ref().and_then(|item| {
+                    item.sections
+                        .iter()
+                        .find(|section| section.id == section_id)
+                        .cloned()
+                });
+
+                if let Some(section) = section {
+                    let issue_id = state.issue.id;
+                    state.section_form =
+                        SectionForm::edit(issue_id, &section, all_categories());
+                    state.modal = ModalKind::EditIssueSection(issue_id, section_id);
+                }
+                Task::none()
+            }
+            issue::Action::ConfirmDeleteSection(section_id) => {
+                state.modal = ModalKind::ConfirmDeleteIssueSection(state.issue.id, section_id);
+                Task::none()
+            }
+            issue::Action::ReorderSections(order) => {
+                let issue_id = state.issue.id;
+                Task::done(Message::ReorderSections(issue_id, order))
+            }
+            issue::Action::NewArticle(section_id) => {
+                let issue_id = state.issue.id;
+                state.article_form = ArticleForm::new(issue_id, section_id);
+                state.modal = ModalKind::NewArticle(issue_id, section_id);
+                Task::none()
+            }
+            issue::Action::EditArticle(section_id, article_id) => {
+                let article = state.issue.item.as_ref().and_then(|item| {
+                    item.sections
+                        .iter()
+                        .find(|section| section.id == section_id)
+                        .and_then(|section| {
+                            section
+                                .articles
+                                .iter()
+                                .find(|article| article.id == article_id)
+                                .cloned()
+                        })
+                });
+
+                if let Some(article) = article {
+                    let issue_id = state.issue.id;
+                    state.article_form = ArticleForm::edit(issue_id, section_id, &article);
+                    state.modal = ModalKind::EditArticle(issue_id, section_id, article_id);
+                }
+                Task::none()
+            }
+            issue::Action::ConfirmDeleteArticle(section_id, article_id) => {
+                state.modal =
+                    ModalKind::ConfirmDeleteArticle(state.issue.id, section_id, article_id);
+                Task::none()
+            }
+            issue::Action::ReorderArticles(section_id, order) => {
+                let issue_id = state.issue.id;
+                Task::done(Message::ReorderArticles(issue_id, section_id, order))
             }
             issue::Action::EditTags(id) => {
                 if let Some(item) = &state.issue.item {
@@ -375,7 +591,9 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
         },
         Message::NewIssue(message) => match state.new_issue.update(message) {
             new_issue::Action::BackToList => {
-                state.issues = Issues::default();
+                if let Some(session) = &state.current_user {
+                    state.issues = Issues::new(session);
+                }
                 state.current_screen = Screen::Issues;
                 Task::none()
             }
@@ -426,6 +644,7 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 match state.nav.update(message) {
                     nav::Action::GoToScreen(screen) => {
                         match screen {
+                            Screen::Issues => state.issues = Issues::new(session),
                             Screen::Sponsors => state.sponsors = Sponsors::new(session.clone()),
                             Screen::Tags => state.tags = Tags::new(),
                             Screen::Listing => state.listing = Listing::new(),
@@ -724,7 +943,10 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 ) {
                     Ok(_) => {
                         if let Ok(crate::data::responses::Response::Success(new_issue)) =
-                            crate::data::issues::get_issue(state.issue_tags_form.issue_id)
+                            crate::data::issues::get_issue(
+                                state.issue_tags_form.issue_id,
+                                &session.token,
+                            )
                         {
                             state.issue.item = Some(new_issue.clone());
                             state.issue_tags_form.set_tags(new_issue.tags);
@@ -733,6 +955,198 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                     Err(e) => push_toast(state, "Error".to_string(), e, Status::Danger),
                 }
             }
+            Task::none()
+        }
+        Message::FileHovered => {
+            state.file_hovering = markdown_editor_on_screen(state);
+            Task::none()
+        }
+        Message::FileHoverLeft => {
+            state.file_hovering = false;
+            Task::none()
+        }
+        Message::FileDropped(path) => {
+            state.file_hovering = false;
+
+            if !markdown_editor_on_screen(state) {
+                return Task::none();
+            }
+
+            if !crate::utils::images::has_image_extension(&path) {
+                push_toast(
+                    state,
+                    "Error".to_string(),
+                    "Only image files can be dropped here.".to_string(),
+                    Status::Danger,
+                );
+                return Task::none();
+            }
+
+            match state.modal {
+                ModalKind::NewArticle(_, _) | ModalKind::EditArticle(_, _, _) => {
+                    state.article_form.insert_image(&path)
+                }
+                _ => state.section_form.insert_image(&path),
+            }
+
+            Task::none()
+        }
+        Message::SectionForm(message) => state.section_form.update(message).map(Message::SectionForm),
+        Message::ArticleForm(message) => state.article_form.update(message).map(Message::ArticleForm),
+        Message::SaveSection => {
+            let token = match &state.current_user {
+                Some(session) => session.token.clone(),
+                None => return Task::none(),
+            };
+            let issue_id = state.section_form.issue_id;
+
+            // Les images choisies pendant l'édition partent maintenant, pas
+            // avant : abandonner la modale ne laisse rien sur le serveur.
+            let before = state.section_form.original_markdown().to_string();
+            if state.section_form.is_text() {
+                let markdown = state.section_form.markdown();
+                if !sync_images_before_save(state, &token, markdown, |state, text| {
+                    state.section_form.set_markdown(text)
+                }) {
+                    return Task::none();
+                }
+            }
+            let after = state.section_form.markdown();
+
+            match state.section_form.section_id {
+                Some(section_id) => match state.section_form.update_payload() {
+                    Some(payload) => {
+                        let result = crate::data::issue_sections::update_section(
+                            issue_id,
+                            section_id,
+                            payload,
+                            token.clone(),
+                        );
+                        let saved = result.is_ok();
+                        handle_content_result(
+                            state,
+                            issue_id,
+                            result,
+                            "The section has been saved.",
+                        );
+                        // Après l'enregistrement seulement : le garde-fou de
+                        // l'API lit le contenu en base pour savoir si une
+                        // image sert encore ailleurs.
+                        if saved {
+                            crate::utils::markdown_media::delete_removed_images(
+                                &before, &after, &token,
+                            );
+                        }
+                    }
+                    None => push_toast(
+                        state,
+                        "Error".to_string(),
+                        "Select a category first.".to_string(),
+                        Status::Danger,
+                    ),
+                },
+                None => match state.section_form.new_payload() {
+                    Some(payload) => {
+                        let result =
+                            crate::data::issue_sections::create_section(issue_id, payload, token);
+                        handle_content_result(
+                            state,
+                            issue_id,
+                            result,
+                            "The section has been created.",
+                        );
+                    }
+                    None => push_toast(
+                        state,
+                        "Error".to_string(),
+                        "Select a category first.".to_string(),
+                        Status::Danger,
+                    ),
+                },
+            }
+            Task::none()
+        }
+        Message::DeleteSection(issue_id, section_id) => {
+            let token = match &state.current_user {
+                Some(session) => session.token.clone(),
+                None => return Task::none(),
+            };
+            let result =
+                crate::data::issue_sections::delete_section(issue_id, section_id, token);
+            handle_content_result(state, issue_id, result, "The section has been deleted.");
+            Task::none()
+        }
+        Message::ReorderSections(issue_id, order) => {
+            let token = match &state.current_user {
+                Some(session) => session.token.clone(),
+                None => return Task::none(),
+            };
+            let result = crate::data::issue_sections::reorder_sections(issue_id, order, token);
+            handle_content_result(state, issue_id, result, "The sections have been reordered.");
+            Task::none()
+        }
+        Message::SaveArticle => {
+            let token = match &state.current_user {
+                Some(session) => session.token.clone(),
+                None => return Task::none(),
+            };
+            let issue_id = state.article_form.issue_id;
+            let section_id = state.article_form.section_id;
+
+            let before = state.article_form.original_markdown().to_string();
+            let markdown = state.article_form.markdown();
+            if !sync_images_before_save(state, &token, markdown, |state, text| {
+                state.article_form.set_markdown(text)
+            }) {
+                return Task::none();
+            }
+            let after = state.article_form.markdown();
+
+            let payload = state.article_form.payload();
+
+            let result = match state.article_form.article_id {
+                Some(article_id) => crate::data::articles::update_article(
+                    issue_id,
+                    section_id,
+                    article_id,
+                    payload,
+                    token.clone(),
+                )
+                .map(|_| ()),
+                None => crate::data::articles::create_article(
+                    issue_id,
+                    section_id,
+                    payload,
+                    token.clone(),
+                )
+                .map(|_| ()),
+            };
+
+            let saved = result.is_ok();
+            handle_content_result(state, issue_id, result, "The article has been saved.");
+            if saved {
+                crate::utils::markdown_media::delete_removed_images(&before, &after, &token);
+            }
+            Task::none()
+        }
+        Message::DeleteArticle(issue_id, section_id, article_id) => {
+            let token = match &state.current_user {
+                Some(session) => session.token.clone(),
+                None => return Task::none(),
+            };
+            let result =
+                crate::data::articles::delete_article(issue_id, section_id, article_id, token);
+            handle_content_result(state, issue_id, result, "The article has been deleted.");
+            Task::none()
+        }
+        Message::ReorderArticles(issue_id, section_id, order) => {
+            let token = match &state.current_user {
+                Some(session) => session.token.clone(),
+                None => return Task::none(),
+            };
+            let result =
+                crate::data::articles::reorder_articles(issue_id, section_id, order, token);
+            handle_content_result(state, issue_id, result, "The articles have been reordered.");
             Task::none()
         }
         Message::RemoveIssueTag(name) => {
@@ -744,7 +1158,10 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 ) {
                     Ok(_) => {
                         if let Ok(crate::data::responses::Response::Success(new_issue)) =
-                            crate::data::issues::get_issue(state.issue_tags_form.issue_id)
+                            crate::data::issues::get_issue(
+                                state.issue_tags_form.issue_id,
+                                &session.token,
+                            )
                         {
                             state.issue.item = Some(new_issue.clone());
                             state.issue_tags_form.set_tags(new_issue.tags);
@@ -775,7 +1192,11 @@ fn view(state: &State) -> Element<'_, Message> {
                 Screen::Feeds => state.feeds.view().map(Message::Feeds),
                 Screen::Profile => state.profile.view().map(Message::Profile),
             };
-            let main_container = container(main_content).width(Length::FillPortion(5));
+            // Hauteur bornée à la fenêtre : sans elle, le `scrollable` d'un
+            // écran n'aurait aucune limite à respecter et ne défilerait pas.
+            let main_container = container(main_content)
+                .width(Length::FillPortion(5))
+                .height(Length::Fill);
 
             // Return composed layout
             let content = row![
@@ -800,6 +1221,7 @@ fn view(state: &State) -> Element<'_, Message> {
                         content,
                         Some("Confirmation".to_string()),
                         modal_content,
+                        None,
                         Message::CloseModal,
                         Some(Message::CloseModal),
                         Some(Message::ConfirmDeleteTag(id.clone())),
@@ -809,6 +1231,7 @@ fn view(state: &State) -> Element<'_, Message> {
                     content,
                     Some(format!("Tag {}", id)),
                     state.tag_form.view().map(Message::TagForm),
+                    None,
                     Message::CloseModal,
                     Some(Message::CloseModal),
                     Some(Message::ConfirmEditTag(id.clone())),
@@ -817,6 +1240,7 @@ fn view(state: &State) -> Element<'_, Message> {
                     content,
                     Some("New tag".to_string()),
                     state.tag_form.view().map(Message::TagForm),
+                    None,
                     Message::CloseModal,
                     Some(Message::CloseModal),
                     Some(Message::ConfirmNewTag),
@@ -829,6 +1253,7 @@ fn view(state: &State) -> Element<'_, Message> {
                         content,
                         Some("Confirmation".to_string()),
                         modal_content,
+                        None,
                         Message::CloseModal,
                         Some(Message::CloseModal),
                         Some(Message::ConfirmDeleteCategory(id.clone())),
@@ -838,6 +1263,7 @@ fn view(state: &State) -> Element<'_, Message> {
                     content,
                     Some(format!("Category {}", id)),
                     state.category_form.view().map(Message::CategoryForm),
+                    None,
                     Message::CloseModal,
                     Some(Message::CloseModal),
                     Some(Message::ConfirmEditCategory(id.clone())),
@@ -846,6 +1272,7 @@ fn view(state: &State) -> Element<'_, Message> {
                     content,
                     Some("New category".to_string()),
                     state.category_form.view().map(Message::CategoryForm),
+                    None,
                     Message::CloseModal,
                     Some(Message::CloseModal),
                     Some(Message::ConfirmNewCategory),
@@ -858,6 +1285,7 @@ fn view(state: &State) -> Element<'_, Message> {
                         content,
                         Some("Confirmation".to_string()),
                         modal_content,
+                        None,
                         Message::CloseModal,
                         Some(Message::CloseModal),
                         Some(Message::ConfirmDeleteFeed(id.clone())),
@@ -867,6 +1295,7 @@ fn view(state: &State) -> Element<'_, Message> {
                     content,
                     Some(format!("Feed {}", id)),
                     state.feed_form.view().map(Message::FeedForm),
+                    None,
                     Message::CloseModal,
                     Some(Message::CloseModal),
                     Some(Message::ConfirmEditFeed(id.clone())),
@@ -875,6 +1304,7 @@ fn view(state: &State) -> Element<'_, Message> {
                     content,
                     Some("New feed".to_string()),
                     state.feed_form.view().map(Message::FeedForm),
+                    None,
                     Message::CloseModal,
                     Some(Message::CloseModal),
                     Some(Message::ConfirmNewFeed),
@@ -888,6 +1318,7 @@ fn view(state: &State) -> Element<'_, Message> {
                         content,
                         Some("Confirmation".to_string()),
                         text(message).into(),
+                        None,
                         Message::CloseModal,
                         Some(Message::CloseModal),
                         Some(Message::ConfirmPublishIssue(*id)),
@@ -897,6 +1328,7 @@ fn view(state: &State) -> Element<'_, Message> {
                     content,
                     Some("Confirmation".to_string()),
                     text(format!("Archive issue #{}?", id)).into(),
+                    None,
                     Message::CloseModal,
                     Some(Message::CloseModal),
                     Some(Message::ConfirmArchiveIssue(*id)),
@@ -909,19 +1341,110 @@ fn view(state: &State) -> Element<'_, Message> {
                         content,
                         Some("Confirmation".to_string()),
                         modal_content,
+                        None,
                         Message::CloseModal,
                         Some(Message::CloseModal),
                         Some(Message::ConfirmDeleteUser(id.clone())),
+                    )
+                }
+                ModalKind::NewIssueSection(_) => components::modal::modal(
+                    content,
+                    Some("New section".to_string()),
+                    state.section_form.view().map(Message::SectionForm),
+                    Some(Length::Fixed(800.0)),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::SaveSection),
+                ),
+                ModalKind::EditIssueSection(_, section_id) => components::modal::modal(
+                    content,
+                    Some(format!("Section #{}", section_id)),
+                    state.section_form.view().map(Message::SectionForm),
+                    Some(Length::Fixed(800.0)),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::SaveSection),
+                ),
+                ModalKind::ConfirmDeleteIssueSection(issue_id, section_id) => {
+                    let modal_content: Element<'_, Message> = column![text(format!(
+                        "Delete section #{} and everything it contains?",
+                        section_id
+                    ))]
+                    .into();
+
+                    components::modal::modal(
+                        content,
+                        Some("Confirmation".to_string()),
+                        modal_content,
+                        None,
+                        Message::CloseModal,
+                        Some(Message::CloseModal),
+                        Some(Message::DeleteSection(*issue_id, *section_id)),
+                    )
+                }
+                ModalKind::NewArticle(_, _) => components::modal::modal(
+                    content,
+                    Some("New article".to_string()),
+                    state.article_form.view().map(Message::ArticleForm),
+                    Some(Length::Fixed(800.0)),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::SaveArticle),
+                ),
+                ModalKind::EditArticle(_, _, article_id) => components::modal::modal(
+                    content,
+                    Some(format!("Article #{}", article_id)),
+                    state.article_form.view().map(Message::ArticleForm),
+                    Some(Length::Fixed(800.0)),
+                    Message::CloseModal,
+                    Some(Message::CloseModal),
+                    Some(Message::SaveArticle),
+                ),
+                ModalKind::ConfirmDeleteArticle(issue_id, section_id, article_id) => {
+                    let modal_content: Element<'_, Message> =
+                        column![text(format!("Delete article #{}?", article_id))].into();
+
+                    components::modal::modal(
+                        content,
+                        Some("Confirmation".to_string()),
+                        modal_content,
+                        None,
+                        Message::CloseModal,
+                        Some(Message::CloseModal),
+                        Some(Message::DeleteArticle(*issue_id, *section_id, *article_id)),
                     )
                 }
                 ModalKind::EditIssueTags(_) => components::modal::modal(
                     content,
                     Some("Tags".to_string()),
                     state.issue_tags_form.view().map(Message::IssueTagsForm),
+                    None,
                     Message::CloseModal,
                     None,
                     None,
                 ),
+            };
+
+            // Voile sur toute la fenêtre pendant qu'un fichier la survole —
+            // iced ne dit pas quelle zone est visée, donc l'indication est
+            // globale et n'apparaît que si un éditeur peut recevoir l'image.
+            let content: Element<'_, Message> = if state.file_hovering {
+                stack![
+                    content,
+                    opaque(
+                        center(components::typography::typography(
+                            String::from("Drop the image here"),
+                            components::typography::TypographyStyle::Title,
+                        ))
+                        .style(|_theme| {
+                            container::Style::default()
+                                .background(Color::from_rgba(0.0, 0.0, 0.0, 0.6))
+                        })
+                    )
+                ]
+                .into()
+            } else {
+                content.into()
             };
 
             toast::Manager::new(content, &state.toasts, Message::DismissToast)
@@ -930,6 +1453,19 @@ fn view(state: &State) -> Element<'_, Message> {
         }
         None => state.login.view().map(Message::Login),
     }
+}
+
+/// iced ne signale le survol que globalement : c'est `update` qui décide si le
+/// fichier a une destination.
+fn subscription(_state: &State) -> iced::Subscription<Message> {
+    iced::event::listen_with(|event, _status, _window| match event {
+        iced::Event::Window(iced::window::Event::FileHovered(_)) => Some(Message::FileHovered),
+        iced::Event::Window(iced::window::Event::FilesHoveredLeft) => Some(Message::FileHoverLeft),
+        iced::Event::Window(iced::window::Event::FileDropped(path)) => {
+            Some(Message::FileDropped(path))
+        }
+        _ => None,
+    })
 }
 
 fn theme(_state: &State) -> Theme {
@@ -965,6 +1501,7 @@ fn main() -> iced::Result {
     };
 
     iced::application(State::new, update, view)
+        .subscription(subscription)
         .window(iced::window::Settings {
             size: iced::Size::new(1440.0, 900.0),
             ..iced::window::Settings::default()

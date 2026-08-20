@@ -19,15 +19,23 @@
 #define QUERY_SELECT_TMP \
   "SELECT id, textAlternatif, url, width, height, thumbUrl FROM Media"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE id = $1"
+#define QUERY_SELECT_BY_URL_TMP QUERY_SELECT_TMP " WHERE url = $1"
 #define QUERY_POST_TMP \
   "INSERT INTO Media (textAlternatif, url, width, height) VALUES ($1, $2, $3, $4) RETURNING id;"
 #define QUERY_UPDATE_FILE_TMP \
   "UPDATE Media SET url = $1, width = $2, height = $3, thumbUrl = $4 WHERE id = $5;"
 #define QUERY_UPDATE_ALT_TMP \
   "UPDATE Media SET textAlternatif = $1 WHERE id = $2;"
+/* An image is "referenced" both when a column points at it and when its URL
+   appears inside authored markdown — otherwise deleting a media would
+   silently break every article embedding it. */
 #define QUERY_REFERENCED_TMP \
   "SELECT (SELECT COUNT(*) FROM Issue WHERE cover = $1) + " \
-  "(SELECT COUNT(*) FROM AppUser WHERE picture = $1);"
+  "(SELECT COUNT(*) FROM AppUser WHERE picture = $1) + " \
+  "(SELECT COUNT(*) FROM IssueSection s, Media m " \
+  " WHERE m.id = $1 AND m.url <> '' AND s.textBody LIKE '%' || m.url || '%') + " \
+  "(SELECT COUNT(*) FROM Article a, Media m " \
+  " WHERE m.id = $1 AND m.url <> '' AND a.summary LIKE '%' || m.url || '%');"
 #define QUERY_DELETE_TMP "DELETE FROM Media WHERE id = $1;"
 
 int media_exists(int id) {
@@ -114,6 +122,36 @@ int get_media(struct media *media, int id) {
   GET_EXPANDED_QUERY(QUERY_SELECT_SINGLE_TMP, 1, values);
 
   PGresult *res = pg_exec(QUERY_SELECT_SINGLE_TMP, 1, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
+  }
+
+  if (PQntuples(res) == 0) {
+    PQclear(res);
+    return HTTP_NOT_FOUND;
+  }
+
+  pg_row_t row = {res, 0};
+  int rc = media_map(media, &row, 0, 5);
+  PQclear(res);
+  if (rc != 0) {
+    return HTTP_INTERNAL_ERROR;
+  }
+
+  return 0;
+}
+
+int get_media_by_url(struct media *media, const char *url) {
+  if (url == NULL || url[0] == '\0') {
+    return HTTP_BAD_REQUEST;
+  }
+
+  printf(TERMINAL_SQL_MESSAGE("=== GET MEDIA BY URL SQL ==="));
+
+  const char *values[1] = {url};
+  GET_EXPANDED_QUERY(QUERY_SELECT_BY_URL_TMP, 1, values);
+
+  PGresult *res = pg_exec(QUERY_SELECT_BY_URL_TMP, 1, values);
   if (res == NULL) {
     return HTTP_INTERNAL_ERROR;
   }

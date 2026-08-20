@@ -168,9 +168,10 @@ struct category {
 /**
  * @brief A curated article within an issue's category section.
  *
- * @c summary is a JSON array of rich-content blocks (validated via
- * validate_content_blocks() on write, embedded raw on read — never
- * deserialised into C structures). Freed by free_article().
+ * @c summary is a markdown string. Embeds use a custom markdown syntax
+ * (::youtube, ::instagram, ::bluesky, ::mastodon, ::tweet — each taking the
+ * url between brackets) resolved by the renderers, not by the API.
+ * Freed by free_article().
  */
 struct article {
   int id;             /**< Database identifier. */
@@ -182,7 +183,7 @@ struct article {
                           allocated — freed by free_article(). */
   char *source_url;    /**< Source link. @note Dynamically allocated — freed
                           by free_article(). */
-  char *summary;       /**< JSON array of content blocks (opaque, validated).
+  char *summary;       /**< Markdown body of the summary.
                           @note Dynamically allocated — freed by
                           free_article(). */
 };
@@ -191,7 +192,7 @@ struct article {
  * @brief An ordered section of an issue's content: either a category of
  *        curated articles, or a freestanding rich-text block.
  *
- * @c text_body (TEXT sections) uses the same JSON content-block format as
+ * @c text_body (TEXT sections) is a markdown string, like
  * struct article::summary. Freed recursively by free_issue_section().
  */
 struct issue_section {
@@ -203,7 +204,7 @@ struct issue_section {
   char *category_name;     /**< Category name (NULL unless type is
                               "CATEGORY"). @note Dynamically allocated —
                               freed by free_issue_section(). */
-  char *text_body;         /**< JSON array of content blocks (NULL unless
+  char *text_body;         /**< Markdown body (NULL unless
                               type is "TEXT"). @note Dynamically allocated —
                               freed by free_issue_section(). */
   struct article **articles; /**< Array of articles (NULL unless type is

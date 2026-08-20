@@ -55,6 +55,8 @@ pub fn view(editor: &MarkdownEditor) -> Element<'_, Message> {
         icon_button(Icon::Code, action(ToolbarAction::Code)),
         icon_button(Icon::FileBracesCorner, action(ToolbarAction::CodeBlock)),
         icon_button(Icon::Link, action(ToolbarAction::Link)),
+        icon_button(Icon::Image, action(ToolbarAction::Image)),
+        icon_button(Icon::ListCollapse, action(ToolbarAction::Collapse)),
         iced::widget::space::horizontal(),
         icon_button(
             if editor.fullscreen == true {
@@ -118,6 +120,24 @@ pub fn apply(content: &mut iced::widget::text_editor::Content, action: ToolbarAc
         ToolbarAction::Code => wrap(content, "`", "`"),
         ToolbarAction::CodeBlock => wrap(content, "```\n", "\n```"),
         ToolbarAction::Link => wrap(content, "[", "](url)"),
+        // frostmark et les navigateurs savent tous deux replier un <details> :
+        // pas besoin d'inventer une syntaxe, celle de GitHub fait l'affaire.
+        // Les lignes vides autour du contenu sont ce qui permet au markdown
+        // imbriqué d'être interprété.
+        ToolbarAction::Collapse => wrap(
+            content,
+            "<details>\n<summary>Détails</summary>\n\n",
+            "\n\n</details>\n",
+        ),
+        ToolbarAction::Image => {
+            // Le fichier reste local : il ne sera envoyé qu'à la sauvegarde.
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("Image", &crate::utils::images::IMAGE_EXTENSIONS)
+                .pick_file()
+            {
+                paste(content, crate::components::markdown_editor::image_markdown(&path));
+            }
+        }
         ToolbarAction::Heading(level) => {
             let prefix = "#".repeat(level as usize) + " ";
             prefix_lines(content, &|_| prefix.clone());

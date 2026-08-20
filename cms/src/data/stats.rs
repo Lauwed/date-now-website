@@ -106,8 +106,8 @@ pub fn get_total_view_count(token: &str) -> Result<u32, String> {
 /// Les N dernières issues, triées par numéro décroissant — sert au bar chart
 /// et au top 5. Réutilise `get_issues()` tel quel (pas de nouvel appel réseau
 /// dédié : le dashboard n'a pas besoin d'un endpoint séparé pour ça).
-pub fn get_recent_issues_for_dashboard(limit: usize) -> Vec<Issue> {
-    let mut issues = match get_issues() {
+pub fn get_recent_issues_for_dashboard(limit: usize, token: &str) -> Vec<Issue> {
+    let mut issues = match get_issues(token) {
         Ok(res) => res.data,
         Err(e) => {
             eprintln!("Error: {}", e);

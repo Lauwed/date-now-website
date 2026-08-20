@@ -1,7 +1,9 @@
+pub mod articles;
 pub mod auth;
 pub mod categories;
 pub mod config;
 pub mod feeds;
+pub mod issue_sections;
 pub mod issue_tags;
 pub mod issues;
 pub mod medias;

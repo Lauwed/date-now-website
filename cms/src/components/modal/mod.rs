@@ -10,6 +10,7 @@ pub fn modal<'a, Message>(
     base: impl Into<Element<'a, Message>>,
     title: Option<String>,
     content: Element<'a, Message>,
+    width: Option<Length>,
     on_blur: Message,
     on_cancel: Option<Message>,
     on_confirm: Option<Message>,
@@ -75,7 +76,7 @@ where
                 }),
             content_container,
         ]
-        .width(Length::Fixed(400.0))
+        .width(if let Some(w) = width { w } else { Length::Fixed(400.0) })
         .into(),
         None => content_container,
     })

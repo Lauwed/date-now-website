@@ -5,11 +5,21 @@
 
 #include <lib/pg.h>
 #include <macros/colors.h>
+#include <pthread.h>
 #include <stdio.h>
 
 PGconn *db = NULL;
 
+/* One libpq connection is shared by the whole process, and the media upload
+ * endpoint converts images on a detached thread that writes to the database
+ * while the HTTP loop keeps serving requests. libpq forbids using a single
+ * connection from two threads at once — without this lock the two paths
+ * corrupt the heap. */
+static pthread_mutex_t db_lock = PTHREAD_MUTEX_INITIALIZER;
+
 PGresult *pg_exec(const char *sql, int n_params, const char *const *values) {
+  pthread_mutex_lock(&db_lock);
+
   /* Providers like Neon suspend the compute (and drop the TCP connection)
    * after idle periods — reconnect before running if that's happened. */
   if (PQstatus(db) != CONNECTION_OK) {
@@ -32,9 +42,10 @@ PGresult *pg_exec(const char *sql, int n_params, const char *const *values) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("pg query error: %s\n"),
             PQerrorMessage(db));
     PQclear(res);
-    return NULL;
+    res = NULL;
   }
 
+  pthread_mutex_unlock(&db_lock);
   return res;
 }
 

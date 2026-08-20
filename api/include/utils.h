@@ -53,23 +53,6 @@ int mg_str_to_str(char *dest, struct mg_str src);
  */
 int str_to_slug(char *str, size_t len);
 
-/**
- * @brief Validates a rich-content block array (used by struct article::summary
- *        and struct issue_section::text_body).
- *
- * Checks that @p json is well-formed (via mg_validateJSON()) and that its
- * root is an array of objects, each with a "type" field among "text",
- * "youtube", "tweet", and the required sub-fields for that type
- * ("text" -> "markdown", "youtube"/"tweet" -> "url"). The parsed structure
- * is discarded after validation — never materialised into C structures.
- *
- * @param json Candidate JSON array (raw request-body substring).
- * @return 0 if valid, non-zero otherwise.
- * @note @p json is not freed by this function.
- */
-int validate_content_blocks(struct mg_str json);
-
-
 /* -------------------------------------------------------------------------
  * JSON serialisation
  * ---------------------------------------------------------------------- */
@@ -630,16 +613,16 @@ void category_hydrate(struct mg_http_message *msg, struct category *category);
 
 /**
  * @brief Populates a struct article from the JSON body of an HTTP request.
- * Reads "title", "sourceName", "sourceUrl", "summary". @c summary is copied
- * raw (already validated by validate_content_blocks() before hydration).
+ * Reads "title", "sourceName", "sourceUrl", "summary". @c summary is a
+ * markdown string, unescaped via mg_json_get_str().
  * @note Text fields are allocated by malloc() — freed via free_article().
  */
 void article_hydrate(struct mg_http_message *msg, struct article *article);
 
 /**
  * @brief Populates a struct issue_section from the JSON body of an HTTP
- * request. Reads "type", "categoryName", "textBody" (the latter raw, already
- * validated by validate_content_blocks() before hydration when present).
+ * request. Reads "type", "categoryName", "textBody" (the latter a markdown
+ * string, unescaped via mg_json_get_str() when present).
  * @note Dynamic fields are allocated by malloc() — freed via
  *       free_issue_section().
  */

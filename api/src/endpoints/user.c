@@ -4,6 +4,7 @@
  */
 
 #include <endpoints/auth.h>
+#include <endpoints/media.h>
 #include <enums.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
@@ -344,6 +345,9 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       return;
     }
 
+    // Remembered before hydration, which overwrites picture->id in place.
+    int previous_picture_id = user->picture != NULL ? user->picture->id : 0;
+
     user_hydrate(msg, user);
 
     // Store in DB
@@ -353,6 +357,16 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       HANDLE_QUERY_CODE;
 
       return;
+    }
+
+    // Profile picture replaced: drop the previous one rather than leaking it.
+    // The user is already saved, so a failure here is logged, never fatal.
+    int new_picture_id = user->picture != NULL ? user->picture->id : 0;
+    if (previous_picture_id > 0 && previous_picture_id != new_picture_id) {
+      if (delete_media_with_blob(previous_picture_id) != 0) {
+        fprintf(stderr,
+                TERMINAL_ERROR_MESSAGE("COULD NOT DELETE REPLACED PICTURE"));
+      }
     }
 
     char *result = user_to_json(user);
@@ -443,16 +457,25 @@ void send_current_user_res(struct mg_connection *c, struct mg_http_message *msg,
   printf(TERMINAL_ENDPOINT_MESSAGE("=== GET CURRENT USER ==="));
 
   struct user *user = malloc(sizeof(struct user));
+  int user_init_rc = user_init(user);
+  if (user_init_rc != 0) {
+    free(user);
+    ERROR_REPLY_500;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER IS NULL"));
+    return;
+  }
+
   int user_logged = 0;
   is_user_logged(c, msg, error_reply, secret, &user_logged, user);
   if (user_logged == 0) {
-    free(user);
+    free_user(user);
     ERROR_REPLY_401;
     return;
   }
   char *result = user_to_json(user);
 
   SUCCESS_REPLY_200(result);
+  free(result);
   printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY SENT ==="));
 
   free_user(user);

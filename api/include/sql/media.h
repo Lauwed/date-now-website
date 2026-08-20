@@ -49,6 +49,18 @@ int get_media(struct media *media, int id);
  * @return 0 on success, http_res_code on error.
  * @note @p media is not freed by this function.
  */
+/**
+ * @brief Loads the media whose full-size url matches exactly.
+ *
+ * Used to resolve an image URL found inside authored markdown back to its
+ * media record, so it can be deleted once it is no longer embedded anywhere.
+ *
+ * @param media Destination structure.
+ * @param url Full-size Blob URL.
+ * @return 0 on success, HTTP_NOT_FOUND when no media has that url.
+ */
+int get_media_by_url(struct media *media, const char *url);
+
 int add_media(struct media *media);
 
 /**

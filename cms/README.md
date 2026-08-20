@@ -1,11 +1,9 @@
 ## Run app
 
-`cargo build && xdg-open datenowcms://date-now.lauradurieux.dev/login\?token=`
+`cargo build && xdg-open datenowcms://cms.lauradurieux.dev/login\?token=`
 
-## Export env var
+## Configuration
 
-Just using `source .env` is not working as cargo is running in an isolated env.
-
-```bsh
-export $(cat .env | xargs)
-```
+`api_url` and `uri_scheme` are hardcoded in `src/data/config.rs`. No env var is
+needed: the app must start correctly when the desktop environment launches it
+through the `datenowcms://` deep link, where no shell env is available.

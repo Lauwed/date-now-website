@@ -169,58 +169,6 @@ int str_to_slug(char *str, size_t len) {
   return 0;
 }
 
-int validate_content_blocks(struct mg_str json) {
-  if (!mg_validateJSON(json)) {
-    return 1;
-  }
-
-  cJSON *root = cJSON_ParseWithLength(json.buf, json.len);
-  if (root == NULL) {
-    return 1;
-  }
-
-  if (!cJSON_IsArray(root)) {
-    cJSON_Delete(root);
-    return 1;
-  }
-
-  cJSON *block = NULL;
-  cJSON_ArrayForEach(block, root) {
-    if (!cJSON_IsObject(block)) {
-      cJSON_Delete(root);
-      return 1;
-    }
-
-    cJSON *type = cJSON_GetObjectItemCaseSensitive(block, "type");
-    if (!cJSON_IsString(type) || type->valuestring == NULL) {
-      cJSON_Delete(root);
-      return 1;
-    }
-
-    if (strcmp(type->valuestring, "text") == 0) {
-      cJSON *markdown = cJSON_GetObjectItemCaseSensitive(block, "markdown");
-      if (!cJSON_IsString(markdown) || markdown->valuestring == NULL) {
-        cJSON_Delete(root);
-        return 1;
-      }
-    } else if (strcmp(type->valuestring, "youtube") == 0 ||
-               strcmp(type->valuestring, "tweet") == 0) {
-      cJSON *url = cJSON_GetObjectItemCaseSensitive(block, "url");
-      if (!cJSON_IsString(url) || url->valuestring == NULL) {
-        cJSON_Delete(root);
-        return 1;
-      }
-    } else {
-      cJSON_Delete(root);
-      return 1;
-    }
-  }
-
-  cJSON_Delete(root);
-
-  return 0;
-}
-
 /** JSON SERIALISATION */
 
 void error_reply_to_json(struct error_reply *err) {
@@ -488,7 +436,7 @@ static cJSON *article_to_cjson(struct article *article) {
   cJSON_AddStringToObject(obj, "title", article->title);
   cJSON_AddStringToObject(obj, "sourceName", article->source_name);
   cJSON_AddStringToObject(obj, "sourceUrl", article->source_url);
-  cJSON_AddRawToObject(obj, "summary", article->summary);
+  cJSON_AddStringToObject(obj, "summary", article->summary);
   return obj;
 }
 
@@ -525,7 +473,7 @@ static cJSON *issue_section_to_cjson(struct issue_section *section) {
   else
     cJSON_AddNullToObject(obj, "categoryName");
   if (section->text_body != NULL)
-    cJSON_AddRawToObject(obj, "textBody", section->text_body);
+    cJSON_AddStringToObject(obj, "textBody", section->text_body);
   else
     cJSON_AddNullToObject(obj, "textBody");
   cJSON *articles_arr = cJSON_CreateArray();
@@ -1809,11 +1757,9 @@ void article_hydrate(struct mg_http_message *msg, struct article *article) {
       article->source_url = malloc(val.len);
       sprintf(article->source_url, "%.*s", (int)val.len - 2, val.buf + 1);
     } else if (mg_strcmp(key, mg_str("\"summary\"")) == 0) {
-      // Raw JSON array — copied verbatim, not quote-stripped. Already
-      // validated by validate_content_blocks() before this call.
+      // Markdown string — mg_json_get_str() unescapes it and allocates.
       printf("SUMMARY: %.*s\n", (int)val.len, val.buf);
-      article->summary = malloc(val.len + 1);
-      snprintf(article->summary, val.len + 1, "%.*s", (int)val.len, val.buf);
+      article->summary = mg_json_get_str(msg->body, "$.summary");
     }
   }
 }
@@ -1835,11 +1781,9 @@ void issue_section_hydrate(struct mg_http_message *msg,
       section->category_name = malloc(val.len);
       sprintf(section->category_name, "%.*s", (int)val.len - 2, val.buf + 1);
     } else if (mg_strcmp(key, mg_str("\"textBody\"")) == 0) {
-      // Raw JSON array — copied verbatim, not quote-stripped. Already
-      // validated by validate_content_blocks() before this call.
+      // Markdown string — mg_json_get_str() unescapes it and allocates.
       printf("TEXT BODY: %.*s\n", (int)val.len, val.buf);
-      section->text_body = malloc(val.len + 1);
-      snprintf(section->text_body, val.len + 1, "%.*s", (int)val.len, val.buf);
+      section->text_body = mg_json_get_str(msg->body, "$.textBody");
     }
   }
 }

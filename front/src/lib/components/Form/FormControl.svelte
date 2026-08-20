@@ -8,14 +8,15 @@
 		required: boolean;
 		type?: string;
 		value?: unknown;
+		[key: string]: unknown;
 	}
 
-	let { id, label, required, value = $bindable(), type = 'text' }: Props = $props();
+	let { id, label, required, value = $bindable(), type = 'text', ...props }: Props = $props();
 </script>
 
 <div class="form-control">
 	<Label forHTML={id}>{label}</Label>
-	<Input {id} {required} {type} bind:value />
+	<Input {id} {required} {type} bind:value {...props} />
 </div>
 
 <style lang="scss">

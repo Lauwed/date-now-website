@@ -1,3 +1,10 @@
 #!/bin/bash
 export $(cat .env | xargs)
-gdb ./bin/serv_api
+make
+
+if [[ "$1" == "debug" ]]; then
+	echo "Starting gdb" >&2
+	gdb ./bin/serv_api
+else
+	./bin/serv_api
+fi

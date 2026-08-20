@@ -27,5 +27,7 @@ enum jwt_type {
   SUBSCRIPTION = 1, /**< Subscription confirmation token (valid 24 h). */
   LOGIN = 2,        /**< Login confirmation token (valid 24 h). */
   SESSION = 3, /**< Active session token issued after successful TOTP login. */
-  REFRESH = 4
+  REFRESH = 4,
+  PREVIEW = 5 /**< Short-lived token granting read access to one unpublished
+                   issue. Carries an "issueId" claim. */
 };

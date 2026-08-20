@@ -4,7 +4,7 @@ use iced::{Alignment, Border, Color, ContentFit, Element, Font, Length, Shadow, 
 use reqwest;
 
 use crate::components::alert::{AlertStyle, alert};
-use crate::components::form_control::form_control;
+use crate::components::form_control::form_control_submit;
 use crate::components::typography::{TypographyStyle, typography};
 use crate::data::auth;
 
@@ -83,7 +83,7 @@ impl Login {
         );
         let title_container = column![title, subtitle].spacing(6.0);
 
-        let email_input = form_control(
+        let email_input = form_control_submit(
             "Email",
             "kakou@kakou.com",
             &self.email,
@@ -91,6 +91,7 @@ impl Login {
             Length::Fill,
             None,
             self.email_err.clone(),
+            Some(Message::SendConfirmationToken),
         );
 
         let send_button = button("Send confirmation").on_press(Message::SendConfirmationToken);

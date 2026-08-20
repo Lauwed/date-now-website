@@ -33,7 +33,7 @@
 #include <structs.h>
 #include <utils.h>
 
-char g_json_header[512];
+char g_json_header[JSON_HEADER_SIZE];
 
 static void clean_db(void) { PQfinish(db); }
 
@@ -353,6 +353,17 @@ static void r_issue_by_slug(struct mg_connection *c,
   free(slug);
 }
 
+static void r_issue_preview(struct mg_connection *c,
+                            struct mg_http_message *msg, struct mg_str *caps,
+                            struct error_reply *er, const char *secret) {
+  int id;
+  if (!mg_str_to_num(caps[0], 10, &id, sizeof(int))) {
+    reply_bad_id(c);
+    return;
+  }
+  preview_issue_res(c, msg, id, er, secret);
+}
+
 static void r_issue_publish(struct mg_connection *c,
                             struct mg_http_message *msg, struct mg_str *caps,
                             struct error_reply *er, const char *secret) {
@@ -563,13 +574,13 @@ static const struct route_entry routes[] = {
     {"issue/*/sponsor/*", r_issue_sponsor, 0, 0},
     {"issue/*/sponsor", r_issue_sponsors, 0, 0},
     {"issue/*/publish", r_issue_publish, 0, 0},
+    {"issue/*/preview", r_issue_preview, 0, 0},
     {"issue/count", r_issue_count, 0, 0},
-    {"issue/slug/*", r_issue_by_slug, 0, 0,
-     "public, max-age=120, stale-while-revalidate=60"},
-    {"issue/*", r_issue, 0, 0,
-     "public, max-age=120, stale-while-revalidate=60"},
-    {"issue", r_issues, 0, 0,
-     "public, max-age=120, stale-while-revalidate=60"},
+    /* The three reads below set their own Cache-Control: a draft served
+       through a preview token must never be cached publicly. */
+    {"issue/slug/*", r_issue_by_slug, 0, 0},
+    {"issue/*", r_issue, 0, 0},
+    {"issue", r_issues, 0, 0},
     /* remaining resources */
     {"user/current", r_current_user, 0, 0},
     {"user/count", r_user_count, 0, 0},

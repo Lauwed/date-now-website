@@ -6,7 +6,8 @@ export interface Color {
 
 export interface Tag {
 	name: string;
-	color: Color;
+	/** Hexadécimal, tel que renvoyé par l'API — ex. `#dbc1c1`. */
+	color: string;
 }
 
 export interface Block {
@@ -31,15 +32,59 @@ export interface ResponseMany<T> {
 	count: number;
 }
 
+export interface IssueArticle {
+	id: number;
+	sectionId: number;
+	position: number;
+	title: string;
+	sourceName: string;
+	sourceUrl: string;
+	/** Markdown, rendered to HTML server-side. */
+	summary: string;
+}
+
+export interface IssueSection {
+	id: number;
+	issueId: number;
+	position: number;
+	type: 'CATEGORY' | 'TEXT';
+	categoryName: string | null;
+	/** Markdown, rendered to HTML server-side. Null on CATEGORY sections. */
+	textBody: string | null;
+	articles: IssueArticle[];
+}
+
+export interface Media {
+	id: number;
+	alt: string | null;
+	url: string | null;
+	thumbUrl: string | null;
+	width: number | null;
+	height: number | null;
+}
+
+/**
+ * Auteur tel qu'affiché publiquement. L'API renvoie davantage de champs, dont
+ * l'email : ne jamais les remonter jusqu'au template.
+ */
+export interface Author {
+	id: number;
+	username: string | null;
+	link: string | null;
+	picture: Media | null;
+}
+
 export interface Article {
 	id: number;
 	slug: string;
-	coverURL?: string;
+	cover: Media | null;
+	authors: Author[];
 	title: string;
 	subtitle?: string;
 	publishedAt: number;
 	issueNumber: number;
 	excerpt: string;
-	content: Block[];
+	status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVE';
+	sections: IssueSection[];
 	tags: Tag[];
 }

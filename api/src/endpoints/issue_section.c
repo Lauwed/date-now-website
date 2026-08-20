@@ -184,13 +184,13 @@ void send_issue_sections_res(struct mg_connection *c,
         return;
       }
 
-      struct mg_str text_body_raw =
-          mg_str_n(msg->body.buf + text_body_offset, (size_t)text_body_len);
-      if (validate_content_blocks(text_body_raw) != 0) {
-        ERROR_REPLY_400(CONTENT_BLOCKS_INVALID_MESSAGE);
+      char *text_body = mg_json_get_str(msg->body, "$.textBody");
+      if (text_body == NULL) {
+        ERROR_REPLY_400(TEXT_BODY_FORMAT_MESSAGE);
         free(type);
         return;
       }
+      free(text_body);
     }
 
     free(type);
@@ -324,18 +324,13 @@ void send_issue_section_res(struct mg_connection *c,
         return;
       }
 
-      struct mg_str text_body_raw =
-          mg_str_n(msg->body.buf + text_body_offset, (size_t)text_body_len);
-      if (validate_content_blocks(text_body_raw) != 0) {
-        ERROR_REPLY_400(CONTENT_BLOCKS_INVALID_MESSAGE);
+      free(section->text_body);
+      section->text_body = mg_json_get_str(msg->body, "$.textBody");
+      if (section->text_body == NULL) {
+        ERROR_REPLY_400(TEXT_BODY_FORMAT_MESSAGE);
         free_issue_section(section);
         return;
       }
-
-      free(section->text_body);
-      section->text_body = malloc((size_t)text_body_len + 1);
-      snprintf(section->text_body, (size_t)text_body_len + 1, "%.*s",
-              text_body_len, msg->body.buf + text_body_offset);
     }
 
     query_code = edit_issue_section(section);

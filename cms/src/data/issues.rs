@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use crate::components::badge::{BadgeStyle, badge};
+use crate::data::issue_sections::IssueSection;
 use crate::data::medias::Media;
 use crate::data::responses::{Response, ResponseMany, ResponseMessage};
 use crate::data::sponsors::Sponsor;
@@ -56,11 +57,23 @@ pub struct Issue {
     pub status: IssueStatus,
     pub opened_mail_count: u64,
     pub views: u64,
-    pub picture: Option<Media>,
+    /// Lecture seule : l'API renvoie un objet imbriqué sous la clé `cover`
+    /// mais attend un simple id sous `coverId` en écriture.
+    #[serde(rename = "cover", skip_serializing)]
+    pub cover: Option<Media>,
+    /// Renseigné uniquement quand une nouvelle image vient d'être envoyée ;
+    /// absent du corps, l'API conserve la cover existante.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover_id: Option<u32>,
 
     pub authors: Vec<User>,
     pub tags: Vec<Tag>,
     pub sponsors: Vec<Sponsor>,
+
+    /// Embedded by GET /api/issue and GET /api/issue/{id}. Never sent back:
+    /// sections are edited through their own endpoints, not through the issue.
+    #[serde(default, skip_serializing)]
+    pub sections: Vec<IssueSection>,
 }
 
 impl traits::Table for Issue {
@@ -122,12 +135,17 @@ impl traits::Table for Issue {
     }
 }
 
-pub fn get_issue(id: u32) -> Result<Response<Issue>, String> {
+/// Le token est nécessaire dès que l'issue n'est pas publiée : l'API renvoie
+/// alors 404 aux appels anonymes.
+pub fn get_issue(id: u32, token: &str) -> Result<Response<Issue>, String> {
     let config = g_config();
     let url = format!("{}/api/issue/{}", config.api_url, id);
 
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+
     let client = reqwest::blocking::Client::new();
-    let res = client.get(url).send();
+    let res = client.get(url).headers(headers).send();
 
     match res {
         Ok(r) => match r.text() {
@@ -161,12 +179,16 @@ pub fn get_issue(id: u32) -> Result<Response<Issue>, String> {
     }
 }
 
-pub fn get_issues() -> Result<ResponseMany<Issue>, String> {
+/// Sans token, l'API ne liste que les issues publiées.
+pub fn get_issues(token: &str) -> Result<ResponseMany<Issue>, String> {
     let config = g_config();
     let url = format!("{}/api/issue", config.api_url);
 
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+
     let client = reqwest::blocking::Client::new();
-    let res = client.get(url).send();
+    let res = client.get(url).headers(headers).send();
 
     match res {
         Ok(r) => match r.text() {
@@ -289,6 +311,43 @@ pub fn update_issue(id: u32, item: Issue, token: String) -> Result<Response<Issu
             println!("error request: {}", req_err);
             Err(format!("Error request: {}", req_err))
         }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewToken {
+    pub token: String,
+    pub expires_at: u64,
+}
+
+/// Demande à l'API un jeton de preview à durée de vie courte, limité à cette
+/// issue. Il autorise la lecture d'une issue non publiée depuis le front.
+pub fn get_preview_token(id: u32, token: String) -> Result<PreviewToken, String> {
+    let config = g_config();
+    let url = format!("{}/api/issue/{}/preview", config.api_url, id);
+
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+    // Mongoose rejette un POST sans Content-Length (411).
+    headers.insert(CONTENT_LENGTH, "0".parse().unwrap());
+
+    let client = reqwest::blocking::Client::new();
+    let res = client.post(url).headers(headers).send();
+
+    match res {
+        Ok(r) => match r.text() {
+            Ok(text) => match serde_json::from_str::<Response<PreviewToken>>(&text) {
+                Ok(Response::Success(preview)) => Ok(preview),
+                Ok(Response::Error(res_err)) => Err(format!(
+                    "Error response: {} - {}",
+                    res_err.code, res_err.message
+                )),
+                Err(json_parse_err) => Err(format!("Error parsing: {}", json_parse_err)),
+            },
+            Err(text_err) => Err(format!("Error parsing text response: {}", text_err)),
+        },
+        Err(req_err) => Err(format!("Error request: {}", req_err)),
     }
 }
 

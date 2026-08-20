@@ -51,7 +51,7 @@ impl Dashboard {
             archived_count: stats::get_issue_count(Some("ARCHIVE"), token).unwrap_or_default(),
             sponsor_count: stats::get_sponsor_count().unwrap_or_default(),
             total_views: stats::get_total_view_count(token).unwrap_or_default(),
-            recent_issues: stats::get_recent_issues_for_dashboard(10),
+            recent_issues: stats::get_recent_issues_for_dashboard(10, token),
         }
     }
 

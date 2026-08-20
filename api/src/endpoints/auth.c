@@ -88,14 +88,14 @@ void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
 
   int query_code = get_user_by_email(user, (char *)email);
   if (query_code != 0) {
-    free(user);
+    free_user(user);
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER NOT FIND"));
     return;
   }
 
   // Check if user is an author
   if (strcmp(user->role, "AUTHOR") != 0) {
-    free(user);
+    free_user(user);
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("USER NOT AUTHOR"));
     return;
   }
@@ -103,29 +103,26 @@ void is_user_logged(struct mg_connection *c, struct mg_http_message *msg,
   if (user_dst != NULL) {
     printf("%s %s\n", user->email, user->username);
 
-    struct media *picture = NULL;
-    if (user->picture != NULL) {
-      picture = malloc(sizeof(struct media));
-      picture->id = user->picture->id;
-      picture->alternative_text = user->picture->alternative_text;
-      picture->url = user->picture->url;
-      picture->width = user->picture->width;
-      picture->height = user->picture->height;
-      picture->thumb_url = user->picture->thumb_url;
-    }
-
+    // Ownership of every heap field is handed over to user_dst, which the
+    // caller releases with free_user().
     user_dst->id = user->id;
     user_dst->username = user->username;
     user_dst->email = user->email;
     user_dst->role = user->role;
     user_dst->link = user->link;
-    user_dst->picture = picture;
+    user_dst->picture = user->picture;
+    // Never exposed to the caller, but free_user() would release it.
+    user_dst->totp_seed = NULL;
     user_dst->subscribed_at = user->subscribed_at;
     user_dst->is_supporter = user->is_supporter;
     user_dst->created_at = user->created_at;
     user_dst->tracker_pixel_consent_date = user->tracker_pixel_consent_date;
+
+    free(user->totp_seed);
+    free(user);
+  } else {
+    free_user(user);
   }
-  free(user);
 
   jwt_free(decoded);
   *user_logged = 1;
@@ -512,6 +509,7 @@ void generate_totpseed_user(struct mg_connection *c,
     // Check if user esists
     if (user_identity_exists(NULL, email, -1)) {
       struct user *user = malloc(sizeof(struct user));
+      user_init(user);
       // Get User
       int query_code = get_user_by_email(user, email);
       free(email);
@@ -520,6 +518,7 @@ void generate_totpseed_user(struct mg_connection *c,
         fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING USER"));
         HANDLE_QUERY_CODE;
 
+        free_user(user);
         return;
       } else {
         // Generate totpseed

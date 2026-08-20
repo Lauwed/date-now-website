@@ -20,7 +20,9 @@
  *   write buffer before returning.
  */
 
-extern char g_json_header[]; // défini dans main.c
+/** @brief Size of the shared response-header buffer. */
+#define JSON_HEADER_SIZE 512
+extern char g_json_header[JSON_HEADER_SIZE]; // défini dans main.c
 #define JSON_HEADER g_json_header
 
 /* Generic request errors */
@@ -93,9 +95,12 @@ extern char g_json_header[]; // défini dans main.c
 #define SOURCE_NAME_REQUIRED_MESSAGE "sourceName is required."
 #define SOURCE_URL_REQUIRED_MESSAGE "sourceUrl is required."
 #define SUMMARY_REQUIRED_MESSAGE "summary is required."
-#define CONTENT_BLOCKS_INVALID_MESSAGE                                        \
-  "Invalid content blocks: must be a JSON array of objects with a 'type' "    \
-  "field ('text', 'youtube', or 'tweet') and its required sub-fields."
+#define TEXT_BODY_FORMAT_MESSAGE                                              \
+  "textBody must be a string of markdown."
+#define SUMMARY_FORMAT_MESSAGE "summary must be a string of markdown."
+/** @brief Lifetime of an issue preview token, in seconds. */
+#define PREVIEW_TOKEN_TTL 1800
+
 #define REORDER_REQUIRED_MESSAGE "The 'order' array is required."
 #define REORDER_MISMATCH_MESSAGE                                              \
   "The 'order' array must contain exactly the ids currently in this "        \

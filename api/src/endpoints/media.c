@@ -170,6 +170,43 @@ static void *media_convert_thread(void *arg) {
   return NULL;
 }
 
+/**
+ * @brief Deletes a media and its Blob objects, unless something still uses it.
+ *
+ * Shared by the DELETE endpoint and by the replace-on-update paths of Issue
+ * and AppUser, so the Blob objects are never left behind.
+ *
+ * @return 0 on success, MEDIA_STILL_REFERENCED when the media is still in use
+ *         (nothing is deleted), 1 on any other failure.
+ */
+int delete_media_with_blob(int id) {
+  if (media_is_referenced(id)) {
+    return MEDIA_STILL_REFERENCED;
+  }
+
+  struct media *to_delete = malloc(sizeof(struct media));
+  if (to_delete == NULL) {
+    return 1;
+  }
+  to_delete->id = 0;
+  to_delete->alternative_text = NULL;
+  to_delete->url = NULL;
+  to_delete->thumb_url = NULL;
+  to_delete->width = 0.0;
+  to_delete->height = 0.0;
+
+  if (get_media(to_delete, id) == 0) {
+    const char *urls[2] = {to_delete->url, to_delete->thumb_url};
+    // A Blob that refuses to go is logged, never fatal: keeping a dangling
+    // row would be worse than leaking one object.
+    if (blob_delete(urls, 2) != 0)
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR DELETING FROM BLOB"));
+  }
+  free_media(to_delete);
+
+  return delete_media(id) == 0 ? 0 : 1;
+}
+
 void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
                      struct error_reply *error_reply, const char *secret) {
   int query_code;
@@ -178,6 +215,46 @@ void send_medias_res(struct mg_connection *c, struct mg_http_message *msg,
 
   if (mg_match(msg->method, mg_str("GET"), NULL)) {
     printf(TERMINAL_ENDPOINT_MESSAGE("=== GET MEDIA LIST ==="));
+
+    // ?url= resolves one exact full-size URL back to its record. Clients that
+    // only kept the URL of an embedded image need the id to delete it.
+    char url_buf[2048] = "";
+    int url_len = mg_http_get_var(&msg->query, "url", url_buf, sizeof(url_buf));
+    if (url_len > 0) {
+      url_buf[url_len] = '\0';
+
+      struct media *found = malloc(sizeof(struct media));
+      found->id = 0;
+      found->alternative_text = NULL;
+      found->url = NULL;
+      found->thumb_url = NULL;
+      found->width = 0.0;
+      found->height = 0.0;
+
+      int found_count = get_media_by_url(found, url_buf) == 0 ? 1 : 0;
+      struct media *one[1] = {found};
+
+      char *url_data = medias_to_json(found_count > 0 ? one : NULL,
+                                      (size_t)found_count);
+      struct list_reply *url_reply = malloc(sizeof(struct list_reply));
+      url_reply->data = url_data;
+      url_reply->count = found_count;
+      url_reply->total = found_count;
+      url_reply->total_pages = 0;
+      url_reply->page = -1;
+      url_reply->page_size = 0;
+      list_reply_to_json(url_reply);
+
+      SUCCESS_REPLY_200(url_reply->json);
+      printf(TERMINAL_SUCCESS_MESSAGE("=== MEDIA BY URL SENT ==="));
+
+      free_media(found);
+      if (found_count > 0)
+        free(url_data);
+      free(url_reply->json);
+      free(url_reply);
+      return;
+    }
 
     int total = get_medias_len();
 
@@ -468,30 +545,12 @@ void send_media_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    /* 409 if referenced by an issue or user */
-    if (media_is_referenced(id)) {
+    query_code = delete_media_with_blob(id);
+    if (query_code == MEDIA_STILL_REFERENCED) {
       ERROR_REPLY_409(
           "Media is referenced by one or more resources and cannot be deleted");
       return;
     }
-
-    /* Fetch URLs before deleting from DB so the Blob objects can be removed */
-    struct media *to_delete = malloc(sizeof(struct media));
-    to_delete->id = 0;
-    to_delete->alternative_text = NULL;
-    to_delete->url = NULL;
-    to_delete->thumb_url = NULL;
-    to_delete->width = 0.0;
-    to_delete->height = 0.0;
-    if (get_media(to_delete, id) == 0) {
-      const char *urls[2] = {to_delete->url, to_delete->thumb_url};
-      if (blob_delete(urls, 2) != 0)
-        fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR DELETING FROM BLOB"));
-    }
-    free_media(to_delete);
-
-    /* Remove from DB */
-    query_code = delete_media(id);
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR DELETING MEDIA"));
       ERROR_REPLY_500;
