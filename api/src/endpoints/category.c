@@ -143,11 +143,15 @@ void send_categories_res(struct mg_connection *c, struct mg_http_message *msg,
 
     // Required props
     REQUIRED_BODY_PROPERTY("name", NAME_REQUIRED_MESSAGE);
-    char *name = malloc(length - 1);
-    strncpy(name, msg->body.buf + offset + 1, length - 2);
-    name[length - 2] = '\0';
+    int name_offset = offset, name_length = length;
 
+    // Every required property is checked before the name is allocated, so that
+    // an early return does not leak it
     REQUIRED_BODY_PROPERTY("color", COLOR_REQUIRED_MESSAGE);
+
+    char *name = malloc(name_length - 1);
+    strncpy(name, msg->body.buf + name_offset + 1, name_length - 2);
+    name[name_length - 2] = '\0';
 
     int exists = category_exists(name);
     if (exists != 0) {
@@ -246,8 +250,6 @@ void send_category_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    struct category *category = malloc(sizeof(struct category));
-
     // Check if exists
     int exists = category_exists(name);
     if (!exists) {
@@ -261,12 +263,15 @@ void send_category_res(struct mg_connection *c, struct mg_http_message *msg,
     // Required props
     REQUIRED_BODY_PROPERTY("color", COLOR_REQUIRED_MESSAGE);
 
+    struct category *category = malloc(sizeof(struct category));
+
     // Retrieve actual values of category
     query_code = get_category(category, name);
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING CATEGORIES"));
       HANDLE_QUERY_CODE;
 
+      free(category);
       return;
     }
 
@@ -279,6 +284,7 @@ void send_category_res(struct mg_connection *c, struct mg_http_message *msg,
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING CATEGORIES"));
       HANDLE_QUERY_CODE;
 
+      free_category(category);
       return;
     } else {
       char *result = category_to_json(category);

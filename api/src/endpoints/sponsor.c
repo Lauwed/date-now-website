@@ -142,11 +142,15 @@ void send_sponsors_res(struct mg_connection *c, struct mg_http_message *msg,
 
     // Required props
     REQUIRED_BODY_PROPERTY("name", NAME_REQUIRED_MESSAGE);
-    char *name = malloc(length - 1);
-    strncpy(name, msg->body.buf + offset + 1, length - 2);
-    name[length - 2] = '\0';
+    int name_offset = offset, name_length = length;
 
+    // Every required property is checked before the name is allocated, so that
+    // an early return does not leak it
     REQUIRED_BODY_PROPERTY("link", LINK_REQUIRED_MESSAGE);
+
+    char *name = malloc(name_length - 1);
+    strncpy(name, msg->body.buf + name_offset + 1, name_length - 2);
+    name[name_length - 2] = '\0';
 
     int exists = sponsor_exists(name);
     if (exists != 0) {
@@ -245,8 +249,6 @@ void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
-    struct sponsor *sponsor = malloc(sizeof(struct sponsor));
-
     // Check if exists
     int exists = sponsor_exists(name);
     if (!exists) {
@@ -260,12 +262,15 @@ void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
     // Required props
     REQUIRED_BODY_PROPERTY("link", LINK_REQUIRED_MESSAGE);
 
+    struct sponsor *sponsor = malloc(sizeof(struct sponsor));
+
     // Retrieve actual values of sponsor
     query_code = get_sponsor(sponsor, name);
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING SPONSORS"));
       HANDLE_QUERY_CODE;
 
+      free(sponsor);
       return;
     }
 
@@ -278,6 +283,7 @@ void send_sponsor_res(struct mg_connection *c, struct mg_http_message *msg,
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR RETRIEVING SPONSORS"));
       HANDLE_QUERY_CODE;
 
+      free_sponsor(sponsor);
       return;
     } else {
       char *result = sponsor_to_json(sponsor);
