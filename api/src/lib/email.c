@@ -42,16 +42,17 @@ int send_mail(const char *to, const char *subject, const char *html) {
     return 1;
   }
 
-  struct MemoryStruct chunk;
-
-  chunk.memory = malloc(1); /* will be grown as needed by the realloc above */
-  chunk.size = 0;           /* no data at this point */
-
   CURL *curl = curl_easy_init();
   if (!curl) {
     fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR INITIALIZE CURL"));
     return 1;
   }
+
+  // Allocated after curl_easy_init(), so that its failure does not leak it
+  struct MemoryStruct chunk;
+
+  chunk.memory = malloc(1); /* will be grown as needed by the realloc above */
+  chunk.size = 0;           /* no data at this point */
 
   const char *from = getenv("MAIL_FROM");
   if (!from)
