@@ -47,7 +47,8 @@ void send_views_res(struct mg_connection *c, struct mg_http_message *msg,
            (int)sort.len, sort.buf);
 
     // Pagination
-    int page, page_size;
+    // page_size is only read when the page is given, but it is copied in every case
+    int page = -1, page_size = 20;
     struct mg_str page_str = mg_http_var(msg->query, mg_str("page"));
     if (mg_str_to_num(page_str, 10, &page, sizeof(int)) == false)
       page = -1;
