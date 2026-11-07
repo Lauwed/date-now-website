@@ -254,6 +254,11 @@ static cJSON *user_to_cjson(struct user *user) {
   cJSON_AddNumberToObject(obj, "createdAt", user->created_at);
   cJSON_AddNumberToObject(obj, "trackerPixelConsentDate",
                           user->tracker_pixel_consent_date);
+  cJSON_AddNumberToObject(obj, "isEmailFlagged", user->is_email_flagged);
+  if (user->email_flag_reason != NULL)
+    cJSON_AddStringToObject(obj, "emailFlagReason", user->email_flag_reason);
+  else
+    cJSON_AddNullToObject(obj, "emailFlagReason");
   return obj;
 }
 
@@ -711,6 +716,7 @@ int free_user(struct user *user) {
   free(user->role);
   free(user->link);
   free(user->totp_seed);
+  free(user->email_flag_reason);
 
   if (user->picture != NULL) {
     free_media(user->picture);
@@ -721,6 +727,7 @@ int free_user(struct user *user) {
   user->role = NULL;
   user->link = NULL;
   user->totp_seed = NULL;
+  user->email_flag_reason = NULL;
 
   free(user);
   user = NULL;
@@ -1190,6 +1197,19 @@ int user_map(struct user *user, pg_row_t *row, int start_index,
 
   // Tracker consent
   MAP_INT(user->tracker_pixel_consent_date, row, start_index + 8, 0);
+
+  return 0;
+}
+
+int user_flag_map(struct user *user, pg_row_t *row, int start_index) {
+  if (user == NULL || row == NULL) {
+    return -1;
+  }
+
+  // Is email flagged
+  MAP_BOOL(user->is_email_flagged, row, start_index, 0);
+  // Email flag reason
+  MAP_TEXT(user->email_flag_reason, row, start_index + 1, 0);
 
   return 0;
 }
@@ -1826,6 +1846,8 @@ int user_init(struct user *user) {
   user->subscribed_at = 0;
   user->is_supporter = 0;
   user->tracker_pixel_consent_date = 0;
+  user->is_email_flagged = 0;
+  user->email_flag_reason = NULL;
 
   return 0;
 }

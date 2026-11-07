@@ -99,7 +99,7 @@
               "code": 400,
               "response": {
                 "code": 400,
-                "message": "Invalid email address"
+                "message": "Invalid email address, or the email domain cannot receive mail, is not allowed, or is the service domain"
               }
             },
             {
@@ -189,7 +189,7 @@
               "code": 400,
               "response": {
                 "code": 400,
-                "message": "Invalid email address"
+                "message": "Invalid email address, or the email domain cannot receive mail, is not allowed, or is the service domain"
               }
             },
             401,
@@ -517,7 +517,9 @@
         "picture": "foreignKey-media",
         "subscribedAt": "timestamp?",
         "isSupporter": "boolean",
-        "createdAt": "timestamp"
+        "createdAt": "timestamp",
+        "isEmailFlagged": "boolean",
+        "emailFlagReason": "string?"
       },
       "response": {
         "get-list": {
@@ -536,6 +538,8 @@
           "subscribedAt": "timestamp?",
           "isSupporter": "boolean",
           "createdAt": "timestamp",
+          "isEmailFlagged": "boolean",
+          "emailFlagReason": "string?",
           "issues": "array-issue"
         }
       },
@@ -584,7 +588,9 @@
                 "picture": "foreignKey-media",
                 "subscribedAt": "timestamp?",
                 "isSupporter": "boolean",
-                "createdAt": "timestamp"
+                "createdAt": "timestamp",
+                "isEmailFlagged": "boolean",
+                "emailFlagReason": "string?"
               }
             }
           ]
@@ -633,6 +639,47 @@
             },
             500
           ]
+        },
+        {
+          "name": "Flag email",
+          "description": "Flags or unflags the email of a user by hand. A flagged user does not receive the newsletter. Requires AUTHOR authentication.",
+          "uri": "/{ID}/flag",
+          "method": "PUT",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "id",
+              "type": "integer",
+              "defaultValue": 1,
+              "isPrimary": true
+            }
+          ],
+          "body": {
+            "schema": {
+              "flagged": "integer",
+              "reason": "string?"
+            },
+            "defaultValue": "{\n\t\"flagged\": 1,\n\t\"reason\": \"manual_override\"\n}"
+          },
+          "responses": [
+            {
+              "code": 200,
+              "response": { "message": "User flag successfully updated" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "The flagged field is required: 0 or 1."
+              }
+            },
+            401,
+            {
+              "code": 404,
+              "response": { "code": 404, "message": "Not found" }
+            },
+            500
+          ]
         }
       ],
       "endpoints": {
@@ -666,7 +713,9 @@
                 "picture": "foreignKey-media",
                 "subscribedAt": "timestamp?",
                 "isSupporter": "boolean",
-                "createdAt": "timestamp"
+                "createdAt": "timestamp",
+                "isEmailFlagged": "boolean",
+                "emailFlagReason": "string?"
               }
             },
             {
@@ -679,7 +728,7 @@
           ]
         },
         "PUT": {
-          "description": "Updates an existing user.",
+          "description": "Updates an existing user. When the body has an email, its domain must be accepted (see the blocklist), and the flag of the user follows it: a blocked domain in flag mode sets isEmailFlagged, a flag set by an author is never changed.",
           "body": {
             "schema": {
               "username": "string?",
@@ -703,7 +752,16 @@
                 "picture": "foreignKey-media",
                 "subscribedAt": "timestamp?",
                 "isSupporter": "boolean",
-                "createdAt": "timestamp"
+                "createdAt": "timestamp",
+                "isEmailFlagged": "boolean",
+                "emailFlagReason": "string?"
+              }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "Email is not valid, domain cannot receive mail, domain is not allowed, or it is the service domain"
               }
             },
             {
@@ -2044,6 +2102,107 @@
           ]
         }
       }
+    },
+    {
+      "name": {
+        "singular": "blocked email domain",
+        "plural": "blocked email domains"
+      },
+      "description": "Disposable email domains that cannot subscribe or register. An email whose domain is blocked is refused, or accepted and flagged when EMAIL_BLOCKLIST_MODE is `flag`. The list is public when BLOCKED_DOMAIN_LIST_PUBLIC is `1`.",
+      "uri": "/blocked-domain",
+      "uriParameters": [
+        {
+          "name": "domain",
+          "type": "string",
+          "defaultValue": "yopmail.com",
+          "isPrimary": true
+        }
+      ],
+      "schema": {
+        "domain": "string"
+      },
+      "includedEndpoints": [],
+      "customEndpoints": [
+        {
+          "name": "List blocked domains",
+          "description": "Returns every blocked domain, in alphabetical order, as a JSON array of strings. Public when BLOCKED_DOMAIN_LIST_PUBLIC is `1`, otherwise it requires AUTHOR authentication.",
+          "uri": "",
+          "method": "GET",
+          "tokenRequired": false,
+          "responses": [
+            {
+              "code": 200,
+              "response": ["string"]
+            },
+            401,
+            500
+          ]
+        },
+        {
+          "name": "Block a domain",
+          "description": "Adds a domain to the blocklist. The domain is written in lowercase, without a trailing dot. Requires AUTHOR authentication.",
+          "uri": "",
+          "method": "POST",
+          "tokenRequired": true,
+          "body": {
+            "schema": { "domain": "string" },
+            "defaultValue": "{\n\t\"domain\": \"yopmail.com\"\n}"
+          },
+          "responses": [
+            {
+              "code": 201,
+              "response": { "message": "Domain successfully blocked" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "The domain is not a valid domain name."
+              }
+            },
+            401,
+            {
+              "code": 409,
+              "response": { "code": 409, "message": "The domain is already blocked." }
+            },
+            500
+          ]
+        },
+        {
+          "name": "Unblock a domain",
+          "description": "Removes a domain from the blocklist. The case of the domain does not matter. Requires AUTHOR authentication.",
+          "uri": "/{domain}",
+          "method": "DELETE",
+          "tokenRequired": true,
+          "uriParameters": [
+            {
+              "name": "domain",
+              "type": "string",
+              "defaultValue": "yopmail.com",
+              "isPrimary": true
+            }
+          ],
+          "responses": [
+            {
+              "code": 200,
+              "response": { "message": "Domain successfully unblocked" }
+            },
+            {
+              "code": 400,
+              "response": {
+                "code": 400,
+                "message": "The domain is not a valid domain name."
+              }
+            },
+            401,
+            {
+              "code": 404,
+              "response": { "code": 404, "message": "Not found" }
+            },
+            500
+          ]
+        }
+      ]
     },
     {
       "name": {

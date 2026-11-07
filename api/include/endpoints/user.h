@@ -68,3 +68,22 @@ void send_user_count_res(struct mg_connection *c, struct mg_http_message *msg,
  */
 void send_current_user_res(struct mg_connection *c, struct mg_http_message *msg,
                            struct error_reply *error_reply, const char *secret);
+
+/**
+ * @brief Handles PUT /user/:id/flag — flag or unflag the email of a user by
+ *        hand.
+ *
+ * Requires an authenticated author. Body: {"flagged": 1, "reason": "spam"}.
+ * "flagged" is 0 or 1; "reason" is optional (at most 100 characters, default
+ * "manual_override") and only kept when "flagged" is 1. A flagged user does not
+ * receive the newsletter.
+ *
+ * @param c           Active Mongoose connection.
+ * @param msg         Parsed HTTP message.
+ * @param id          User database identifier.
+ * @param error_reply Pre-allocated error reply structure.
+ * @param secret      JWT signing secret (not freed).
+ */
+void send_user_flag_res(struct mg_connection *c, struct mg_http_message *msg,
+                        int id, struct error_reply *error_reply,
+                        const char *secret);

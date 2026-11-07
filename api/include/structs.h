@@ -88,6 +88,11 @@ struct user {
   int tracker_pixel_consent_date; /**< Consent of presence pixel tracker in mail
                                      to be able to count views. Timestamp of the
                                      consent (0 = no consent) */
+  int is_email_flagged; /**< 1 if the email domain is blocked (flag mode) or an
+                           author flagged the email by hand. */
+  char *email_flag_reason; /**< "blocked_domain" or "manual_override" (may be
+                              NULL). @note Dynamically allocated — freed by
+                              free_user(). */
 };
 
 /**

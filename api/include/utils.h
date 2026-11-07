@@ -444,6 +444,17 @@ int user_map(struct user *user, pg_row_t *row, int start_index,
              int end_index);
 
 /**
+ * @brief Maps the two email flag columns of a Postgres result row into a
+ *        struct user: a BOOLEAN, then a TEXT (which may be NULL).
+ * @param user        Pre-allocated and initialised structure.
+ * @param row         Result row.
+ * @param start_index Index of the BOOLEAN column; the TEXT column follows.
+ * @return 0 on success, -1 on invalid arguments.
+ * @note The reason is allocated by strndup() — freed via free_user().
+ */
+int user_flag_map(struct user *user, pg_row_t *row, int start_index);
+
+/**
  * @brief Maps a Postgres result row into a struct view.
  * @note The @c hashed_ip field is allocated by strndup() — freed via
  *       free_view().

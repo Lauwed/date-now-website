@@ -102,6 +102,30 @@ int add_user(struct user *user);
 int edit_user(struct user *user);
 
 /**
+ * @brief Flags or unflags the email of a user, by hand.
+ * @param id      Database identifier.
+ * @param flagged 1 to flag, 0 to remove the flag.
+ * @param reason  Reason of the flag, used when @p flagged is 1 (may be NULL).
+ * @return 0 on success, HTTP_NOT_FOUND if there is no such user,
+ *         HTTP_INTERNAL_ERROR on SQL error.
+ * @note @p reason is not freed by this function.
+ */
+int set_user_email_flag(int id, int flagged, const char *reason);
+
+/**
+ * @brief Sets the flag that comes from the admission of a new email: the
+ *        reason is "blocked_domain" when @p flagged is 1.
+ * @param id      Database identifier.
+ * @param flagged 1 if the email domain is blocked, 0 otherwise.
+ * @param user    Structure of the same user, updated with the new flag (may be
+ *                NULL).
+ * @return 0 on success, HTTP_INTERNAL_ERROR on SQL error.
+ * @note A flag that an author set by hand, with another reason, is left as it
+ *       is.
+ */
+int refresh_user_email_flag(int id, int flagged, struct user *user);
+
+/**
  * @brief Deletes a user by id.
  * @param id Database identifier.
  * @return 0 on success, http_res_code on error.
@@ -118,7 +142,8 @@ int delete_user(int id);
 int get_users_count(const char *type);
 
 /**
- * @brief Fetches the email addresses of all newsletter subscribers.
+ * @brief Fetches the email addresses of all newsletter subscribers whose
+ *        email is not flagged.
  * @param len    Output: number of addresses returned.
  * @param emails Output: dynamically allocated array of NUL-terminated strings.
  *               The array and each string must be freed by the caller.

@@ -66,6 +66,16 @@ extern char g_json_header[JSON_HEADER_SIZE]; // défini dans main.c
 #define TAG_EXISTS_MESSAGE "The tag already exists."
 #define COLOR_REQUIRED_MESSAGE "The color is required."
 
+/* Email admission and blocked domain messages */
+#define EMAIL_DOMAIN_UNRESOLVABLE_MESSAGE "Email domain cannot receive mail."
+#define EMAIL_DOMAIN_BLOCKED_MESSAGE "Email domain is not allowed."
+#define EMAIL_DOMAIN_SELF_MESSAGE "Cannot register with the service domain."
+#define DOMAIN_REQUIRED_MESSAGE "The domain is required."
+#define DOMAIN_FORMAT_MESSAGE "The domain is not a valid domain name."
+#define DOMAIN_EXISTS_MESSAGE "The domain is already blocked."
+#define FLAG_REQUIRED_MESSAGE "The flagged field is required: 0 or 1."
+#define FLAG_REASON_MESSAGE "The reason must be at most 100 characters long."
+
 /* Sponsor endpoint messages */
 #define SPONSOR_EXISTS_MESSAGE "The sponsor already exists."
 
@@ -153,6 +163,25 @@ extern char g_json_header[JSON_HEADER_SIZE]; // défini dans main.c
   mg_http_reply(c, error_reply->code_http, JSON_HEADER, error_reply->json);    \
   free(error_reply->json);                                                     \
   error_reply->json = NULL;
+
+/**
+ * @brief Reply with the error that matches a refused email admission
+ *        (see lib/email_admission.h): 400 for the email, 500 when the
+ *        blocklist cannot be read.
+ * @param reason_code EMAIL_ADMISSION_* constant of the refused email.
+ */
+#define ERROR_REPLY_EMAIL_ADMISSION(reason_code)                               \
+  if ((reason_code) == EMAIL_ADMISSION_ERROR) {                                \
+    ERROR_REPLY_500;                                                           \
+  } else if ((reason_code) == EMAIL_ADMISSION_MALFORMED) {                     \
+    ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);                             \
+  } else if ((reason_code) == EMAIL_ADMISSION_DNS_FAIL) {                      \
+    ERROR_REPLY_400(EMAIL_DOMAIN_UNRESOLVABLE_MESSAGE);                        \
+  } else if ((reason_code) == EMAIL_ADMISSION_APP_DOMAIN) {                    \
+    ERROR_REPLY_400(EMAIL_DOMAIN_SELF_MESSAGE);                                \
+  } else {                                                                     \
+    ERROR_REPLY_400(EMAIL_DOMAIN_BLOCKED_MESSAGE);                             \
+  }
 
 /** @brief Reply with HTTP 409 Conflict and the given @p message. */
 #define ERROR_REPLY_409(message)                                               \

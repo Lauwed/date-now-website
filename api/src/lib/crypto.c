@@ -32,19 +32,22 @@ static int base64_decode(const char *in, unsigned char *out, size_t out_cap,
     len--;
 
   size_t pos = 0;
-  int buf = 0, bits = 0;
+  /* Only the bits that are not written yet are kept: an int that keeps them
+   * all overflows (undefined behaviour) after a few characters. */
+  unsigned int buf = 0;
+  int bits = 0;
   for (size_t i = 0; i < len; i++) {
     const char *p = strchr(alphabet, in[i]);
     if (p == NULL || in[i] == '\0')
       return -1;
-    int v = (int)(p - alphabet);
-    buf = (buf << 6) | v;
+    buf = (buf << 6) | (unsigned int)(p - alphabet);
     bits += 6;
     if (bits >= 8) {
       bits -= 8;
       if (pos >= out_cap)
         return -1;
       out[pos++] = (unsigned char)((buf >> bits) & 0xFF);
+      buf &= (1u << bits) - 1u;
     }
   }
 

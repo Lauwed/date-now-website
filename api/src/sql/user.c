@@ -33,14 +33,15 @@
   "EXTRACT(EPOCH FROM u.subscribedAt)::BIGINT, "                              \
   "u.isSupporter, EXTRACT(EPOCH FROM u.createdAt)::BIGINT, "                  \
   "EXTRACT(EPOCH FROM u.trackerPixelConsentDate)::BIGINT, "                   \
-  "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl"
+  "m.id, m.textAlternatif, m.url, m.width, m.height, m.thumbUrl, "           \
+  "u.isEmailFlagged, u.emailFlagReason"
 #define QUERY_SELECT_TMP                                                      \
   "SELECT " QUERY_SELECT_COLS_TMP " "                                         \
   "FROM AppUser u LEFT JOIN Media m ON m.id = u.picture"
 #define QUERY_SELECT_SINGLE_TMP QUERY_SELECT_TMP " WHERE u.id = $1"
 #define QUERY_SELECT_SINGLE_BY_EMAIL_TMP QUERY_SELECT_TMP " WHERE u.emailHash = $1"
 /* Same shape as QUERY_SELECT_SINGLE_TMP/QUERY_SELECT_SINGLE_BY_EMAIL_TMP, plus
- * a trailing totpSeed column (index 15) — used when the caller may later
+ * a trailing totpSeed column (index 17) — used when the caller may later
  * feed the hydrated struct back into edit_user(), which writes back
  * whatever is in user->totp_seed (see get_user()/get_user_by_email()). */
 #define QUERY_SELECT_SINGLE_WITH_TOTP_TMP                                     \
@@ -54,9 +55,10 @@
 
 #define QUERY_POST_TMP                                                         \
   "INSERT INTO AppUser (username, email, emailHash, role, link, totpSeed, "    \
-  "subscribedAt, trackerPixelConsentDate, picture) "                          \
+  "subscribedAt, trackerPixelConsentDate, picture, isEmailFlagged, "          \
+  "emailFlagReason) "                                                         \
   "VALUES ($1, $2, $3, COALESCE($4, 'USER'), $5, $6, TO_TIMESTAMP($7::BIGINT),"\
-  " TO_TIMESTAMP($8::BIGINT), $9) RETURNING id;"
+  " TO_TIMESTAMP($8::BIGINT), $9, $10, $11) RETURNING id;"
 #define QUERY_PUT_TMP                                                          \
   "UPDATE AppUser "                                                            \
   "SET username = $1, email = $2, emailHash = $3, role = COALESCE($4, 'USER'),"\
@@ -185,6 +187,8 @@ static int fetch_all_users(struct user ***out, size_t *out_count) {
     } else {
       u->picture = m;
     }
+
+    user_flag_map(u, &row, 15);
 
     arr[count++] = u;
   }
@@ -386,8 +390,10 @@ int get_user(struct user *user, int id) {
     user->picture = m;
   }
 
-  if (!PQgetisnull(res, 0, 15)) {
-    user->totp_seed = crypto_decrypt_hex(PQgetvalue(res, 0, 15));
+  user_flag_map(user, &row, 15);
+
+  if (!PQgetisnull(res, 0, 17)) {
+    user->totp_seed = crypto_decrypt_hex(PQgetvalue(res, 0, 17));
   }
 
   PQclear(res);
@@ -444,8 +450,10 @@ int get_user_by_email(struct user *user, char *email) {
     user->picture = m;
   }
 
-  if (!PQgetisnull(res, 0, 15)) {
-    user->totp_seed = crypto_decrypt_hex(PQgetvalue(res, 0, 15));
+  user_flag_map(user, &row, 15);
+
+  if (!PQgetisnull(res, 0, 17)) {
+    user->totp_seed = crypto_decrypt_hex(PQgetvalue(res, 0, 17));
   }
 
   PQclear(res);
@@ -504,12 +512,15 @@ int add_user(struct user *user) {
     picture_val = picture_str;
   }
 
-  const char *values[9] = {user->username,   email_cipher, email_hash,
-                           user->role,        user->link,   totp_cipher,
-                           subscribed_at_str, tracker_str,  picture_val};
-  GET_EXPANDED_QUERY(QUERY_POST_TMP, 9, values);
+  const char *flagged_val = user->is_email_flagged ? "1" : "0";
 
-  PGresult *res = pg_exec(QUERY_POST_TMP, 9, values);
+  const char *values[11] = {user->username,   email_cipher, email_hash,
+                            user->role,        user->link,   totp_cipher,
+                            subscribed_at_str, tracker_str,  picture_val,
+                            flagged_val,       user->email_flag_reason};
+  GET_EXPANDED_QUERY(QUERY_POST_TMP, 11, values);
+
+  PGresult *res = pg_exec(QUERY_POST_TMP, 11, values);
   free(email_cipher);
   free(email_hash);
   free(totp_cipher);
@@ -563,6 +574,64 @@ int edit_user(struct user *user) {
   return 0;
 }
 
+int set_user_email_flag(int id, int flagged, const char *reason) {
+  printf(TERMINAL_SQL_MESSAGE("=== SET USER EMAIL FLAG SQL ==="));
+
+  const char *query = "UPDATE AppUser SET isEmailFlagged = $2, "
+                      "emailFlagReason = $3 WHERE id = $1 RETURNING id;";
+
+  char id_str[16];
+  snprintf(id_str, sizeof(id_str), "%d", id);
+  const char *values[3] = {id_str, flagged ? "1" : "0", flagged ? reason : NULL};
+  GET_EXPANDED_QUERY(query, 3, values);
+
+  PGresult *res = pg_exec(query, 3, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
+  }
+
+  int updated = PQntuples(res);
+  PQclear(res);
+
+  return updated > 0 ? 0 : HTTP_NOT_FOUND;
+}
+
+int refresh_user_email_flag(int id, int flagged, struct user *user) {
+  printf(TERMINAL_SQL_MESSAGE("=== REFRESH USER EMAIL FLAG SQL ==="));
+
+  // A flag that an author set by hand (any reason but "blocked_domain") is
+  // never changed by a new email.
+  const char *query =
+      "UPDATE AppUser SET isEmailFlagged = $2, emailFlagReason = $3 "
+      "WHERE id = $1 AND (emailFlagReason IS NULL "
+      "OR emailFlagReason = 'blocked_domain') "
+      "RETURNING isEmailFlagged, emailFlagReason;";
+
+  char id_str[16];
+  snprintf(id_str, sizeof(id_str), "%d", id);
+  const char *values[3] = {id_str, flagged ? "1" : "0",
+                           flagged ? "blocked_domain" : NULL};
+  GET_EXPANDED_QUERY(query, 3, values);
+
+  PGresult *res = pg_exec(query, 3, values);
+  if (res == NULL) {
+    return HTTP_INTERNAL_ERROR;
+  }
+
+  // The row is only there when the flag was not set by hand: the user then
+  // gets the new state.
+  if (user != NULL && PQntuples(res) > 0) {
+    free(user->email_flag_reason);
+    user->email_flag_reason = NULL;
+    pg_row_t row = {res, 0};
+    user_flag_map(user, &row, 0);
+  }
+
+  PQclear(res);
+
+  return 0;
+}
+
 int delete_user(int id) {
   printf(TERMINAL_SQL_MESSAGE("=== DELETE USER SQL ==="));
 
@@ -584,7 +653,8 @@ int delete_user(int id) {
 int get_subscriber_emails(size_t *len, char ***emails) {
   printf(TERMINAL_SQL_MESSAGE("=== GET SUBSCRIBER EMAILS SQL ==="));
 
-  const char *query = "SELECT email FROM AppUser WHERE subscribedAt IS NOT NULL;";
+  const char *query = "SELECT email FROM AppUser "
+                      "WHERE subscribedAt IS NOT NULL AND NOT isEmailFlagged;";
   GET_EXPANDED_QUERY(query, 0, NULL);
 
   PGresult *res = pg_exec(query, 0, NULL);

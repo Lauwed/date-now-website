@@ -6,6 +6,8 @@
 #include <endpoints/auth.h>
 #include <endpoints/media.h>
 #include <enums.h>
+#include <lib/email_admission.h>
+#include <lib/email_validator.h>
 #include <lib/mongoose.h>
 #include <lib/validatejson.h>
 #include <macros/colors.h>
@@ -15,8 +17,13 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <structs.h>
 #include <utils.h>
+
+/** Longest reason of an email flag set by hand. */
+#define FLAG_REASON_MAX_LEN 100
 
 void send_users_res(struct mg_connection *c, struct mg_http_message *msg,
                     struct error_reply *error_reply, const char *secret) {
@@ -292,6 +299,10 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
 
     int offset, length;
 
+    // Set when the body gives an email: the flag of the user follows it
+    int email_changed = 0;
+    int email_flagged = 0;
+
     // Email required
     offset = mg_json_get(msg->body, "$.email", &length);
     if (offset >= 0) {
@@ -303,8 +314,22 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       int email_valid = check_email_validity(email);
       if (email_valid != 0) {
         ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
+        free(email);
+        free(user);
         return;
       }
+
+      // The email domain must be accepted, and tells whether the user is flagged
+      struct email_admission_result admission = {0};
+      email_admission_inspect(email, &admission);
+      if (!admission.allowed) {
+        ERROR_REPLY_EMAIL_ADMISSION(admission.reason_code);
+        free(email);
+        free(user);
+        return;
+      }
+      email_changed = 1;
+      email_flagged = admission.is_flagged;
 
       char *username = NULL;
       offset = mg_json_get(msg->body, "$.username", &length);
@@ -313,8 +338,11 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       }
 
       int exists = user_identity_exists(username, email, id);
+      free(username);
+      free(email);
       if (exists != 0) {
         ERROR_REPLY_400(USER_EXISTS_MESSAGE);
+        free(user);
         return;
       };
     }
@@ -357,6 +385,13 @@ void send_user_res(struct mg_connection *c, struct mg_http_message *msg, int id,
       HANDLE_QUERY_CODE;
 
       return;
+    }
+
+    // The flag follows the new email. The user is already saved, so a failure
+    // here is logged, never fatal.
+    if (email_changed &&
+        refresh_user_email_flag(id, email_flagged, user) != 0) {
+      fprintf(stderr, TERMINAL_ERROR_MESSAGE("COULD NOT UPDATE EMAIL FLAG"));
     }
 
     // Profile picture replaced: drop the previous one rather than leaking it.
@@ -479,4 +514,64 @@ void send_current_user_res(struct mg_connection *c, struct mg_http_message *msg,
   printf(TERMINAL_SUCCESS_MESSAGE("=== USER SUCCESSFULLY SENT ==="));
 
   free_user(user);
+}
+
+void send_user_flag_res(struct mg_connection *c, struct mg_http_message *msg,
+                        int id, struct error_reply *error_reply,
+                        const char *secret) {
+  int query_code;
+  struct error_reply _er = {0};
+  error_reply = &_er;
+
+  if (!mg_match(msg->method, mg_str("PUT"), NULL)) {
+    ERROR_REPLY_405;
+    return;
+  }
+
+  printf(TERMINAL_ENDPOINT_MESSAGE("=== SET USER EMAIL FLAG ==="));
+
+  int user_logged = 0;
+  is_user_logged(c, msg, error_reply, secret, &user_logged, NULL);
+  if (user_logged == 0) {
+    ERROR_REPLY_401;
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE(UNAUTHORIZED_MESSAGE));
+    return;
+  }
+
+  if (msg->body.len <= 0) {
+    ERROR_REPLY_400(BODY_REQUIRED_MESSAGE);
+    return;
+  } else if (!mg_validateJSON(msg->body)) {
+    ERROR_REPLY_400(JSON_ERROR_MESSAGE);
+    return;
+  }
+
+  // "flagged" is required: 0 or 1, like isSupporter and isEmailFlagged
+  long flagged = mg_json_get_long(msg->body, "$.flagged", -1);
+  if (flagged != 0 && flagged != 1) {
+    ERROR_REPLY_400(FLAG_REQUIRED_MESSAGE);
+    return;
+  }
+
+  // "reason" is optional, and only kept when the email is flagged
+  char *reason = mg_json_get_str(msg->body, "$.reason");
+  if (reason != NULL && strlen(reason) > FLAG_REASON_MAX_LEN) {
+    ERROR_REPLY_400(FLAG_REASON_MESSAGE);
+    free(reason);
+    return;
+  }
+  const char *flag_reason =
+      reason != NULL && reason[0] != '\0' ? reason : "manual_override";
+
+  query_code = set_user_email_flag(id, (int)flagged, flag_reason);
+  free(reason);
+
+  if (query_code != 0) {
+    fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR UPDATING USER FLAG"));
+    HANDLE_QUERY_CODE;
+    return;
+  }
+
+  printf(TERMINAL_SUCCESS_MESSAGE("=== USER FLAG SUCCESSFULLY UPDATED ==="));
+  SUCCESS_REPLY_200_MSG("User flag successfully updated");
 }

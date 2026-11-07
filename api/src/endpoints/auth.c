@@ -7,6 +7,8 @@
 #include <enums.h>
 #include <jwt.h>
 #include <lib/email.h>
+#include <lib/email_admission.h>
+#include <lib/email_validator.h>
 #include <lib/mongoose.h>
 #include <lib/totp.h>
 #include <lib/validatejson.h>
@@ -168,6 +170,16 @@ void send_subscription_mail(struct mg_connection *c,
       }
     }
 
+    // The email domain must be accepted: not the service's own, not blocked, and able
+    // to receive mail
+    struct email_admission_result admission = {0};
+    email_admission_inspect(email, &admission);
+    if (!admission.allowed) {
+      ERROR_REPLY_EMAIL_ADMISSION(admission.reason_code);
+    free(email);
+      return;
+    }
+
     // Check if already subscribed
     struct user *existing_user = malloc(sizeof(struct user));
     user_init(existing_user);
@@ -201,6 +213,7 @@ void send_subscription_mail(struct mg_connection *c,
              app_url, jwt_str);
     int mail_sent = send_mail(email, EMAIL_SUBSCRIPTION_SUBJECT, html);
 
+    free(jwt_str);
     free(email);
     if (mail_sent != 0) {
       ERROR_REPLY_400(EMAIL_ERROR_MESSAGE);
@@ -286,6 +299,16 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
       return;
     }
 
+    // The email domain must be accepted: not the service's own, not blocked, and able
+    // to receive mail
+    struct email_admission_result admission = {0};
+    email_admission_inspect(email, &admission);
+    if (!admission.allowed) {
+      ERROR_REPLY_EMAIL_ADMISSION(admission.reason_code);
+    jwt_free(decoded);
+      return;
+    }
+
     // Check if already subscribed
     struct user *existing_user = malloc(sizeof(struct user));
     user_init(existing_user);
@@ -315,7 +338,10 @@ void subscribe_user(struct mg_connection *c, struct mg_http_message *msg,
                         .role = "USER",
                         .subscribed_at = time(NULL),
                         .tracker_pixel_consent_date =
-                            tracker_pixel_consent_date};
+                            tracker_pixel_consent_date,
+                        .is_email_flagged = admission.is_flagged,
+                        .email_flag_reason =
+                            admission.is_flagged ? "blocked_domain" : NULL};
     int query_code = add_user(&user);
     if (query_code != 0) {
       fprintf(stderr, TERMINAL_ERROR_MESSAGE("ERROR CREATING USER"));
@@ -385,6 +411,16 @@ void register_user(struct mg_connection *c, struct mg_http_message *msg,
     if (email_valid != 0) {
       ERROR_REPLY_400(EMAIL_VALIDITY_ERROR_MESSAGE);
       free(email);
+      return;
+    }
+
+    // The email domain must be accepted: not the service's own, not blocked, and able
+    // to receive mail
+    struct email_admission_result admission = {0};
+    email_admission_inspect(email, &admission);
+    if (!admission.allowed) {
+      ERROR_REPLY_EMAIL_ADMISSION(admission.reason_code);
+    free(email);
       return;
     }
 
